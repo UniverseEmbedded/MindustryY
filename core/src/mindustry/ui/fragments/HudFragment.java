@@ -16,6 +16,7 @@ import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.*;
+import mindustry.campaign.shared.ui.*;
 import mindustry.annotations.Annotations.*;
 import mindustry.content.*;
 import mindustry.core.GameState.*;
@@ -301,7 +302,7 @@ public class HudFragment{
             t.name = "pause-disabled";
             t.top().visible(() -> pauseDisableDur > 0f && shown() && !mobile && !netServer.isWaitingForPlayers() && !state.isPaused() && !(state.gameOver && state.isCampaign())).touchable = Touchable.disabled;
             t.update(() -> {
-                t.color.a = t.color.a > 0f && pauseDisableDur > 0f ? t.color.a - Time.delta / pauseDisableDur : 1f;
+                t.color.a = t.color.a > 0f && pauseDisableDur > 0f ? t.color.a - Time.delta() / pauseDisableDur : 1f;
                 if(t.color.a <= 0f){
                     pauseDisableDur = 0f;
                 }
@@ -427,9 +428,9 @@ public class HudFragment{
                                 ui.chatfrag.toggle();
                             }
                         }else if(state.isCampaign()){
-                            ui.research.show();
+                            SharedCampaignUiRouter.showResearch();
                         }else{
-                            ui.database.show();
+                            SharedCampaignUiRouter.showDatabase();
                         }
                     }).name("chat").update(i -> {
                         if(net.active() && mobile){
@@ -605,12 +606,12 @@ public class HudFragment{
                 .with(co -> {
                     co.tapped(() -> {
                         if(control.lastDamagedCore != null){
-                            control.input.panCamera(Tmp.v1.set(control.lastDamagedCore));
+                            control.input.panCamera(Tmp.v1().set(control.lastDamagedCore));
                         }
                     });
                     co.addListener(new HandCursorListener());
                 })
-                .update(label -> label.color.set(Color.orange).lerp(Color.scarlet, Mathf.absin(Time.time, 2f, 1f))), true,
+                .update(label -> label.color.set(Color.orange).lerp(Color.scarlet, Mathf.absin(Time.time(), 2f, 1f))), true,
                 () -> {
                     if(state.isMenu() || !player.team().data().hasCore()){
                         coreAttackTime = 0f;
@@ -618,7 +619,7 @@ public class HudFragment{
                     }
                     if(!shown() || state.isPaused()) return false;
 
-                    return (coreAttackTime -= Time.delta) > 0;
+                    return (coreAttackTime -= Time.delta()) > 0;
                 })
                 .touchable(Touchable.disabled)
                 .fillX().row();
@@ -660,7 +661,7 @@ public class HudFragment{
             t.name = "nearpoint";
             t.touchable = Touchable.disabled;
             t.table(Styles.black6, c -> c.add("@nearpoint")
-            .update(l -> l.setColor(Tmp.c1.set(Color.white).lerp(Color.scarlet, Mathf.absin(Time.time, 10f, 1f))))
+            .update(l -> l.setColor(Tmp.c1().set(Color.white).lerp(Color.scarlet, Mathf.absin(Time.time(), 10f, 1f))))
             .labelAlign(Align.center, Align.center))
             .margin(6).update(u -> u.color.a = Mathf.lerpDelta(u.color.a, Mathf.num(spawner.playerNear()), 0.1f)).get().color.a = 0f;
         });
@@ -949,7 +950,7 @@ public class HudFragment{
                 if(Float.isNaN(value) || Float.isInfinite(value)) value = 1f;
 
                 if(drawBack) drawInner(Pal.darkishGray, 1f);
-                drawInner(Tmp.c1.set(color).lerp(Color.white, blink), value);
+                drawInner(Tmp.c1().set(color).lerp(Color.white, blink), value);
             }
 
             void drawInner(Color color, float fract){

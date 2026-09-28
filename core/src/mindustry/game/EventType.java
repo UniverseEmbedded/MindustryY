@@ -375,6 +375,13 @@ public class EventType{
         }
     }
 
+    /** Fired after a server-validated unit command batch has been applied. */
+    public static class UnitCommandIssuedEvent{
+        public final Player player;
+        public final int unitCount;
+        public UnitCommandIssuedEvent(Player player, int unitCount){ this.player = player; this.unitCount = unitCount; }
+    }
+
     public static class BuildingCommandEvent{
         public final Player player;
         public final Building building;

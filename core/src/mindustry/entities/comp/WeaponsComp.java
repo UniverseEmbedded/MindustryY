@@ -58,11 +58,11 @@ abstract class WeaponsComp implements Teamc, Posc, Rotc, Velc, Statusc{
 
     /** Aim at something. This will make all mounts point at it. */
     void aim(float x, float y, boolean clearTarget){
-        Tmp.v1.set(x, y).sub(this.x, this.y);
-        if(Tmp.v1.len() < type.aimDst) Tmp.v1.setLength(type.aimDst);
+        Tmp.v1().set(x, y).sub(this.x, this.y);
+        if(Tmp.v1().len() < type.aimDst) Tmp.v1().setLength(type.aimDst);
 
-        x = Tmp.v1.x + this.x;
-        y = Tmp.v1.y + this.y;
+        x = Tmp.v1().x + this.x;
+        y = Tmp.v1().y + this.y;
 
         for(WeaponMount mount : mounts){
             if(mount.weapon.controllable){

@@ -27,6 +27,6 @@ public class RegenAbility extends Ability{
 
     @Override
     public void update(Unit unit){
-        unit.heal((unit.maxHealth * percentAmount / 100f + amount) * Time.delta);
+        unit.heal((unit.maxHealth * percentAmount / 100f + amount) * Time.delta());
     }
 }

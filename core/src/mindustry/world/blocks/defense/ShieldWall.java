@@ -74,14 +74,14 @@ public class ShieldWall extends Wall{
         @Override
         public void updateTile(){
             if(breakTimer > 0){
-                breakTimer -= Time.delta;
+                breakTimer -= Time.delta();
             }else{
                 //regen when not broken
                 shield = Mathf.clamp(shield + regenSpeed * edelta(), 0f, shieldHealth);
             }
 
             if(hit > 0){
-                hit -= Time.delta / 10f;
+                hit -= Time.delta() / 10f;
                 hit = Math.max(hit, 0f);
             }
 

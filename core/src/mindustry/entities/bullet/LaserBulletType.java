@@ -105,8 +105,8 @@ public class LaserBulletType extends BulletType{
             Draw.color(color);
             Lines.stroke((cwidth *= lengthFalloff) * b.fout());
             Lines.lineAngle(b.x, b.y, b.rotation(), baseLen, false);
-            Tmp.v1.trns(b.rotation(), baseLen);
-            Drawf.tri(b.x + Tmp.v1.x, b.y + Tmp.v1.y, Lines.getStroke(), cwidth * 2f + width / 2f, b.rotation());
+            Tmp.v1().trns(b.rotation(), baseLen);
+            Drawf.tri(b.x + Tmp.v1().x, b.y + Tmp.v1().y, Lines.getStroke(), cwidth * 2f + width / 2f, b.rotation());
 
             Fill.circle(b.x, b.y, 1f * cwidth * b.fout());
             for(int i : Mathf.signs){
@@ -117,8 +117,8 @@ public class LaserBulletType extends BulletType{
         }
         Draw.reset();
 
-        Tmp.v1.trns(b.rotation(), baseLen * 1.1f);
-        Drawf.light(b.x, b.y, b.x + Tmp.v1.x, b.y + Tmp.v1.y, width * 1.4f * b.fout(), colors[0], 0.6f);
+        Tmp.v1().trns(b.rotation(), baseLen * 1.1f);
+        Drawf.light(b.x, b.y, b.x + Tmp.v1().x, b.y + Tmp.v1().y, width * 1.4f * b.fout(), colors[0], 0.6f);
     }
 
     @Override

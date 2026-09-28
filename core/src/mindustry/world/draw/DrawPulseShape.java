@@ -29,7 +29,7 @@ public class DrawPulseShape extends DrawBlock{
         float pz = Draw.z();
         if(layer > 0) Draw.z(layer);
 
-        float f = 1f - (Time.time / timeScl) % 1f;
+        float f = 1f - (Time.time() / timeScl) % 1f;
         float rad = build.block.size * tilesize / 2f * radiusScl;
 
         Draw.color(color);

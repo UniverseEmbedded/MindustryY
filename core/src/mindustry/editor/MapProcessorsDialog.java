@@ -109,7 +109,7 @@ public class MapProcessorsDialog extends BaseDialog{
                         t.button(Icon.eyeSmall, Styles.graySquarei, Vars.iconMed, () -> {
                             hide();
                             control.input.config.showConfig(build);
-                            control.input.panCamera(Tmp.v1.set(build));
+                            control.input.panCamera(Tmp.v1().set(build));
                         }).size(h);
                     }
 
@@ -143,7 +143,7 @@ public class MapProcessorsDialog extends BaseDialog{
 
         processors.clear();
 
-        //scan the entire world for processors (Groups.build can be empty, indexer is probably inaccurate)
+        //scan the entire world for processors (Groups.current().build can be empty, indexer is probably inaccurate)
         Vars.world.tiles.eachTile(t -> {
             if(t.isCenter() && t.block() == Blocks.worldProcessor){
                 processors.add(t.build);

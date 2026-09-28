@@ -110,7 +110,7 @@ public class TargetDummy extends Block{
             }
 
             if(readUnitId != -1){
-                unit = Groups.unit.getByID(readUnitId);
+                unit = Groups.current().unit.getByID(readUnitId);
                 if(unit != null || !net.client()){
                     readUnitId = -1;
                 }
@@ -138,17 +138,17 @@ public class TargetDummy extends Block{
                 unit.hitSize = dummySize;
 
                 //similar to impulseNet but does not factor in mass
-                Tmp.v1.set(this).sub(unit).limit(dst(unit) * pullScale);
-                unit.vel.add(Tmp.v1);
+                Tmp.v1().set(this).sub(unit).limit(dst(unit) * pullScale);
+                unit.vel.add(Tmp.v1());
 
                 //manually move units to simulate velocity for remote players
-                if(unit.isRemote()) unit.move(Tmp.v1);
+                if(unit.isRemote()) unit.move(Tmp.v1());
 
                 if(unit.moving()) unit.lookAt(unit.vel().angle());
             }
 
-            time += Time.delta;
-            reset += Time.delta;
+            time += Time.delta();
+            reset += Time.delta();
 
             if(timer(dpsUpdateTime, 20)){
                 dps = total / time * 60f;

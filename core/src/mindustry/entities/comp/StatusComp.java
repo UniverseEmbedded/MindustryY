@@ -114,7 +114,7 @@ abstract class StatusComp implements Posc{
 
     public Color statusColor(){
         if(statuses.size == 0){
-            return Tmp.c1.set(Color.white);
+            return Tmp.c1().set(Color.white);
         }
 
         float r = 1f, g = 1f, b = 1f, total = 0f;
@@ -126,7 +126,7 @@ abstract class StatusComp implements Posc{
             total += intensity;
         }
         float count = statuses.size + total;
-        return Tmp.c1.set(r / count, g / count, b / count, 1f);
+        return Tmp.c1().set(r / count, g / count, b / count, 1f);
     }
 
     /**
@@ -208,7 +208,7 @@ abstract class StatusComp implements Posc{
         while(index < statuses.size){
             StatusEntry entry = statuses.get(index++);
 
-            entry.time = Math.max(entry.time - Time.delta, 0);
+            entry.time = Math.max(entry.time - Time.delta(), 0);
 
             if(entry.effect == null || (entry.time <= 0 && !entry.effect.permanent)){
                 if(entry.effect != null){

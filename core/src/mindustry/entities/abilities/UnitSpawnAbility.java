@@ -43,7 +43,7 @@ public class UnitSpawnAbility extends Ability{
 
     @Override
     public void update(Unit unit){
-        timer += Time.delta * state.rules.unitBuildSpeed(unit.team);
+        timer += Time.delta() * state.rules.unitBuildSpeed(unit.team);
 
         if(timer >= spawnTime && Units.canCreate(unit.team, this.unit)){
             float x = unit.x + Angles.trnsx(unit.rotation, spawnY, -spawnX), y = unit.y + Angles.trnsy(unit.rotation, spawnY, -spawnX);

@@ -463,10 +463,10 @@ public class BlockRenderer{
         if(brokenFade > 0.001f){
             for(BlockPlan plan : player.team().data().plans){
                 Block b = plan.block;
-                if(!camera.bounds(Tmp.r1).grow(tilesize * 2f).overlaps(Tmp.r2.setSize(b.size * tilesize).setCenter(plan.x * tilesize + b.offset, plan.y * tilesize + b.offset))) continue;
+                if(!camera.bounds(Tmp.r1()).grow(tilesize * 2f).overlaps(Tmp.r2().setSize(b.size * tilesize).setCenter(plan.x * tilesize + b.offset, plan.y * tilesize + b.offset))) continue;
 
                 Draw.alpha(0.33f * brokenFade);
-                Draw.mixcol(Color.white, 0.2f + Mathf.absin(Time.globalTime, 6f, 0.2f));
+                Draw.mixcol(Color.white, 0.2f + Mathf.absin(Time.globalTime(), 6f, 0.2f));
                 Draw.rect(b.fullIcon, plan.x * tilesize + b.offset, plan.y * tilesize + b.offset, b.rotate ? plan.rotation * 90 + plan.block.visualRotationOffset : 0f);
             }
             Draw.reset();
@@ -510,11 +510,11 @@ public class BlockRenderer{
         u2 = (x + camera.width / 2f) / ww,
         v2 = (y + camera.height / 2f) / wh;
 
-        Tmp.tr1.set(shadows.getTexture());
-        Tmp.tr1.set(u, v2, u2, v);
+        Tmp.tr1().set(shadows.getTexture());
+        Tmp.tr1().set(u, v2, u2, v);
 
         Draw.shader(Shaders.darkness);
-        Draw.rect(Tmp.tr1, camera.position.x, camera.position.y, camera.width, camera.height);
+        Draw.rect(Tmp.tr1(), camera.position.x, camera.position.y, camera.width, camera.height);
         Draw.shader();
     }
 
@@ -551,7 +551,7 @@ public class BlockRenderer{
         procLights.clear();
         dirtyChunks.clear();
 
-        var bounds = camera.bounds(Tmp.r3).grow(tilesize * 2f);
+        var bounds = camera.bounds(Tmp.r3()).grow(tilesize * 2f);
 
         //draw floor lights
         floorTree.intersect(bounds, lightview::add);
@@ -651,8 +651,8 @@ public class BlockRenderer{
         Draw.color(Color.green);
         for(var tile : tree.objects){
             var block = tile.block();
-            Tmp.r1.setCentered(tile.worldx() + block.offset, tile.worldy() + block.offset, block.clipSize, block.clipSize);
-            Lines.rect(Tmp.r1);
+            Tmp.r1().setCentered(tile.worldx() + block.offset, tile.worldy() + block.offset, block.clipSize, block.clipSize);
+            Lines.rect(Tmp.r1());
         }
 
         if(!tree.leaf){
@@ -862,8 +862,8 @@ public class BlockRenderer{
             Draw.z(Layer.overlayUI);
             Lines.stroke(1f, Color.green);
 
-            blockTree.intersect(camera.bounds(Tmp.r1), tile -> {
-                Lines.rect(tile.getHitbox(Tmp.r2));
+            blockTree.intersect(camera.bounds(Tmp.r1()), tile -> {
+                Lines.rect(tile.getHitbox(Tmp.r2()));
             });
 
             Draw.reset();

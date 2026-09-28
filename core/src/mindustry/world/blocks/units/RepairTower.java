@@ -56,7 +56,7 @@ public class RepairTower extends Block{
         @Override
         public void updateTile(){
 
-            if(potentialEfficiency > 0 && (refresh += Time.delta) >= refreshInterval){
+            if(potentialEfficiency > 0 && (refresh += Time.delta()) >= refreshInterval){
                 targets.clear();
                 refresh = 0f;
                 Units.nearby(team, x, y, range, u -> {
@@ -82,7 +82,7 @@ public class RepairTower extends Block{
             }
 
             warmup = Mathf.lerpDelta(warmup, any ? efficiency : 0f, 0.08f);
-            totalProgress += Time.delta / circleSpeed;
+            totalProgress += Time.delta() / circleSpeed;
         }
 
         @Override
@@ -102,10 +102,10 @@ public class RepairTower extends Block{
             Lines.stroke(circleStroke * (1f - mod) * warmup);
             Lines.circle(x, y, range * mod);
             Draw.color(Pal.heal);
-            Fill.square(x, y, squareRad * warmup, Time.time / squareSpinScl);
+            Fill.square(x, y, squareRad * warmup, Time.time() / squareSpinScl);
             Draw.reset();
 
-            Drawf.additive(glow, glowColor, warmup * (1f - glowMag + Mathf.absin(Time.time, glowScl, glowMag)), x, y, 0f, Layer.blockAdditive);
+            Drawf.additive(glow, glowColor, warmup * (1f - glowMag + Mathf.absin(Time.time(), glowScl, glowMag)), x, y, 0f, Layer.blockAdditive);
         }
 
         @Override

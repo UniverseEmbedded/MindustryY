@@ -470,7 +470,7 @@ public class GameService{
 
         Events.on(PlayerJoin.class, e -> {
             if(Vars.net.server()){
-                SStat.maxPlayersServer.max(Groups.player.size());
+                SStat.maxPlayersServer.max(Groups.current().player.size());
             }
         });
 
@@ -554,9 +554,9 @@ public class GameService{
 
     private void checkUpdate(){
         if(campaign()){
-            SStat.maxUnitActive.max(Groups.unit.count(t -> t.team == player.team()));
+            SStat.maxUnitActive.max(Groups.current().unit.count(t -> t.team == player.team()));
 
-            if(Groups.unit.count(u -> u.type == UnitTypes.poly && u.team == player.team()) >= 10){
+            if(Groups.current().unit.count(u -> u.type == UnitTypes.poly && u.team == player.team()) >= 10){
                 active10Polys.complete();
             }
 
@@ -567,7 +567,7 @@ public class GameService{
                 }
             }
 
-            for(var up : Groups.powerGraph){
+            for(var up : Groups.current().powerGraph){
                 var graph = up.graph();
                 if(graph.all.size > 1 && graph.all.first().team == player.team() && graph.hasPowerBalanceSamples()){
                     float balance = graph.getPowerBalance() * 60f;

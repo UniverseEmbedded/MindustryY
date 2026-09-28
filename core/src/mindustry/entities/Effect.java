@@ -145,7 +145,7 @@ public class Effect{
     public void create(float x, float y, float rotation, Color color, Object data){
         if(!shouldCreate()) return;
 
-        if(Core.camera.bounds(Tmp.r1).overlaps(Tmp.r2.setCentered(x, y, clip))){
+        if(Core.camera.bounds(Tmp.r1()).overlaps(Tmp.r2().setCentered(x, y, clip))){
             if(!initialized){
                 initialized = true;
                 init();
@@ -280,7 +280,7 @@ public class Effect{
                         float ox = Angles.trnsx(angle, radius), oy = Angles.trnsy(angle, radius);
                         Tile t = world.tileWorld(x + ox, y + oy);
                         if(t != null){
-                            Fx.podLandDust.at(t.worldx(), t.worldy(), angle + Mathf.range(30f), Tmp.c1.set(t.getFloorColor()).mul(1.7f + Mathf.range(0.15f)));
+                            Fx.podLandDust.at(t.worldx(), t.worldy(), angle + Mathf.range(30f), Tmp.c1().set(t.getFloorColor()).mul(1.7f + Mathf.range(0.15f)));
                         }
                     }
                 }

@@ -97,9 +97,9 @@ public class WaveSpawner{
                 eachGroundSpawn(group.spawn, (spawnX, spawnY, doShockwave) -> {
 
                     for(int i = 0; i < spawnedf; i++){
-                        Tmp.v1.rnd(spread);
+                        Tmp.v1().rnd(spread);
 
-                        spawnUnit(group, spawnX + Tmp.v1.x, spawnY + Tmp.v1.y);
+                        spawnUnit(group, spawnX + Tmp.v1().x, spawnY + Tmp.v1().y);
                     }
                 });
             }
@@ -141,13 +141,13 @@ public class WaveSpawner{
                 }else{
                     boolean valid = false;
 
-                    Tmp.v1.set(firstCore).sub(core).limit(coreMargin + core.block.size * tilesize /2f * Mathf.sqrt2);
+                    Tmp.v1().set(firstCore).sub(core).limit(coreMargin + core.block.size * tilesize /2f * Mathf.sqrt2);
 
                     int steps = 0;
 
                     //keep moving forward until the max step amount is reached
                     while(steps++ < maxSteps){
-                        int tx = World.toTile(core.x + Tmp.v1.x), ty = World.toTile(core.y + Tmp.v1.y);
+                        int tx = World.toTile(core.x + Tmp.v1().x), ty = World.toTile(core.y + Tmp.v1().y);
                         any = false;
                         Geometry.circle(tx, ty, world.width(), world.height(), 3, (x, y) -> {
                             if(world.solid(x, y)){
@@ -161,12 +161,12 @@ public class WaveSpawner{
                             break;
                         }else{
                             //make the vector longer
-                            Tmp.v1.setLength(Tmp.v1.len() + tilesize*1.1f);
+                            Tmp.v1().setLength(Tmp.v1().len() + tilesize*1.1f);
                         }
                     }
 
                     if(valid){
-                        cons.accept(core.x + Tmp.v1.x, core.y + Tmp.v1.y, false);
+                        cons.accept(core.x + Tmp.v1().x, core.y + Tmp.v1().y, false);
                     }
                 }
             }

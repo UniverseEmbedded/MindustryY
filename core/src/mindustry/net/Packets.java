@@ -9,6 +9,8 @@ import mindustry.core.*;
 import mindustry.io.*;
 
 import java.io.*;
+import java.nio.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.*;
 
 /** Class for storing all packets. */
@@ -89,9 +91,9 @@ public class Packets{
 
     /** Marks the beginning of a stream. */
     public static class StreamBegin extends Packet{
-        private static int lastid;
+        private static final AtomicInteger lastid = new AtomicInteger();
 
-        public int id = lastid++;
+        public int id = lastid.getAndIncrement();
         public int total;
         public byte type;
 
@@ -149,9 +151,51 @@ public class Packets{
         public boolean mobile;
         public int color;
 
+        /**
+         * Converts the persistent 8-byte client UUID seed into the 16-byte identity observed by the server after
+         * ConnectPacket deserialization (seed + CRC field encoded as Base64).
+         */
+        public static String serverUuid(String platformUuid){
+            if(platformUuid == null || platformUuid.isBlank()) return null;
+            try{
+                byte[] seed = Base64Coder.decode(platformUuid);
+                if(seed.length != 8) return null;
+                CRC32 crc = new CRC32();
+                crc.update(seed, 0, seed.length);
+                ByteBuffer wire = ByteBuffer.allocate(16);
+                wire.put(seed).putLong(crc.getValue());
+                return new String(Base64Coder.encode(wire.array()));
+            }catch(RuntimeException ignored){
+                return null;
+            }
+        }
+
+        /**
+         * Recovers and validates the persistent 8-byte client UUID seed from the 16-byte server-observed identity.
+         * Returns null when the wire identity is malformed or its CRC field does not match.
+         */
+        public static String platformUuid(String serverUuid){
+            if(serverUuid == null || serverUuid.isBlank()) return null;
+            try{
+                byte[] wire = Base64Coder.decode(serverUuid);
+                if(wire.length != 16) return null;
+                byte[] seed = new byte[8];
+                System.arraycopy(wire, 0, seed, 0, seed.length);
+                long supplied = ByteBuffer.wrap(wire, 8, Long.BYTES).getLong();
+                CRC32 crc = new CRC32();
+                crc.update(seed, 0, seed.length);
+                if(supplied != crc.getValue()) return null;
+                return new String(Base64Coder.encode(seed));
+            }catch(RuntimeException ignored){
+                return null;
+            }
+        }
+
         @Override
         public void write(Writes buffer){
-            buffer.i(Version.build);
+            // A compatibility session may advertise an exact legacy build for this one connection.
+            // The field is never written back to Version and therefore cannot leak into later sessions.
+            buffer.i(version > 0 ? version : Version.build);
             TypeIO.writeString(buffer, versionType);
             TypeIO.writeString(buffer, name);
             TypeIO.writeString(buffer, locale);

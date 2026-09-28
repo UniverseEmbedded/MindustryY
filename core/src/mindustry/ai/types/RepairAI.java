@@ -51,7 +51,7 @@ public class RepairAI extends AIController{
                 avoid = target(unit.x, unit.y, fleeRange, true, true);
             }
 
-            if((retreatTimer += Time.delta) >= retreatDelay){
+            if((retreatTimer += Time.delta()) >= retreatDelay){
                 //fly away from enemy when not doing anything
                 if(avoid != null){
                     var core = unit.closestCore();

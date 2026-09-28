@@ -151,7 +151,7 @@ public class PayloadRouter extends PayloadConveyor{
         public void updateTile(){
             super.updateTile();
 
-            controlTime -= Time.delta;
+            controlTime -= Time.delta();
             smoothRot = Mathf.slerpDelta(smoothRot, rotdeg(), 0.2f);
         }
 

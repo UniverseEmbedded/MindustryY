@@ -81,7 +81,7 @@ abstract class BulletComp implements Timedc, Damagec, Hitboxc, Teamc, Posc, Draw
 
     @Override
     public void remove(){
-        if(Groups.isClearing) return;
+        if(Groups.current().isClearing) return;
 
         //'despawned' only counts when the bullet is killed externally or reaches the end of life
         if(!hit){
@@ -159,9 +159,9 @@ abstract class BulletComp implements Timedc, Damagec, Hitboxc, Teamc, Posc, Draw
         //for one frame, bullets do not move - this is because bullet.update() is called immediately after the weapon updates
         //if the bullet moved immediately, it would spawn visually offset from the weapon at low FPS values
         if(!justSpawned){
-            x += vel.x * Time.delta;
-            y += vel.y * Time.delta;
-            vel.scl(Math.max(1f - type.drag * Time.delta, 0));
+            x += vel.x * Time.delta();
+            y += vel.y * Time.delta();
+            vel.scl(Math.max(1f - type.drag * Time.delta(), 0));
         }
         justSpawned = false;
 
@@ -170,7 +170,7 @@ abstract class BulletComp implements Timedc, Damagec, Hitboxc, Teamc, Posc, Draw
         }
 
         if(type.accel != 0){
-            vel.setLength(vel.len() + type.accel * Time.delta);
+            vel.setLength(vel.len() + type.accel * Time.delta());
         }
 
         type.update(self());
@@ -179,7 +179,7 @@ abstract class BulletComp implements Timedc, Damagec, Hitboxc, Teamc, Posc, Draw
             //only stick to things that still exist in the world
             if(stickyTarget instanceof Healthc h && h.isValid()){
                 float rotate = (stickyTarget instanceof Rotc rot ? rot.rotation() - stickyRotation : 0f);
-                set(Tmp.v1.set(stickyX, stickyY).rotate(rotate).add(stickyTarget));
+                set(Tmp.v1().set(stickyX, stickyY).rotate(rotate).add(stickyTarget));
                 this.rotation = rotate + stickyRotationOffset;
                 vel.setAngle(this.rotation);
             }
@@ -193,20 +193,20 @@ abstract class BulletComp implements Timedc, Damagec, Hitboxc, Teamc, Posc, Draw
         }
 
         if(keepAlive){
-            time -= Time.delta;
+            time -= Time.delta();
             keepAlive = false;
         }
     }
 
     public void moveRelative(float x, float y){
         float rot = rotation();
-        this.x += Angles.trnsx(rot, x * Time.delta, y * Time.delta);
-        this.y += Angles.trnsy(rot, x * Time.delta, y * Time.delta);
+        this.x += Angles.trnsx(rot, x * Time.delta(), y * Time.delta());
+        this.y += Angles.trnsy(rot, x * Time.delta(), y * Time.delta());
     }
 
     public void turn(float x, float y){
         float ang = vel.angle();
-        vel.add(Angles.trnsx(ang, x * Time.delta, y * Time.delta), Angles.trnsy(ang, x * Time.delta, y * Time.delta)).limit(type.speed);
+        vel.add(Angles.trnsx(ang, x * Time.delta(), y * Time.delta()), Angles.trnsy(ang, x * Time.delta(), y * Time.delta())).limit(type.speed);
     }
 
     public boolean checkUnderBuild(Building build, float x, float y){
@@ -255,7 +255,7 @@ abstract class BulletComp implements Timedc, Damagec, Hitboxc, Teamc, Posc, Draw
                 if(type.sticky){
                     if(build.team != team){
                         //stick to edge of block
-                        Vec2 hit = Geometry.raycastRect(lastX, lastY, x, y, Tmp.r1.setCentered(x * tilesize, y * tilesize, tilesize, tilesize));
+                        Vec2 hit = Geometry.raycastRect(lastX, lastY, x, y, Tmp.r1().setCentered(x * tilesize, y * tilesize, tilesize, tilesize));
                         if(hit != null){
                             this.x = hit.x;
                             this.y = hit.y;

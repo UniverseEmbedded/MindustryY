@@ -7,8 +7,10 @@ import java.io.*;
 public abstract class Packet{
     //internally used by generated code
     protected static final byte[] NODATA = {};
-    protected static final ReusableByteInStream BAIS = new ReusableByteInStream();
-    protected static final Reads READ = new Reads(new DataInputStream(BAIS));
+    //Generated packet handled() methods reuse these decode objects. They must be packet-instance
+    //owned: process-global streams let concurrent GameContexts overwrite each other's payload.
+    protected final ReusableByteInStream BAIS = new ReusableByteInStream();
+    protected final Reads READ = new Reads(new DataInputStream(BAIS));
 
     //these are constants because I don't want to bother making an enum to mirror the annotation enum
 

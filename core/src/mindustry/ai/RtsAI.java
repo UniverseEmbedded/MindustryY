@@ -337,10 +337,10 @@ public class RtsAI{
             }
         }
 
-        Tmp.r1.set(fromX, fromY, x - fromX, y - fromY).normalize().grow(140f * 2f);
+        Tmp.r1().set(fromX, fromY, x - fromX, y - fromY).normalize().grow(140f * 2f);
 
         //add on extra radius, assume unit range is below that...?
-        Units.nearbyEnemies(data.team, Tmp.r1, other -> {
+        Units.nearbyEnemies(data.team, Tmp.r1(), other -> {
             if(Intersector.distanceSegmentPoint(fromX, fromY, x, y, other.x, other.y) <= other.range() + extraRadius){
                 health[0] += other.health;
                 dps[0] += other.type.dpsEstimate;

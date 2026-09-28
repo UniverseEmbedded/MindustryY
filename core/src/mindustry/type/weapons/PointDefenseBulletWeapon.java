@@ -25,7 +25,7 @@ public class PointDefenseBulletWeapon extends Weapon{
 
     @Override
     protected Teamc findTarget(Unit unit, float x, float y, float range, boolean air, boolean ground){
-        return Groups.bullet.intersect(x - range, y - range, range*2, range*2).min(b -> b.team != unit.team && b.type().hittable && !(b.type.collidesAir && !b.type.collidesTiles), b -> b.dst2(x, y) - b.damage * damageTargetWeight);
+        return Groups.current().bullet.intersect(x - range, y - range, range*2, range*2).min(b -> b.team != unit.team && b.type().hittable && !(b.type.collidesAir && !b.type.collidesTiles), b -> b.dst2(x, y) - b.damage * damageTargetWeight);
     }
 
     @Override

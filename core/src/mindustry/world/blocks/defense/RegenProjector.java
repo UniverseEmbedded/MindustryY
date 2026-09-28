@@ -18,10 +18,21 @@ import mindustry.world.meta.*;
 import static mindustry.Vars.*;
 
 public class RegenProjector extends Block{
-    private static final IntSet taken = new IntSet();
-    //map building pos to mend amount (TODO just use buildings as keys? no lookup)
-    private static final IntFloatMap mendMap = new IntFloatMap();
-    private static long lastUpdateFrame = -1;
+    private static class RuntimeState{
+        final IntFloatMap mendMap = new IntFloatMap();
+        long lastUpdateFrame = -1;
+        mindustry.core.World world;
+        void bind(mindustry.core.World current){
+            if(world == current) return;
+            world = current; mendMap.clear(); lastUpdateFrame = -1;
+        }
+    }
+
+    private RuntimeState runtimeState(){
+        RuntimeState runtime = mindustry.Vars.game().localState(RegenProjector.class, RuntimeState::new);
+        runtime.bind(mindustry.Vars.game().world);
+        return runtime;
+    }
 
     public int range = 14;
     //per frame
@@ -61,8 +72,8 @@ public class RegenProjector extends Block{
         y += offset;
 
         Drawf.dashSquare(baseColor, x, y, range * tilesize);
-        indexer.eachBlock(player.team(), Tmp.r1.setCentered(x, y, range * tilesize), b -> true, t -> {
-            Drawf.selected(t, Tmp.c1.set(baseColor).a(Mathf.absin(4f, 1f)));
+        mindustry.Vars.game().indexer.eachBlock(player.team(), Tmp.r1().setCentered(x, y, range * tilesize), b -> true, t -> {
+            Drawf.selected(t, Tmp.c1().set(baseColor).a(Mathf.absin(4f, 1f)));
         });
     }
 
@@ -107,6 +118,7 @@ public class RegenProjector extends Block{
 
     public class RegenProjectorBuild extends Building{
         public Seq<Building> targets = new Seq<>();
+        private final IntSet taken = new IntSet();
         public int lastChange = -2;
         public float warmup, totalTime, optionalTimer;
         public boolean anyTargets = false;
@@ -115,19 +127,20 @@ public class RegenProjector extends Block{
         public void updateTargets(){
             targets.clear();
             taken.clear();
-            indexer.eachBlock(team, Tmp.r1.setCentered(x, y, range * tilesize), b -> true, targets::add);
+            mindustry.Vars.game().indexer.eachBlock(team, Tmp.r1().setCentered(x, y, range * tilesize), b -> true, targets::add);
         }
 
         @Override
         public void updateTile(){
-            if(lastChange != world.tileChanges){
-                lastChange = world.tileChanges;
+            RuntimeState runtime = runtimeState();
+            if(lastChange != mindustry.Vars.game().world.tileChanges){
+                lastChange = mindustry.Vars.game().world.tileChanges;
                 updateTargets();
             }
 
             //TODO should warmup depend on didRegen?
             warmup = Mathf.approachDelta(warmup, didRegen ? 1f : 0f, 1f / 70f);
-            totalTime += warmup * Time.delta;
+            totalTime += warmup * Time.delta();
             didRegen = false;
             anyTargets = false;
 
@@ -154,8 +167,8 @@ public class RegenProjector extends Block{
 
                     int pos = build.pos();
                     //TODO periodic effect
-                    float value = mendMap.get(pos);
-                    mendMap.put(pos, Math.min(Math.max(value, healAmount * edelta() * build.block.health / 100f), build.block.health - build.health));
+                    float value = runtime.mendMap.get(pos);
+                    runtime.mendMap.put(pos, Math.min(Math.max(value, healAmount * edelta() * build.block.health / 100f), build.block.health - build.health));
 
                     if(value <= 0 && Mathf.chanceDelta(effectChance * build.block.size * build.block.size)){
                         effect.at(build.x + Mathf.range(build.block.size * tilesize/2f - 1f), build.y + Mathf.range(build.block.size * tilesize/2f - 1f));
@@ -163,17 +176,17 @@ public class RegenProjector extends Block{
                 }
             }
 
-            if(lastUpdateFrame != state.updateId){
-                lastUpdateFrame = state.updateId;
+            if(runtime.lastUpdateFrame != mindustry.Vars.game().state.updateId){
+                runtime.lastUpdateFrame = mindustry.Vars.game().state.updateId;
 
-                for(var entry : mendMap.entries()){
-                    var build = world.build(entry.key);
+                for(var entry : runtime.mendMap.entries()){
+                    var build = mindustry.Vars.game().world.build(entry.key);
                     if(build != null){
                         build.heal(entry.value);
                         build.recentlyHealed();
                     }
                 }
-                mendMap.clear();
+                runtime.mendMap.clear();
             }
         }
 
@@ -188,7 +201,7 @@ public class RegenProjector extends Block{
 
             Drawf.dashSquare(baseColor, x, y, range * tilesize);
             for(var target : targets){
-                Drawf.selected(target, Tmp.c1.set(baseColor).a(Mathf.absin(4f, 1f)));
+                Drawf.selected(target, Tmp.c1().set(baseColor).a(Mathf.absin(4f, 1f)));
             }
         }
 

@@ -104,7 +104,7 @@ public class Liquid extends UnlockableContent implements Senseable{
     }
 
     public int getAnimationFrame(){
-        return (int)(Time.time / (gas ? animationScaleGas : animationScaleLiquid) * animationFrames + id*5) % animationFrames;
+        return (int)(Time.time() / (gas ? animationScaleGas : animationScaleLiquid) * animationFrames + id*5) % animationFrames;
     }
 
     /** @return true if this liquid will boil in this global environment. */
@@ -126,18 +126,18 @@ public class Liquid extends UnlockableContent implements Senseable{
         float f = Mathf.clamp(amount / (maxLiquid / 1.5f));
         float smag = puddle.tile.floor().isLiquid ? 0.8f : 0f, sscl = 25f;
 
-        Draw.color(Tmp.c1.set(color).shiftValue(-0.05f));
-        Fill.circle(x + Mathf.sin(Time.time + id * 532, sscl, smag), y + Mathf.sin(Time.time + id * 53, sscl, smag), f * 8f);
+        Draw.color(Tmp.c1().set(color).shiftValue(-0.05f));
+        Fill.circle(x + Mathf.sin(Time.time() + id * 532, sscl, smag), y + Mathf.sin(Time.time() + id * 53, sscl, smag), f * 8f);
 
         float length = f * 6f;
         rand.setSeed(id);
         for(int i = 0; i < 3; i++){
-            Tmp.v1.trns(rand.random(360f), rand.random(length));
-            float vx = x + Tmp.v1.x, vy = y + Tmp.v1.y;
+            Tmp.v1().trns(rand.random(360f), rand.random(length));
+            float vx = x + Tmp.v1().x, vy = y + Tmp.v1().y;
 
             Fill.circle(
-            vx + Mathf.sin(Time.time + i * 532, sscl, smag),
-            vy + Mathf.sin(Time.time + i * 53, sscl, smag),
+            vx + Mathf.sin(Time.time() + i * 532, sscl, smag),
+            vy + Mathf.sin(Time.time() + i * 53, sscl, smag),
             f * 5f);
         }
 

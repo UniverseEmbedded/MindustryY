@@ -68,16 +68,16 @@ abstract class LegsComp implements Posc, Rotc, Hitboxc, Unitc{
         for(int i = 0; i < legs.length; i++){
             Leg l = legs[i];
 
-            Vec2 base = legOffset(Tmp.v1, i).add(x, y);
+            Vec2 base = legOffset(Tmp.v1(), i).add(x, y);
 
-            Tmp.v2.set(l.base).sub(l.joint).inv().setLength(type.legExtension);
+            Tmp.v2().set(l.base).sub(l.joint).inv().setLength(type.legExtension);
 
             for(Vec2 vec : new Vec2[]{base, l.joint, l.base}){
                 Damage.dynamicExplosion(vec.x, vec.y, 0f, 0f, 0f, legExplodeRad, state.rules.damageExplosions, false, team, type.deathExplosionEffect);
             }
 
             Fx.legDestroy.at(base.x, base.y, 0f, new LegDestroyData(base.cpy(), l.joint, type.legRegion));
-            Fx.legDestroy.at(l.joint.x, l.joint.y, 0f, new LegDestroyData(l.joint.cpy().add(Tmp.v2), l.base, type.legBaseRegion));
+            Fx.legDestroy.at(l.joint.x, l.joint.y, 0f, new LegDestroyData(l.joint.cpy().add(Tmp.v2()), l.base, type.legBaseRegion));
 
         }
     }
@@ -99,7 +99,7 @@ abstract class LegsComp implements Posc, Rotc, Hitboxc, Unitc{
             Leg l = new Leg();
 
             float dstRot = legAngle(i);
-            Vec2 baseOffset = legOffset(Tmp.v5, i).add(x, y);
+            Vec2 baseOffset = legOffset(Tmp.v5(), i).add(x, y);
 
             l.joint.trns(dstRot, legLength/2f).add(baseOffset);
             l.base.trns(dstRot, legLength).add(baseOffset);
@@ -130,13 +130,13 @@ abstract class LegsComp implements Posc, Rotc, Hitboxc, Unitc{
         int div = Math.max(legs.length / type.legGroupSize, 2);
         moveSpace = legLength / 1.6f / (div / 2f) * type.legMoveSpace;
         //TODO should move legs even when still, based on speed. also, to prevent "slipping", make sure legs move when they are too far from their destination
-        totalLength += type.legContinuousMove ? type.speed * speedMultiplier * Time.delta : Mathf.dst(deltaX(), deltaY());
+        totalLength += type.legContinuousMove ? type.speed * speedMultiplier * Time.delta() : Mathf.dst(deltaX(), deltaY());
 
         float trns = moveSpace * 0.85f * type.legForwardScl;
 
         //rotation + offset vector
         boolean moving = moving();
-        Vec2 moveOffset = !moving ? Tmp.v4.setZero() : Tmp.v4.trns(Angles.angle(deltaX(), deltaY()), trns);
+        Vec2 moveOffset = !moving ? Tmp.v4().setZero() : Tmp.v4().trns(Angles.angle(deltaX(), deltaY()), trns);
         //make it smooth, not jumpy
         moveOffset = curMoveOffset.lerpDelta(moveOffset, 0.1f);
 
@@ -145,7 +145,7 @@ abstract class LegsComp implements Posc, Rotc, Hitboxc, Unitc{
 
         for(int i = 0; i < legs.length; i++){
             float dstRot = legAngle(i);
-            Vec2 baseOffset = legOffset(Tmp.v5, i).add(x, y);
+            Vec2 baseOffset = legOffset(Tmp.v5(), i).add(x, y);
             Leg l = legs[i];
 
             //TODO is limiting twice necessary?
@@ -206,12 +206,12 @@ abstract class LegsComp implements Posc, Rotc, Hitboxc, Unitc{
             }
 
             //leg destination
-            Vec2 legDest = Tmp.v1.trns(dstRot, legLength * type.legLengthScl).add(baseOffset).add(moveOffset);
+            Vec2 legDest = Tmp.v1().trns(dstRot, legLength * type.legLengthScl).add(baseOffset).add(moveOffset);
             //join destination
-            Vec2 jointDest = Tmp.v2;
-            InverseKinematics.solve(legLength/2f, legLength/2f, Tmp.v6.set(l.base).sub(baseOffset), side, jointDest);
+            Vec2 jointDest = Tmp.v2();
+            InverseKinematics.solve(legLength/2f, legLength/2f, Tmp.v6().set(l.base).sub(baseOffset), side, jointDest);
             jointDest.add(baseOffset);
-            Tmp.v6.set(baseOffset).lerp(l.base, 0.5f);
+            Tmp.v6().set(baseOffset).lerp(l.base, 0.5f);
 
             if(move){
                 float moveFract = stageF % 1f;

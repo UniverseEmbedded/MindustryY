@@ -33,7 +33,7 @@ public class DrawArcSmelt extends DrawBlock{
 
             Lines.stroke(particleStroke * build.warmup());
 
-            float base = (Time.time / particleLife);
+            float base = (Time.time() / particleLife);
             rand.setSeed(build.id);
             for(int i = 0; i < particles; i++){
                 float fin = (rand.random(1f) + base) % 1f, fout = 1f - fin;

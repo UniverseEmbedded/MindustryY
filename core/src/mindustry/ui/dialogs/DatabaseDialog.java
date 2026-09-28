@@ -185,11 +185,11 @@ public class DatabaseDialog extends BaseDialog{
                                     if(state.data.isPatched(unlock)){
                                         add(new Table(){{
                                             right().bottom().touchable = Touchable.disabled;
-                                            image(Icon.fileSmall).size(12f).color(Tmp.c1.set(Color.white).a(0.5f));
+                                            image(Icon.fileSmall).size(12f).color(Tmp.c1().set(Color.white).a(0.5f));
                                         }});
                                     }
                                     if(unlock.isBanned()){
-                                        add(new Image(Icon.cancel, Tmp.c1.set(Color.scarlet).a(0.6f)){{
+                                        add(new Image(Icon.cancel, Tmp.c1().set(Color.scarlet).a(0.6f)){{
                                             touchable = Touchable.disabled;
                                         }});
                                     }
@@ -200,7 +200,7 @@ public class DatabaseDialog extends BaseDialog{
                             image.addListener(listener);
                             if(!mobile && unlocked(unlock)){
                                 image.addListener(new HandCursorListener());
-                                image.update(() -> image.color.lerp(!listener.isOver() ? Color.lightGray : Color.white, Mathf.clamp(0.4f * Time.delta)));
+                                image.update(() -> image.color.lerp(!listener.isOver() ? Color.lightGray : Color.white, Mathf.clamp(0.4f * Time.delta())));
                             }
 
                             if(unlocked(unlock)){

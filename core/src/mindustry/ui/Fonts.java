@@ -324,7 +324,7 @@ public class Fonts{
         TextureRegionDrawable draw = new TextureRegionDrawable(new TextureRegion(font.getRegion().texture, g.u, g.v2, g.u2, g.v)){
             @Override
             public void draw(float x, float y, float width, float height){
-                Draw.color(Tmp.c1.set(tint).mul(Draw.getColor()).toFloatBits());
+                Draw.color(Tmp.c1().set(tint).mul(Draw.getColor()).toFloatBits());
                 float cx = x + width/2f - g.width/2f, cy = y + height/2f - g.height/2f;
                 cx = (int)cx;
                 cy = (int)cy;
@@ -335,7 +335,7 @@ public class Fonts{
             public void draw(float x, float y, float originX, float originY, float width, float height, float scaleX, float scaleY, float rotation){
                 width *= scaleX;
                 height *= scaleY;
-                Draw.color(Tmp.c1.set(tint).mul(Draw.getColor()).toFloatBits());
+                Draw.color(Tmp.c1().set(tint).mul(Draw.getColor()).toFloatBits());
                 float cx = x + width/2f - g.width/2f, cy = y + height/2f - g.height/2f;
                 cx = (int)cx;
                 cy = (int)cy;

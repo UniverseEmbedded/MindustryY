@@ -114,9 +114,9 @@ public class UnitPayload implements Payload{
         //check if unit can be dumped here
         SolidPred solid = unit.solidity();
         if(solid != null){
-            Tmp.v1.trns(unit.rotation, 1f);
+            Tmp.v1().trns(unit.rotation, 1f);
 
-            int tx = World.toTile(unit.x + Tmp.v1.x), ty = World.toTile(unit.y + Tmp.v1.y);
+            int tx = World.toTile(unit.x + Tmp.v1().x), ty = World.toTile(unit.y + Tmp.v1().y);
 
             //cannot dump on solid blocks
             if(solid.solid(tx, ty)) return false;
@@ -172,7 +172,7 @@ public class UnitPayload implements Payload{
 
             Draw.reset();
 
-            overlayTime = Math.max(overlayTime - Time.delta/overlayDuration, 0f);
+            overlayTime = Math.max(overlayTime - Time.delta()/overlayDuration, 0f);
             Draw.z(z);
         }
     }

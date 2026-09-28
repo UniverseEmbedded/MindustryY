@@ -62,7 +62,7 @@ public class CanvasEditDialog extends BaseDialog{
                 hide();
             }
 
-            time += Time.delta;
+            time += Time.delta();
 
             if(time >= refreshTime){
                 save();
@@ -145,9 +145,9 @@ public class CanvasEditDialog extends BaseDialog{
 
                 @Override
                 public void draw(){
-                    Tmp.tr1.set(texture);
+                    Tmp.tr1().set(texture);
                     Draw.alpha(parentAlpha);
-                    Draw.rect(Tmp.tr1, x + width/2f, y + height/2f, width, height);
+                    Draw.rect(Tmp.tr1(), x + width/2f, y + height/2f, width, height);
 
                     //draw grid
                     if(grid){
@@ -258,13 +258,13 @@ public class CanvasEditDialog extends BaseDialog{
         if(Color.ai(color) < 255){
             color = Pixmap.blend(block.palette[0], color);
         }
-        Tmp.c1.set(color);
+        Tmp.c1().set(color);
         float nearestDst = 100f;
         int nearest = 0;
         for(int i = 0; i < block.palette.length; i++){
             if(block.palette[i] == color) return color;
-            Tmp.c2.set(block.palette[i]);
-            float dst = Tmp.c1.dst(Tmp.c2);
+            Tmp.c2().set(block.palette[i]);
+            float dst = Tmp.c1().dst(Tmp.c2());
             if(dst < nearestDst){
                 nearest = i;
                 nearestDst = dst;

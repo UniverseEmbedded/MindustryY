@@ -15,6 +15,7 @@ import arc.struct.*;
 import arc.util.*;
 import mindustry.*;
 import mindustry.core.*;
+import mindustry.campaign.shared.ui.*;
 import mindustry.entities.units.*;
 import mindustry.game.EventType.*;
 import mindustry.game.*;
@@ -211,7 +212,7 @@ public class DesktopInput extends InputHandler{
                 block.drawPlace(cursorX, cursorY, rot, valid);
 
                 if(block.saveConfig){
-                    Draw.mixcol(!valid ? Pal.breakInvalid : Color.white, (!valid ? 0.4f : 0.24f) + Mathf.absin(Time.globalTime, 6f, 0.28f));
+                    Draw.mixcol(!valid ? Pal.breakInvalid : Color.white, (!valid ? 0.4f : 0.24f) + Mathf.absin(Time.globalTime(), 6f, 0.28f));
                     bplan.set(cursorX, cursorY, rot, block);
                     bplan.config = block.lastConfig;
                     block.drawPlanConfig(bplan, allPlans);
@@ -236,7 +237,7 @@ public class DesktopInput extends InputHandler{
 
         boolean locked = locked();
         boolean panCam = false;
-        float camSpeed = (!Core.input.keyDown(Binding.boost) ? panSpeed : panBoostSpeed) * Time.delta;
+        float camSpeed = (!Core.input.keyDown(Binding.boost) ? panSpeed : panBoostSpeed) * Time.delta();
         boolean detached = settings.getBool("detach-camera", false);
 
         if(!scene.hasField() && !scene.hasDialog()){
@@ -279,7 +280,7 @@ public class DesktopInput extends InputHandler{
                     panCam = true;
                 }
 
-                Core.camera.position.add(Tmp.v1.setZero().add(Core.input.axis(Binding.moveX), Core.input.axis(Binding.moveY)).nor().scl(camSpeed));
+                Core.camera.position.add(Tmp.v1().setZero().add(Core.input.axis(Binding.moveX), Core.input.axis(Binding.moveY)).nor().scl(camSpeed));
             }else if((!player.dead() || spectating != null) && !panning){
                 //TODO do not pan
                 Team corePanTeam = state.won ? state.rules.waveTeam : player.team();
@@ -317,8 +318,8 @@ public class DesktopInput extends InputHandler{
                 selectedUnits.clear();
                 commandBuildings.clear();
                 if(input.keyDown(Binding.selectAcrossScreen)){
-                    camera.bounds(Tmp.r1);
-                    selectedUnits.set(selectedCommandUnits(Tmp.r1.x, Tmp.r1.y, Tmp.r1.width, Tmp.r1.height).removeAll(u -> !u.type.controlSelectGlobal));
+                    camera.bounds(Tmp.r1());
+                    selectedUnits.set(selectedCommandUnits(Tmp.r1().x, Tmp.r1().y, Tmp.r1().width, Tmp.r1().height).removeAll(u -> !u.type.controlSelectGlobal));
                 }else {
                     for(var unit : player.team().data().units){
                         if(unit.isCommandable() && unit.type.controlSelectGlobal){
@@ -332,8 +333,8 @@ public class DesktopInput extends InputHandler{
                 selectedUnits.clear();
                 commandBuildings.clear();
                 if(input.keyDown(Binding.selectAcrossScreen)){
-                    camera.bounds(Tmp.r1);
-                    selectedUnits.set(selectedCommandUnits(Tmp.r1.x, Tmp.r1.y, Tmp.r1.width, Tmp.r1.height, u -> u instanceof Payloadc));
+                    camera.bounds(Tmp.r1());
+                    selectedUnits.set(selectedCommandUnits(Tmp.r1().x, Tmp.r1().y, Tmp.r1().width, Tmp.r1().height, u -> u instanceof Payloadc));
                 }else {
                     for(var unit : player.team().data().units){
                         if(unit.isCommandable() && unit instanceof Payloadc){
@@ -352,8 +353,8 @@ public class DesktopInput extends InputHandler{
                     }
                 }
                 if(input.keyDown(Binding.selectAcrossScreen)){
-                    camera.bounds(Tmp.r1);
-                    commandBuildings.retainAll(b -> Tmp.r1.overlaps(b.x - (b.hitSize() /2), b.y - (b.hitSize() /2), b.hitSize(), b.hitSize()));
+                    camera.bounds(Tmp.r1());
+                    commandBuildings.retainAll(b -> Tmp.r1().overlaps(b.x - (b.hitSize() /2), b.y - (b.hitSize() /2), b.hitSize(), b.hitSize()));
                 }
             }
 
@@ -384,7 +385,7 @@ public class DesktopInput extends InputHandler{
 
                     //remove invalid units
                     for(int j = 0; j < group.size; j++){
-                        Unit u = Groups.unit.getByID(group.get(j));
+                        Unit u = Groups.current().unit.getByID(group.get(j));
                         if(u == null || !u.isCommandable() || !u.isValid()){
                             group.removeIndex(j);
                             j --;
@@ -397,7 +398,7 @@ public class DesktopInput extends InputHandler{
                         commandBuildings.clear();
 
                         group.each(id -> {
-                            var unit = Groups.unit.getByID(id);
+                            var unit = Groups.current().unit.getByID(id);
                             if(unit != null){
                                 selectedUnits.addAll(unit);
                             }
@@ -550,16 +551,16 @@ public class DesktopInput extends InputHandler{
         }).tooltip("@schematics");
 
         table.button(Icon.book, Styles.clearNonei, () -> {
-            ui.database.show();
-        }).tooltip("@database");
+            SharedCampaignUiRouter.showDatabase();
+        }).tooltip("@database").name("hud.database");
 
         table.button(Icon.tree, Styles.clearNonei, () -> {
-            ui.research.show();
-        }).visible(() -> state.isCampaign()).tooltip("@research");
+            SharedCampaignUiRouter.showResearch();
+        }).visible(() -> state.isCampaign()).tooltip("@research").name("hud.research");
 
         table.button(Icon.map, Styles.clearNonei, () -> {
-            ui.planet.show();
-        }).visible(() -> state.isCampaign()).tooltip("@planetmap");
+            SharedCampaignUiRouter.showPlanet();
+        }).visible(() -> state.isCampaign()).tooltip("@planetmap").name("hud.planet");
     }
 
     void pollInputNoPlayer(){

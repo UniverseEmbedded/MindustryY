@@ -14,6 +14,8 @@ import arc.util.serialization.JsonValue.*;
 import mindustry.*;
 import mindustry.annotations.Annotations.*;
 import mindustry.audio.*;
+import mindustry.campaign.shared.*;
+import mindustry.campaign.shared.net.*;
 import mindustry.core.GameState.*;
 import mindustry.entities.*;
 import mindustry.entities.units.*;
@@ -56,6 +58,9 @@ public class NetClient implements ApplicationListener{
     private boolean quietReset = false;
     /** Counter for data timeout. */
     private float timeoutTime = 0f;
+    /** Set by finishConnecting; lets a later Disconnect tell a mid-join drop (no snapshot ever arrived) from a
+     * session that actually played, which is what the normal-handoff silent lobby return is meant for. */
+    private long joinFinishedAtMillis;
     /** Timestamp for last UDP state snapshot received. */
     private long lastSnapshotTimestamp;
     /** Last sent client snapshot ID. */
@@ -76,7 +81,22 @@ public class NetClient implements ApplicationListener{
     public NetClient(){
 
         net.handleClient(Connect.class, packet -> {
-            Log.info("Connecting to server: @", packet.addressTCP);
+            // Shared Campaign: addressTCP is the public single-entry port; the Action Arc listen port is separate.
+            int entryPort = mindustry.y.util.YPortLog.portOf(packet.addressTCP);
+            int actualPort = -1;
+            SharedCampaignNet sharedNet = SharedCampaignNet.find(mindustry.Vars.game());
+            String actionId = sharedNet == null ? "" : sharedNet.preparedActionId();
+            if(!actionId.isBlank()){
+                SharedCampaignService sharedService = SharedCampaignService.find(mindustry.Vars.game());
+                SharedCampaignState sharedState = sharedService == null ? null : sharedService.strategicState();
+                SharedCampaignState.ActionState action = sharedState == null ? null : sharedState.actions.get(actionId);
+                if(action != null) actualPort = action.port;
+            }else{
+                // Ordinary direct join: the dialed port is both entry and actual.
+                actualPort = entryPort;
+            }
+            // Arc Log uses '@' only as a placeholder; never put a literal '@' in the format template.
+            Log.info("Connecting to server: @ [ports=@]", packet.addressTCP, "entry@actual=" + mindustry.y.util.YPortLog.entryAtActual(entryPort, actualPort));
 
             player.admin = false;
 
@@ -119,12 +139,29 @@ public class NetClient implements ApplicationListener{
                 return;
             }
 
+            SharedCampaignNet.install(mindustry.Vars.game()).decorateConnectPacket(c);
             net.send(c, true);
         });
 
         net.handleClient(Disconnect.class, packet -> {
             if(quietReset) return;
 
+            SharedCampaignNet network = SharedCampaignNet.find(mindustry.Vars.game());
+            if(network != null){
+                // Capture the Action identity before clearClientActionConnection wipes it, so a mid-join drop can
+                // still name the Action that never became playable.
+                boolean sharedActionDisconnect = network.clientActionConnection();
+                String sharedActionId = sharedActionDisconnect ? network.clientActionIdSnapshot() : "";
+                boolean sharedActionEstablished = joinFinishedAtMillis > 0 && lastSnapshotTimestamp > joinFinishedAtMillis;
+                // A close while still waiting for the first snapshot means the Action never became playable:
+                // surface it as a failure with full context instead of silently returning to the lobby.
+                if(sharedActionDisconnect && !sharedActionEstablished){
+                    Log.err("[SharedCampaign] Action connection closed before the join established: action=@ reason=@ snapshotAgeMs=@",
+                        sharedActionId.isBlank() ? "-" : sharedActionId, String.valueOf(packet.reason),
+                        lastSnapshotTimestamp <= 0 ? -1 : Time.timeSinceMillis(lastSnapshotTimestamp));
+                }
+                network.clearClientActionConnection();
+            }
             connecting = false;
             logic.reset();
             platform.updateRPC();
@@ -149,8 +186,9 @@ public class NetClient implements ApplicationListener{
         net.handleClient(WorldStream.class, data -> {
             Log.info("Received world data: @", Strings.formatByteCount(data.stream.available()));
             NetworkIO.loadWorld(new InflaterInputStream(data.stream));
-
+            Log.info("World data loaded; finishing connect.");
             finishConnecting();
+            Log.info("Connect finished; waiting for entity snapshots.");
         });
 
         net.handleClient(AssetRequirementStream.class, data -> {
@@ -474,9 +512,35 @@ public class NetClient implements ApplicationListener{
 
     @Remote(variants = Variant.both, called = Loc.server)
     public static void completeObjective(int index){
-        var obj = state.rules.objectives.get(index);
-        if(obj != null){
+        var obj = mindustry.Vars.game().state.rules.objectives.get(index);
+        // Shared Action reconnect/join catch-up may replay an already completed objective after world-data install.
+        if(obj != null && !obj.isCompleted()){
             obj.done();
+        }
+    }
+
+    /** Converges Shared Action objective side effects that are not represented by the completed bit. */
+    @Remote(variants = Variant.both, called = Loc.server)
+    public static void syncSharedObjectiveState(boolean waveTimer, boolean waveSending, float wavetime, int wave, String encodedObjectiveFlags){
+        var current = mindustry.Vars.game().state;
+        if(current == null || current.rules == null) return;
+        current.rules.waveTimer = waveTimer;
+        current.rules.waveSending = waveSending;
+        current.wavetime = Math.max(0f, wavetime);
+        current.wave = Math.max(1, wave);
+
+        try{
+            byte[] raw = java.util.Base64.getDecoder().decode(encodedObjectiveFlags == null ? "" : encodedObjectiveFlags);
+            try(DataInputStream in = new DataInputStream(new ByteArrayInputStream(raw))){
+                int count = in.readInt();
+                if(count < 0 || count > 8192) throw new IOException("Invalid Shared objective flag count: " + count);
+                ObjectSet<String> flags = new ObjectSet<>();
+                for(int i = 0; i < count; i++) flags.add(in.readUTF());
+                current.rules.objectiveFlags.clear();
+                current.rules.objectiveFlags.addAll(flags);
+            }
+        }catch(Throwable error){
+            Log.err("Failed to converge Shared objective flags", error);
         }
     }
 
@@ -517,14 +581,14 @@ public class NetClient implements ApplicationListener{
         if(netClient != null){
             netClient.addRemovedEntity(playerid);
         }
-        Groups.player.removeByID(playerid);
+        Groups.current().player.removeByID(playerid);
     }
 
     public static void readSyncEntity(DataInputStream input, Reads read) throws IOException{
         int id = input.readInt();
         byte typeID = input.readByte();
 
-        Syncc entity = Groups.sync.getByID(id);
+        Syncc entity = Groups.current().sync.getByID(id);
         boolean add = false, created = false;
 
         if(entity == null && id == player.id()){
@@ -577,7 +641,7 @@ public class NetClient implements ApplicationListener{
     public static void hiddenSnapshot(IntSeq ids){
         for(int i = 0; i < ids.size; i++){
             int id = ids.items[i];
-            var entity = Groups.sync.getByID(id);
+            var entity = Groups.current().sync.getByID(id);
             if(entity != null){
                 entity.handleSyncHidden();
             }
@@ -629,10 +693,15 @@ public class NetClient implements ApplicationListener{
 
             //note that this is far from a guarantee that random state is synced - tiny changes in delta and ping can throw everything off again.
             //syncing will only make much of a difference when rand() is called infrequently
-            GlobalVars.rand.seed0 = rand0;
-            GlobalVars.rand.seed1 = rand1;
+            mindustry.Vars.game().logicVars.rand.seed0 = rand0;
+            mindustry.Vars.game().logicVars.rand.seed1 = rand1;
 
             universe.updateNetSeconds(timeData);
+
+            // Shared Action / TCP-only sessions still deliver stateSnapshot reliably enough to prove the
+            // world link is alive; only entitySnapshot used to refresh lastSnapshotTimeout, so a client that
+            // receives state but no entity packets for 20s was kicked even though TCP was healthy.
+            netClient.lastSnapshotTimestamp = Time.millis();
 
             netClient.byteStream.setBytes(coreData);
             DataInputStream input = netClient.dataStream;
@@ -662,9 +731,12 @@ public class NetClient implements ApplicationListener{
             if(!connecting){
                 sync();
 
-                //timeout if UDP snapshot packets are not received for a while
+                //timeout if entity/state snapshot packets are not received for a while
                 if(lastSnapshotTimestamp > 0 && Time.timeSinceMillis(lastSnapshotTimestamp) > entitySnapshotTimeout){
-                    Log.err("Timed out after not received UDP snapshots.");
+                    SharedCampaignNet timeoutNet = SharedCampaignNet.find(mindustry.Vars.game());
+                    String timedOutAction = timeoutNet == null ? "" : timeoutNet.activeClientActionId();
+                    Log.err("Timed out after not received entity/state snapshots. action=@ ageMs=@",
+                        timedOutAction.isBlank() ? "-" : timedOutAction, Time.timeSinceMillis(lastSnapshotTimestamp));
                     quiet = true;
                     ui.showErrorMessage("@disconnect.snapshottimeout");
                     net.disconnect();
@@ -674,7 +746,7 @@ public class NetClient implements ApplicationListener{
         }else if(!connecting){
             net.disconnect();
         }else{ //...must be connecting
-            timeoutTime += Time.delta;
+            timeoutTime += Time.delta();
             if(timeoutTime > dataTimeout){
                 Log.err("Failed to load data!");
                 ui.loadfrag.hide();
@@ -700,6 +772,10 @@ public class NetClient implements ApplicationListener{
     }
 
     private void finishConnecting(){
+        SharedCampaignNet network = SharedCampaignNet.install(mindustry.Vars.game());
+        if(player != null) player.spectator(network.consumeClientSpectator());
+        network.consumeClientLandingPresentation(); // presentation UI is restored with the Shared Campaign product layer.
+        network.finishClientActionConnection();
         state.set(State.playing);
         connecting = false;
         ui.join.hide();
@@ -708,6 +784,7 @@ public class NetClient implements ApplicationListener{
         Time.runTask(40f, platform::updateRPC);
         Core.app.post(ui.loadfrag::hide);
         lastSnapshotTimestamp = Time.millis();
+        joinFinishedAtMillis = lastSnapshotTimestamp;
     }
 
     private void reset(){
@@ -719,6 +796,7 @@ public class NetClient implements ApplicationListener{
         quiet = false;
         lastSent = 0;
         lastSnapshotTimestamp = 0;
+        joinFinishedAtMillis = 0;
 
         Groups.clear();
         ui.chatfrag.clearMessages();
@@ -732,11 +810,21 @@ public class NetClient implements ApplicationListener{
     public void disconnectQuietly(){
         quiet = true;
         connecting = false;
+        SharedCampaignNet network = SharedCampaignNet.find(mindustry.Vars.game());
+        if(network != null) network.clearPending();
         net.disconnect();
     }
 
     /** Disconnects, causing no further changes or reset.*/
     public void disconnectNoReset(){
+        quiet = quietReset = true;
+        SharedCampaignNet network = SharedCampaignNet.find(mindustry.Vars.game());
+        if(network != null) network.clearPending();
+        net.disconnect();
+    }
+
+    /** Internal connect transition that preserves a prepared one-shot Shared Campaign admission. */
+    public void disconnectNoResetPreservingSharedCampaignJoin(){
         quiet = quietReset = true;
         net.disconnect();
     }

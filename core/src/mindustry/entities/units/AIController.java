@@ -177,7 +177,7 @@ public class AIController implements UnitController{
             target = findMainTarget(unit.x, unit.y, unit.range(), unit.type.targetAir, unit.type.targetGround);
         }
 
-        noTargetTime += Time.delta;
+        noTargetTime += Time.delta();
 
         if(invalid(target)){
             if(target instanceof Healthc h && !h.isValid()){
@@ -243,9 +243,9 @@ public class AIController implements UnitController{
 
             if(mount.target == null && !shoot && !Angles.within(mount.rotation, mount.weapon.baseRotation, 0.01f) && noTargetTime >= rotateBackTimer){
                 mount.rotate = true;
-                Tmp.v1.trns(unit.rotation + mount.weapon.baseRotation, 5f);
-                mount.aimX = mountX + Tmp.v1.x;
-                mount.aimY = mountY + Tmp.v1.y;
+                Tmp.v1().trns(unit.rotation + mount.weapon.baseRotation, 5f);
+                mount.aimX = mountX + Tmp.v1().x;
+                mount.aimY = mountY + Tmp.v1().y;
             }
 
             if(shoot){
@@ -392,13 +392,13 @@ public class AIController implements UnitController{
         vec.setLength(speed * length);
 
         if(arrive && length > 0){
-            Tmp.v3.set(-unit.vel.x / unit.type.accel * 2f, -unit.vel.y / unit.type.accel * 2f).add((target.getX() - unit.x), (target.getY() - unit.y));
+            Tmp.v3().set(-unit.vel.x / unit.type.accel * 2f, -unit.vel.y / unit.type.accel * 2f).add((target.getX() - unit.x), (target.getY() - unit.y));
 
             if(unit.type.omniMovement || unit.type.rotateMoveFirst){
-                vec.add(Tmp.v3).limit(speed * length);
+                vec.add(Tmp.v3()).limit(speed * length);
             }else{
                 //directly move the unit to prevent a backwards movement vector from messing things up
-                unit.moveAt(Tmp.v3.limit(speed * length));
+                unit.moveAt(Tmp.v3().limit(speed * length));
             }
         }
 

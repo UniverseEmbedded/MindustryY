@@ -14,6 +14,7 @@ import mindustry.game.EventType.*;
 import mindustry.game.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
+import mindustry.runtime.*;
 import mindustry.world.*;
 
 import static mindustry.Vars.*;
@@ -24,7 +25,7 @@ import static mindustry.ai.Pathfinder.*;
 public class ControlPathfinder implements Runnable{
     private static final int wallImpassableCap = 1_000_000;
     private static final int solidCap = 7000;
-    private static boolean initialized;
+    private boolean initialized;
 
     public static boolean showDebug;
 
@@ -83,7 +84,7 @@ public class ControlPathfinder implements Runnable{
     private static final int updateStepInterval = 200;
     private static final int updateFPS = 30;
     private static final int updateInterval = 1000 / updateFPS, invalidateCheckInterval = 1000;
-    private static final PathfindResult pathResult = new PathfindResult();
+    private final PathfindResult pathResult = new PathfindResult();
 
     static final int clusterSize = 12;
 
@@ -111,7 +112,8 @@ public class ControlPathfinder implements Runnable{
     //maps team -> pathCost -> flattened array of clusters in 2D
     //(what about teams? different path costs?)
     final Cluster[][][] clusters = new Cluster[256][][];
-    final int cwidth = Mathf.ceil((float)world.width() / clusterSize), cheight = Mathf.ceil((float)world.height() / clusterSize);
+    int wwidth = mindustry.Vars.game().world.width(), wheight = mindustry.Vars.game().world.height();
+    int cwidth = Mathf.ceil((float)wwidth / clusterSize), cheight = Mathf.ceil((float)wheight / clusterSize);
 
     //temporarily used for resolving connections for intra-edges
     final IntSet usedEdges = new IntSet();
@@ -142,8 +144,11 @@ public class ControlPathfinder implements Runnable{
     //PATHFINDING THREAD - requests that should be recomputed
     final ObjectSet<PathRequest> invalidRequests = new ObjectSet<>();
 
-    /** Current pathfinding thread */
-    @Nullable Thread thread;
+    /** Process-owned recurring path lane; all mutable path state remains Context-owned in this instance. */
+    @Nullable RuntimePathExecutor.Handle pathHandle;
+    private long lastInvalidCheck;
+    /** Monotonic identities for world/path incarnations and per-controller requests. */
+    private long worldRevision, pathGeneration, requestSequence;
 
     /** If true, this pathfinder is no longer relevant (stopped) and its errors can be ignored. */
     volatile boolean invalidated;
@@ -152,6 +157,8 @@ public class ControlPathfinder implements Runnable{
     static class PathRequest{
         final Unit unit;
         final int destination, team, costId;
+        /** Explicit async identity; stale requests must never cross Context/world/path incarnations. */
+        final long ownerGeneration, pathGeneration, worldRevision, requestId;
         //resulting path of nodes
         final IntSeq resultPath = new IntSeq();
 
@@ -163,7 +170,7 @@ public class ControlPathfinder implements Runnable{
         @Nullable PathfindQueue frontier = new PathfindQueue();
 
         //main thread only!
-        long lastUpdateId = state.updateId;
+        long lastUpdateId = mindustry.Vars.game().state.updateId;
         long lastRecomputeTime;
 
         //both threads
@@ -177,11 +184,15 @@ public class ControlPathfinder implements Runnable{
         int lastTile;
         @Nullable Tile lastTargetTile;
 
-        PathRequest(Unit unit, int team, int costId, int destination){
+        PathRequest(Unit unit, int team, int costId, int destination, long ownerGeneration, long pathGeneration, long worldRevision, long requestId){
             this.unit = unit;
             this.costId = costId;
             this.team = team;
             this.destination = destination;
+            this.ownerGeneration = ownerGeneration;
+            this.pathGeneration = pathGeneration;
+            this.worldRevision = worldRevision;
+            this.requestId = requestId;
         }
     }
 
@@ -198,7 +209,7 @@ public class ControlPathfinder implements Runnable{
         final long mapKey;
 
         //main thread only!
-        long lastUpdateId = state.updateId;
+        long lastUpdateId = mindustry.Vars.game().state.updateId;
 
         //TODO: how are the nodes merged? CAN they be merged?
 
@@ -218,41 +229,43 @@ public class ControlPathfinder implements Runnable{
     }
 
     //this method is not run in a static initializer because it must only happen after Pathfinder registers its events, which means it should happen in the ControlPathfinder constructor
-    static void checkEvents(){
+    void checkEvents(){
         if(initialized) return;
         initialized = true;
 
-        Events.on(ResetEvent.class, event -> controlPath.stop());
+        Events.on(ResetEvent.class, event -> mindustry.Vars.game().controlPath.stop());
 
         Events.on(WorldLoadEvent.class, event -> {
-            controlPath.stop();
-            //create a new pathfinder to avoid contaminating the new pathfinding state with the old thread, which may still be running
-            controlPath = new ControlPathfinder();
-            controlPath.start();
+            // Keep one ControlPathfinder instance/listener set per GameContext. Replacing the instance here used to
+            // register another WorldLoad/update listener on every load while leaving the old listeners behind; repeated
+            // map loads therefore doubled callbacks and eventually created millions of pathfinder threads. Stop the old
+            // worker, reset all world-shaped state in-place, then start exactly one worker for the newly loaded world.
+            ControlPathfinder current = mindustry.Vars.game().controlPath;
+            if(current != null) current.resetForCurrentWorld();
         });
 
         Events.on(TileChangeEvent.class, e -> {
-            controlPath.updateTile(e.tile);
+            mindustry.Vars.game().controlPath.updateTile(e.tile);
         });
 
         //invalidate paths
         Events.run(Trigger.update, () -> {
-            for(var req : controlPath.unitRequests.values()){
+            for(var req : mindustry.Vars.game().controlPath.unitRequests.values()){
                 //skipped N update -> drop it
-                if(req.lastUpdateId <= state.updateId - 10 || !req.unit.isAdded()){
+                if(req.lastUpdateId <= mindustry.Vars.game().state.updateId - 10 || !req.unit.isAdded()){
                     req.invalidated = true;
                     //concurrent modification!
-                    controlPath.queue.post(() -> controlPath.threadPathRequests.remove(req));
-                    Time.run(0f, () -> controlPath.unitRequests.remove(req.unit));
+                    mindustry.Vars.game().controlPath.queue.post(() -> mindustry.Vars.game().controlPath.threadPathRequests.remove(req));
+                    Time.run(0f, () -> mindustry.Vars.game().controlPath.unitRequests.remove(req.unit));
                 }
             }
 
-            for(var field : controlPath.fieldList){
+            for(var field : mindustry.Vars.game().controlPath.fieldList){
                 //skipped N update -> drop it
-                if(field.lastUpdateId <= state.updateId - 30){
+                if(field.lastUpdateId <= mindustry.Vars.game().state.updateId - 30){
                     //make sure it's only modified on the main thread...? but what about calling get() on this thread??
-                    controlPath.queue.post(() -> controlPath.fields.remove(field.mapKey));
-                    Time.run(0f, () -> controlPath.fieldList.remove(field));
+                    mindustry.Vars.game().controlPath.queue.post(() -> mindustry.Vars.game().controlPath.fields.remove(field.mapKey));
+                    Time.run(0f, () -> mindustry.Vars.game().controlPath.fieldList.remove(field));
                 }
             }
         });
@@ -265,11 +278,11 @@ public class ControlPathfinder implements Runnable{
                 Draw.draw(Layer.overlayUI, () -> {
                     Lines.stroke(1f);
 
-                    if(controlPath.clusters[team] != null && controlPath.clusters[team][cost] != null){
-                        for(int cx = 0; cx < controlPath.cwidth; cx++){
-                            for(int cy = 0; cy < controlPath.cheight; cy++){
+                    if(mindustry.Vars.game().controlPath.clusters[team] != null && mindustry.Vars.game().controlPath.clusters[team][cost] != null){
+                        for(int cx = 0; cx < mindustry.Vars.game().controlPath.cwidth; cx++){
+                            for(int cy = 0; cy < mindustry.Vars.game().controlPath.cheight; cy++){
 
-                                var cluster = controlPath.clusters[team][cost][cy * controlPath.cwidth + cx];
+                                var cluster = mindustry.Vars.game().controlPath.clusters[team][cost][cy * mindustry.Vars.game().controlPath.cwidth + cx];
                                 if(cluster != null){
                                     Lines.stroke(0.5f);
                                     Draw.color(Color.gray);
@@ -287,10 +300,10 @@ public class ControlPathfinder implements Runnable{
                                                 int from = Point2.x(pos), to = Point2.y(pos);
                                                 float width = tilesize * (Math.abs(from - to) + 1), height = tilesize;
 
-                                                controlPath.portalToVec(cluster, cx, cy, d, i, Tmp.v1);
+                                                mindustry.Vars.game().controlPath.portalToVec(cluster, cx, cy, d, i, Tmp.v1());
 
                                                 Draw.color(Color.brown);
-                                                Lines.ellipse(30, Tmp.v1.x, Tmp.v1.y, width / 2f, height / 2f, d * 90f - 90f);
+                                                Lines.ellipse(30, Tmp.v1().x, Tmp.v1().y, width / 2f, height / 2f, d * 90f - 90f);
 
                                                 LongSeq connections = cluster.portalConnections[d] == null ? null : cluster.portalConnections[d][i];
 
@@ -299,11 +312,11 @@ public class ControlPathfinder implements Runnable{
                                                     for(int coni = 0; coni < connections.size; coni ++){
                                                         long con = connections.items[coni];
 
-                                                        controlPath.portalToVec(cluster, cx, cy, IntraEdge.dir(con), IntraEdge.portal(con), Tmp.v2);
+                                                        mindustry.Vars.game().controlPath.portalToVec(cluster, cx, cy, IntraEdge.dir(con), IntraEdge.portal(con), Tmp.v2());
 
                                                         float
-                                                        x1 = Tmp.v1.x, y1 = Tmp.v1.y,
-                                                        x2 = Tmp.v2.x, y2 = Tmp.v2.y;
+                                                        x1 = Tmp.v1().x, y1 = Tmp.v1().y,
+                                                        x2 = Tmp.v2().x, y2 = Tmp.v2().y;
                                                         Lines.line(x1, y1, x2, y2);
 
                                                     }
@@ -316,18 +329,18 @@ public class ControlPathfinder implements Runnable{
                         }
                     }
 
-                    for(var fields : controlPath.fieldList){
+                    for(var fields : mindustry.Vars.game().controlPath.fieldList){
                         try{
                             int mx = World.toTile(Core.input.mouseWorldX());
                             int my = World.toTile(Core.input.mouseWorldY());
                             int hoverValue = -100;
                             for(var entry : fields.fields){
-                                int cx = entry.key % controlPath.cwidth, cy = entry.key / controlPath.cwidth;
+                                int cx = entry.key % mindustry.Vars.game().controlPath.cwidth, cy = entry.key / mindustry.Vars.game().controlPath.cwidth;
                                 for(int y = 0; y < clusterSize; y++){
                                     for(int x = 0; x < clusterSize; x++){
                                         int value = entry.value[x + y * clusterSize];
-                                        Tmp.c1.a = 1f;
-                                        Lines.stroke(0.8f, Tmp.c1.fromHsv(value * 3f, 1f, 1f));
+                                        Tmp.c1().a = 1f;
+                                        Lines.stroke(0.8f, Tmp.c1().fromHsv(value * 3f, 1f, 1f));
                                         Draw.alpha(0.5f);
                                         Fill.square((x + cx * clusterSize) * tilesize, (y + cy * clusterSize) * tilesize, tilesize / 2f);
                                         if(mx == (x + cx * clusterSize) && my == (y + cy * clusterSize)){
@@ -350,6 +363,39 @@ public class ControlPathfinder implements Runnable{
 
     public ControlPathfinder(){
         checkEvents();
+    }
+
+    private void resetForCurrentWorld(){
+        // Never reuse the world-shaped scratch/queues until the previous worker has actually stopped. Interrupting and
+        // immediately clearing these collections lets the old worker race the new world and was a second lifecycle
+        // hazard hidden behind the listener-amplification bug. Fail closed if a worker refuses to stop in bounded time.
+        if(!stopAndAwait()) return;
+        worldRevision++;
+
+        wwidth = mindustry.Vars.game().world.width();
+        wheight = mindustry.Vars.game().world.height();
+        cwidth = Mathf.ceil((float)wwidth / clusterSize);
+        cheight = Mathf.ceil((float)wheight / clusterSize);
+
+        java.util.Arrays.fill(clusters, null);
+        usedEdges.clear();
+        queue.clear();
+        unitRequests.clear();
+        threadPathRequests.clear();
+        fields.clear();
+        fieldList.clear();
+        innerCosts.clear();
+        innerFrontier.clear();
+        clustersToUpdate.clear();
+        clustersToInnerUpdate.clear();
+        invalidRequests.clear();
+        pathResult.unreachable = false;
+        pathResult.move = false;
+        pathResult.next = null;
+        pathResult.dest.setZero();
+
+        invalidated = false;
+        start();
     }
 
     public void updateTile(Tile tile){
@@ -395,30 +441,43 @@ public class ControlPathfinder implements Runnable{
         out.set(x, y);
     }
 
-    /** Starts or restarts the pathfinding thread. */
+    /** Starts this Context's lane on the process-owned bounded path pool. */
     private void start(){
-        if(net.client() || thread != null) return;
-
-        thread = new Thread(this, "Control Pathfinder");
-        thread.setPriority(Thread.MIN_PRIORITY);
-        thread.setDaemon(true);
-        thread.start();
+        if(mindustry.Vars.game().net.client() || pathHandle != null) return;
+        GameContext owner = RuntimeContexts.requireCurrent();
+        if(owner == null) throw new IllegalStateException("ControlPathfinder requires a bound GameContext");
+        invalidated = false;
+        lastInvalidCheck = Time.millis() + invalidateCheckInterval;
+        pathGeneration++;
+        pathHandle = RuntimePathExecutor.shared().schedule(owner, "ControlPathfinder", updateInterval, this::runTurn);
     }
 
-    /** Stops the pathfinding thread. */
-    private void stop(){
-        if(thread != null){
-            thread.interrupt();
-            thread = null;
-        }
+    /** Stops the Context-owned path lane and synchronously waits for an in-flight turn before world state is reused. */
+    private boolean stopAndAwait(){
+        RuntimePathExecutor.Handle old = pathHandle;
         invalidated = true;
+        if(old != null){
+            old.close();
+            if(pathHandle == old) pathHandle = null;
+        }
+
         queue.clear();
+        return true;
     }
+
+    /** Stops this Context's path lane; sibling Sectors keep the process-owned pool alive. */
+    private void stop(){
+        stopAndAwait();
+    }
+
+    /** Releases the runtime-owned path lane. */
+    public void dispose(){ stopAndAwait(); }
 
     /** @return a cluster at coordinates; can be null if not cluster was created yet*/
     @Nullable Cluster getCluster(int team, int pathCost, int cx, int cy){
         return getCluster(team, pathCost, cx + cy * cwidth);
     }
+
 
     /** @return a cluster at coordinates; can be null if not cluster was created yet*/
     @Nullable Cluster getCluster(int team, int pathCost, int clusterIndex){
@@ -629,16 +688,16 @@ public class ControlPathfinder implements Runnable{
     }
 
     //distance heuristic: manhattan
-    private static float heuristic(int a, int b){
+    private float heuristic(int a, int b){
         int x = a % wwidth, x2 = b % wwidth, y = a / wwidth, y2 = b / wwidth;
         return Math.abs(x - x2) + Math.abs(y - y2);
     }
 
-    private static int tcost(int team, PathCost cost, int tilePos){
-        return cost.getCost(team, pathfinder.tiles[tilePos]);
+    private int tcost(int team, PathCost cost, int tilePos){
+        return cost.getCost(team, mindustry.Vars.game().pathfinder.tiles[tilePos]);
     }
 
-    private static float tileCost(int team, PathCost type, int a, int b){
+    private float tileCost(int team, PathCost type, int a, int b){
         //currently flat cost
         return cost(team, type, b);
     }
@@ -950,7 +1009,7 @@ public class ControlPathfinder implements Runnable{
 
                     int newPosArray = (dx - clx * clusterSize) + (dy - cly * clusterSize) * clusterSize;
 
-                    int otherCost = pcost.getCost(team, pathfinder.tiles[newPos]);
+                    int otherCost = pcost.getCost(team, mindustry.Vars.game().pathfinder.tiles[newPos]);
                     int oldCost = weights[newPosArray];
 
                     //a cost of 0 means uninitialized, OR it means we're at the goal position, but that's handled above
@@ -1014,7 +1073,7 @@ public class ControlPathfinder implements Runnable{
                             cache.frontier.addFirst(worldX + worldY * wwidth);
 
                             if(showDebug){
-                                Core.app.post(() -> Fx.placeBlock.at(worldX *tilesize, worldY * tilesize, 1f));
+                                RuntimeContexts.post(() -> Fx.placeBlock.at(worldX *tilesize, worldY * tilesize, 1f));
                             }
                         }
                     }
@@ -1057,7 +1116,7 @@ public class ControlPathfinder implements Runnable{
             fields.put(cache.mapKey, cache);
             FieldCache fcache = cache;
             //register field in main thread for iteration
-            Core.app.post(() -> fieldList.add(fcache));
+            RuntimeContexts.post(() -> fieldList.add(fcache));
             cache.frontier.addFirst(goalPos);
             addingFrontier = false; //when it's a new field, there is no need to add to the frontier to merge the flowfield
         }
@@ -1094,7 +1153,7 @@ public class ControlPathfinder implements Runnable{
     }
 
     public static boolean isNearObstacle(Unit unit, int x1, int y1, int x2, int y2){
-        return raycast(unit.team().id, unit.type.pathCost, x1, y1, x2, y2);
+        return mindustry.Vars.game().controlPath.raycast(unit.team().id, unit.type.pathCost, x1, y1, x2, y2);
     }
 
     public static class PathfindResult{
@@ -1142,13 +1201,13 @@ public class ControlPathfinder implements Runnable{
         team = unit.team.id,
         tileX = unit.tileX(),
         tileY = unit.tileY(),
-        packedPos = world.packArray(tileX, tileY),
+        packedPos = mindustry.Vars.game().world.packArray(tileX, tileY),
         destX = World.toTile(mainDestination.x),
         destY = World.toTile(mainDestination.y),
         actualDestX = World.toTile(destination.x),
         actualDestY = World.toTile(destination.y),
         actualDestPos = actualDestX + actualDestY * wwidth,
-        initialCost = tileOn == null ? 0 : cost.getCost(team, pathfinder.tiles[tileOn.array()]),
+        initialCost = tileOn == null ? 0 : cost.getCost(team, mindustry.Vars.game().pathfinder.tiles[tileOn.array()]),
         destPos = destX + destY * wwidth;
 
         //do not allow commanding into areas outside the map bounds
@@ -1159,12 +1218,17 @@ public class ControlPathfinder implements Runnable{
         }
 
         PathRequest request = unitRequests.get(unit);
+        if(request != null && !requestCurrent(request)){
+            request.invalidated = true;
+            unitRequests.remove(unit);
+            request = null;
+        }
 
-        unit.hitboxTile(Tmp.r3);
+        unit.hitboxTile(Tmp.r3());
         //tile rect size has tile size factored in, since the ray cannot have thickness
-        float tileRectSize = tilesize + Tmp.r3.height;
+        float tileRectSize = tilesize + Tmp.r3().height;
 
-        int lastRaycastTile = request == null || world.tileChanges != request.lastWorldUpdate ? -1 : request.lastRaycastTile;
+        int lastRaycastTile = request == null || mindustry.Vars.game().world.tileChanges != request.lastWorldUpdate ? -1 : request.lastRaycastTile;
         boolean raycastResult = request != null && request.lastRaycastResult;
 
         //cache raycast results to run every time the world updates, and every tile the unit crosses
@@ -1177,7 +1241,7 @@ public class ControlPathfinder implements Runnable{
             if(request != null){
                 request.lastRaycastTile = packedPos;
                 request.lastRaycastResult = raycastResult;
-                request.lastWorldUpdate = world.tileChanges;
+                request.lastWorldUpdate = mindustry.Vars.game().world.tileChanges;
             }
         }
 
@@ -1196,7 +1260,7 @@ public class ControlPathfinder implements Runnable{
         if(request != null && (request.destination == destPos ||
             //can only recompute path only twice a second, unless it's far away
             (Time.timeSinceMillis(request.lastRecomputeTime) < 1000 && Mathf.dst(destX, destY, request.destination % wwidth, request.destination / wwidth) <= 4f))){
-            request.lastUpdateId = state.updateId;
+            request.lastUpdateId = mindustry.Vars.game().state.updateId;
 
             Tile initialTileOn = tileOn;
             //TODO: should fields be accessible from this thread?
@@ -1216,7 +1280,7 @@ public class ControlPathfinder implements Runnable{
                     request.oldCache = null;
                 }
 
-                fieldCache.lastUpdateId = state.updateId;
+                fieldCache.lastUpdateId = mindustry.Vars.game().state.updateId;
                 int maxIterations = 30; //TODO higher/lower number? is this still too slow?
                 int i = 0;
                 boolean recalc = false;
@@ -1237,11 +1301,11 @@ public class ControlPathfinder implements Runnable{
                             Point2 point = Geometry.d4[dir];
                             int dx = tileOn.x + point.x, dy = tileOn.y + point.y;
 
-                            Tile other = world.tile(dx, dy);
+                            Tile other = mindustry.Vars.game().world.tile(dx, dy);
 
                             if(other == null) continue;
 
-                            int packed = world.packArray(dx, dy);
+                            int packed = mindustry.Vars.game().world.packArray(dx, dy);
                             int otherCost = getCost(targetCache, dx, dy, requeue), relCost = otherCost - value;
 
                             if(relCost > 2 || otherCost <= 0){
@@ -1310,16 +1374,20 @@ public class ControlPathfinder implements Runnable{
             //destroy the old one immediately, it's invalid now
             if(request != null){
                 request.lastUpdateId = -1000;
+                // A superseded request from the same world/path generation must never publish a late result.
+                request.invalidated = true;
             }
 
             //queue new request.
-            unitRequests.put(unit, request = new PathRequest(unit, team, costId, destPos));
+            GameContext owner = RuntimeContexts.requireCurrent();
+            unitRequests.put(unit, request = new PathRequest(unit, team, costId, destPos, owner.generation(), pathGeneration, worldRevision, nextRequestId()));
 
             PathRequest f = request;
             request.lastRecomputeTime = Time.millis();
 
             //on the pathfinding thread: initialize the request
             queue.post(() -> {
+                if(!requestCurrent(f)){f.invalidated=true;return;}
                 threadPathRequests.add(f);
                 recalculatePath(f);
             });
@@ -1334,8 +1402,19 @@ public class ControlPathfinder implements Runnable{
     }
 
     private void recalculatePath(ControlPathfinder.PathRequest request){
+        if(!requestCurrent(request)){request.invalidated=true;return;}
         initializePathRequest(request, request.team, request.costId, request.unit.tileX(), request.unit.tileY(), request.destination % wwidth, request.destination / wwidth);
     }
+
+    boolean requestCurrent(PathRequest request){
+        if(request==null||request.invalidated)return false;
+        GameContext owner=RuntimeContexts.requireCurrent();
+        return !owner.closed()&&request.ownerGeneration==owner.generation()&&request.pathGeneration==pathGeneration&&request.worldRevision==worldRevision;
+    }
+
+    long pathGeneration(){return pathGeneration;}
+    long worldRevision(){return worldRevision;}
+    long nextRequestId(){return ++requestSequence;}
 
     private int getCost(FieldCache cache, int x, int y, boolean requeue){
         try{
@@ -1354,7 +1433,7 @@ public class ControlPathfinder implements Runnable{
         }
     }
 
-    private static boolean raycast(int team, PathCost type, int x1, int y1, int x2, int y2){
+    private boolean raycast(int team, PathCost type, int x1, int y1, int x2, int y2){
         int ww = wwidth, wh = wheight;
         int x = x1, dx = Math.abs(x2 - x), sx = x < x2 ? 1 : -1;
         int y = y1, dy = Math.abs(y2 - y), sy = y < y2 ? 1 : -1;
@@ -1381,8 +1460,40 @@ public class ControlPathfinder implements Runnable{
     }
 
     /** @return 0 if nothing was hit, otherwise the packed coordinates. This is an internal function and will likely be moved - do not use!*/
+    public static int raycastFast(int team, PathCost type, int x1, int y1, int x2, int y2){
+        return mindustry.Vars.game().controlPath.raycastFastLocal(team, type, x1, y1, x2, y2);
+    }
+
+    private int raycastFastLocal(int team, PathCost type, int x1, int y1, int x2, int y2){
+        int ww = wwidth, wh = wheight;
+        int x = x1, dx = Math.abs(x2 - x), sx = x < x2 ? 1 : -1;
+        int y = y1, dy = Math.abs(y2 - y), sy = y < y2 ? 1 : -1;
+        int err = dx - dy;
+
+        while(x >= 0 && y >= 0 && x < ww && y < wh){
+            if(solid(team, type, x + y * wwidth, true)) return Point2.pack(x, y);
+            if(x == x2 && y == y2) return 0;
+
+            //no diagonals
+            if(2 * err + dy > dx - 2 * err){
+                err -= dy;
+                x += sx;
+            }else{
+                err += dx;
+                y += sy;
+            }
+        }
+
+        return 0;
+    }
+
+    /** @return 0 if nothing was hit, otherwise the packed coordinates. This is an internal function and will likely be moved - do not use!*/
     public static int raycastFastAvoid(int team, PathCost type, int x1, int y1, int x2, int y2){
-        int ww = world.width(), wh = world.height();
+        return mindustry.Vars.game().controlPath.raycastFastAvoidLocal(team, type, x1, y1, x2, y2);
+    }
+
+    private int raycastFastAvoidLocal(int team, PathCost type, int x1, int y1, int x2, int y2){
+        int ww = wwidth, wh = wheight;
         int x = x1, dx = Math.abs(x2 - x), sx = x < x2 ? 1 : -1;
         int y = y1, dy = Math.abs(y2 - y), sy = y < y2 ? 1 : -1;
         int err = dx - dy;
@@ -1404,7 +1515,7 @@ public class ControlPathfinder implements Runnable{
         return 0;
     }
 
-    private static boolean overlap(int initialCost, int team, PathCost type, int x, int y, float startX, float startY, float endX, float endY, float rectSize){
+    private boolean overlap(int initialCost, int team, PathCost type, int x, int y, float startX, float startY, float endX, float endY, float rectSize){
         if(x < 0 || y < 0 || x >= wwidth || y >= wheight) return false;
         if(!nearPassable(initialCost, team, type, x + y * wwidth)){
             return Intersector.intersectSegmentRectangleFast(startX, startY, endX, endY, x * tilesize - rectSize/2f, y * tilesize - rectSize/2f, rectSize, rectSize);
@@ -1412,7 +1523,7 @@ public class ControlPathfinder implements Runnable{
         return false;
     }
 
-    private static boolean raycastRect(int initialCost, float startX, float startY, float endX, float endY, int team, PathCost type, int x1, int y1, int x2, int y2, float rectSize){
+    private boolean raycastRect(int initialCost, float startX, float startY, float endX, float endY, int team, PathCost type, int x1, int y1, int x2, int y2, float rectSize){
         int ww = wwidth, wh = wheight;
         int x = x1, dx = Math.abs(x2 - x), sx = x < x2 ? 1 : -1;
         int y = y1, dy = Math.abs(y2 - y), sy = y < y2 ? 1 : -1;
@@ -1445,44 +1556,45 @@ public class ControlPathfinder implements Runnable{
         return true;
     }
 
-    private static boolean avoid(int team, PathCost type, int tilePos){
+    private boolean avoid(int team, PathCost type, int tilePos){
         int cost = cost(team, type, tilePos);
         return cost == impassable || cost >= 2;
     }
 
-    private static boolean passable(int team, PathCost cost, int pos){
-        int amount = cost.getCost(team, pathfinder.tiles[pos]);
+    private boolean passable(int team, PathCost cost, int pos){
+        int amount = cost.getCost(team, mindustry.Vars.game().pathfinder.tiles[pos]);
         return amount != impassable && amount < solidCap;
     }
 
-    private static boolean nearPassable(int initialCost, int team, PathCost cost, int pos){
-        int amount = cost.getCost(team, pathfinder.tiles[pos]);
+    private boolean nearPassable(int initialCost, int team, PathCost cost, int pos){
+        int amount = cost.getCost(team, mindustry.Vars.game().pathfinder.tiles[pos]);
         return amount != impassable && amount < Math.min(Math.max(50, initialCost + 1), solidCap);
     }
 
-    private static boolean solid(int team, PathCost type, int x, int y){
+    private boolean solid(int team, PathCost type, int x, int y){
         return x < 0 || y < 0 || x >= wwidth || y >= wheight || solid(team, type, x + y * wwidth, true);
     }
 
-    private static boolean solid(int team, PathCost type, int tilePos, boolean checkWall){
+    private boolean solid(int team, PathCost type, int tilePos, boolean checkWall){
         int cost = cost(team, type, tilePos);
         return cost == impassable || cost >= solidCap;
     }
 
-    private static int cost(int team, PathCost cost, int tilePos){
-        if(state.rules.limitMapArea && !Team.get(team).isAI()){
+    private int cost(int team, PathCost cost, int tilePos){
+        if(mindustry.Vars.game().state.rules.limitMapArea && !Team.get(team).isAI()){
             int x = tilePos % wwidth, y = tilePos / wwidth;
-            if(x < state.rules.limitX || y < state.rules.limitY || x > state.rules.limitX + state.rules.limitWidth || y > state.rules.limitY + state.rules.limitHeight){
+            if(x < mindustry.Vars.game().state.rules.limitX || y < mindustry.Vars.game().state.rules.limitY || x > mindustry.Vars.game().state.rules.limitX + mindustry.Vars.game().state.rules.limitWidth || y > mindustry.Vars.game().state.rules.limitY + mindustry.Vars.game().state.rules.limitHeight){
                 return impassable;
             }
         }
-        return cost.getCost(team, pathfinder.tiles[tilePos]);
+        return cost.getCost(team, mindustry.Vars.game().pathfinder.tiles[tilePos]);
     }
 
     private void clusterChanged(int team, int pathCost, int cx, int cy){
         int index = cx + cy * cwidth;
 
         for(var req : threadPathRequests){
+            if(!requestCurrent(req))continue;
             long mapKey = FieldIndex.get(req.destination, pathCost, team);
             var field = fields.get(mapKey);
             if((field != null && field.fields.containsKey(index)) || req.notFound){
@@ -1528,104 +1640,41 @@ public class ControlPathfinder implements Runnable{
         }
     }
 
-    @Override
-    public void run(){
-        long lastInvalidCheck = Time.millis() + invalidateCheckInterval;
-
-        while(true){
-            if(net.client() || invalidated) return;
-            try{
-                if(state.isPlaying()){
-                    queue.run();
-
-                    clustersToUpdate.each(cluster -> {
-                        updateClustersComplete(cluster);
-
-                        //just in case: don't redundantly update inner clusters after you've recalculated it entirely
-                        clustersToInnerUpdate.remove(cluster);
-                    });
-
-                    clustersToInnerUpdate.each(cluster -> {
-                        //only recompute the inner links
-                        updateClustersInner(cluster);
-                    });
-
-                    clustersToInnerUpdate.clear();
-                    clustersToUpdate.clear();
-
-                    //periodically check for invalidated paths
-                    if(Time.timeSinceMillis(lastInvalidCheck) > invalidateCheckInterval){
-                        lastInvalidCheck = Time.millis();
-
-                        var it = invalidRequests.iterator();
-                        while(it.hasNext()){
-                            var request = it.next();
-
-                            //invalid request, ignore it
-                            if(request.invalidated){
-                                it.remove();
-                                continue;
-                            }
-
-                            long mapKey = FieldIndex.get(request.destination, request.costId, request.team);
-
-                            var field = fields.get(mapKey);
-
-                            if(field != null){
-                                //it's only worth recalculating a path when the current frontier has finished; otherwise the unit will be following something incomplete.
-                                if(field.frontier.isEmpty()){
-
-                                    //remove the field, to be recalculated next update once recalculatePath is processed
-                                    fields.remove(field.mapKey);
-                                    Core.app.post(() -> fieldList.remove(field));
-
-                                    //once the field is invalidated, make sure that all the requests that have it stored in their 'old' field, so units don't stutter during recalculations
-                                    for(var otherRequest : threadPathRequests){
-                                        if(otherRequest.destination == request.destination){
-                                            otherRequest.oldCache = field;
-
-                                            if(otherRequest != request){
-                                                queue.post(() -> recalculatePath(otherRequest));
-                                            }
-                                        }
-                                    }
-
-                                    //the recalculation is done next update, so multiple path requests in the same batch don't end up removing and recalculating the field multiple times.
-                                    queue.post(() -> recalculatePath(request));
-                                    //it has been processed.
-                                    it.remove();
-                                }
-                            }else{ //there's no field, presumably because a previous request already invalidated it.
-                                queue.post(() -> recalculatePath(request));
-                                it.remove();
+    private void runTurn(){
+        if(mindustry.Vars.game().net.client()||invalidated)return;
+        if(!mindustry.Vars.game().state.isPlaying())return;
+        queue.run();
+        clustersToUpdate.each(cluster->{updateClustersComplete(cluster);clustersToInnerUpdate.remove(cluster);});
+        clustersToInnerUpdate.each(this::updateClustersInner);
+        clustersToInnerUpdate.clear();clustersToUpdate.clear();
+        if(Time.timeSinceMillis(lastInvalidCheck)>invalidateCheckInterval){
+            lastInvalidCheck=Time.millis();
+            var it=invalidRequests.iterator();
+            while(it.hasNext()){
+                var request=it.next();
+                if(!requestCurrent(request)){request.invalidated=true;it.remove();continue;}
+                long mapKey=FieldIndex.get(request.destination,request.costId,request.team);
+                var field=fields.get(mapKey);
+                if(field!=null){
+                    if(field.frontier.isEmpty()){
+                        fields.remove(field.mapKey);RuntimeContexts.post(()->fieldList.remove(field));
+                        for(var otherRequest:threadPathRequests){
+                            if(!requestCurrent(otherRequest))continue;
+                            if(otherRequest.destination==request.destination){
+                                otherRequest.oldCache=field;
+                                if(otherRequest!=request)queue.post(()->recalculatePath(otherRequest));
                             }
                         }
+                        queue.post(()->recalculatePath(request));it.remove();
                     }
-
-                    //each update time (not total!) no longer than maxUpdate
-                    fields.eachValue(cache -> {
-                        if(cache != null){
-                            updateFields(cache, maxUpdate);
-                        }
-                    });
-                }
-
-                try{
-                    Thread.sleep(updateInterval);
-                }catch(InterruptedException e){
-                    //stop looping when interrupted externally
-                    return;
-                }
-            }catch(Throwable e){
-                if(!invalidated){
-                    Log.err(e);
-                }else{
-                    //This pathfinder is done, don't bother doing any tasks
-                    return;
-                }
+                }else{queue.post(()->recalculatePath(request));it.remove();}
             }
         }
+        fields.eachValue(cache->{if(cache!=null)updateFields(cache,maxUpdate);});
     }
+
+    /** Compatibility entry point: execute one Context-bound turn; production scheduling uses RuntimePathExecutor. */
+    @Override public void run(){runTurn();}
 
     @Struct
     static class FieldIndexStruct{

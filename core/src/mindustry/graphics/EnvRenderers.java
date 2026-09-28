@@ -46,7 +46,7 @@ public class EnvRenderers{
 
             Draw.blend(Blending.additive);
 
-            float t = Time.time / timeScale;
+            float t = Time.time() / timeScale;
             Texture tex = Core.assets.get("sprites/rays.png", Texture.class);
 
             for(int i = 0; i < rays; i++){

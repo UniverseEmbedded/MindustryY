@@ -25,11 +25,11 @@ abstract class VelComp implements Posc{
         //velocity conflicts with interpolation.
         if(!net.client() || isLocal()){
             float px = x, py = y;
-            move(vel.x * Time.delta, vel.y * Time.delta);
+            move(vel.x * Time.delta(), vel.y * Time.delta());
             if(Mathf.equal(px, x)) vel.x = 0;
             if(Mathf.equal(py, y)) vel.y = 0;
 
-            vel.scl(Math.max(1f - drag * Time.delta, 0));
+            vel.scl(Math.max(1f - drag * Time.delta(), 0));
         }
     }
 

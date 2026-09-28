@@ -71,6 +71,9 @@ public class Renderer implements ApplicationListener{
     private boolean launching;
     private Vec2 camShakeOffset = new Vec2();
     private int glErrors;
+    /** True while {@link #effectBuffer} is between begin/end. If drawing throws after begin, the queued end runnable
+     * may be skipped; the next frame uses this flag to release the leftover FBO instead of continuing off-screen. */
+    private boolean effectBufferOpen;
 
     public Renderer(){
         camera = new Camera();
@@ -151,6 +154,16 @@ public class Renderer implements ApplicationListener{
     @Override
     public void update(){
         PerfCounter.render.begin();
+        //A drawRange may begin the effect buffer, then throw before its queued end runnable executes.
+        //Release any leftover binding before rendering another frame, otherwise subsequent frames can stay off-screen.
+        if(effectBufferOpen){
+            effectBufferOpen = false;
+            try{
+                effectBuffer.end();
+            }catch(Throwable error){
+                Log.err("Failed to release leftover effect framebuffer", error);
+            }
+        }
         Color.white.set(1f, 1f, 1f, 1f);
 
         float baseTarget = targetscale;
@@ -185,7 +198,7 @@ public class Renderer implements ApplicationListener{
             weatherAlpha = 0f;
             camerascale = launchAnimator.zoomLaunch();
 
-            if(!state.isPaused()) landTime -= Time.delta;
+            if(!state.isPaused()) landTime -= Time.delta();
         }else{
             weatherAlpha = Mathf.lerpDelta(weatherAlpha, 1f, 0.08f);
         }
@@ -210,8 +223,8 @@ public class Renderer implements ApplicationListener{
                 float intensity = shakeIntensity * (settings.getInt("screenshake", 4) / 4f) * 0.75f;
                 camShakeOffset.setToRandomDirection().scl(Mathf.random(intensity));
                 camera.position.add(camShakeOffset);
-                shakeIntensity -= shakeReduction * Time.delta;
-                shakeTime -= Time.delta;
+                shakeIntensity -= shakeReduction * Time.delta();
+                shakeTime -= Time.delta();
                 shakeIntensity = Mathf.clamp(shakeIntensity, 0f, 100f);
             }else{
                 camShakeOffset.setZero();
@@ -402,13 +415,21 @@ public class Renderer implements ApplicationListener{
 
         if(animateShields && Shaders.shield != null){
             //TODO would be nice if there were a way to detect if any shields or build beams actually *exist* before beginning/ending buffers, otherwise you're just blitting and swapping shaders for nothing
-            Draw.drawRange(Layer.shields, 1f, () -> effectBuffer.begin(Color.clear), () -> {
+            Draw.drawRange(Layer.shields, 1f, () -> {
+                effectBufferOpen = true;
+                effectBuffer.begin(Color.clear);
+            }, () -> {
                 effectBuffer.end();
+                effectBufferOpen = false;
                 effectBuffer.blit(Shaders.shield);
             });
 
-            Draw.drawRange(Layer.buildBeam, 1f, () -> effectBuffer.begin(Color.clear), () -> {
+            Draw.drawRange(Layer.buildBeam, 1f, () -> {
+                effectBufferOpen = true;
+                effectBuffer.begin(Color.clear);
+            }, () -> {
                 effectBuffer.end();
+                effectBufferOpen = false;
                 effectBuffer.blit(Shaders.buildBeam);
             });
         }
@@ -430,7 +451,7 @@ public class Renderer implements ApplicationListener{
         Events.fire(Trigger.drawOver);
         blocks.drawBlocks();
 
-        Groups.draw.draw(Drawc::draw);
+        Groups.current().draw.draw(Drawc::draw);
 
         if(settings.getBool("drawhitboxes")){
             DebugCollisionRenderer.draw();
@@ -463,15 +484,15 @@ public class Renderer implements ApplicationListener{
             }
 
             Texture tex = assets.get(state.rules.backgroundTexture, Texture.class);
-            Tmp.tr1.set(tex);
-            Tmp.tr1.u = 0f;
-            Tmp.tr1.v = 0f;
+            Tmp.tr1().set(tex);
+            Tmp.tr1().u = 0f;
+            Tmp.tr1().v = 0f;
 
             float ratio = camera.width / camera.height;
             float size = state.rules.backgroundScl;
 
-            Tmp.tr1.u2 = size;
-            Tmp.tr1.v2 = size / ratio;
+            Tmp.tr1().u2 = size;
+            Tmp.tr1().v2 = size / ratio;
 
             float sx = 0f, sy = 0f;
 
@@ -480,9 +501,9 @@ public class Renderer implements ApplicationListener{
                 sy = (camera.position.y) / state.rules.backgroundSpeed;
             }
 
-            Tmp.tr1.scroll(sx + state.rules.backgroundOffsetX, -sy + state.rules.backgroundOffsetY);
+            Tmp.tr1().scroll(sx + state.rules.backgroundOffsetX, -sy + state.rules.backgroundOffsetY);
 
-            Draw.rect(Tmp.tr1, camera.position.x, camera.position.y, camera.width, camera.height);
+            Draw.rect(Tmp.tr1(), camera.position.x, camera.position.y, camera.width, camera.height);
         }
 
         if(state.rules.planetBackground != null){

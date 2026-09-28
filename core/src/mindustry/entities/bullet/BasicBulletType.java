@@ -52,7 +52,7 @@ public class BasicBulletType extends BulletType{
         float width = this.width * ((1f - shrinkX) + shrinkX * shrink);
         float offset = -90 + (spin != 0 ? Mathf.randomSeed(b.id, 360f) + b.time * spin : 0f) + rotationOffset;
 
-        Color mix = Tmp.c1.set(mixColorFrom).lerp(mixColorTo, b.fin());
+        Color mix = Tmp.c1().set(mixColorFrom).lerp(mixColorTo, b.fin());
 
         Draw.mixcol(mix, mix.a);
 

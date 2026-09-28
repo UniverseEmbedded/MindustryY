@@ -57,10 +57,10 @@ public class ShrapnelBulletType extends BulletType{
 
         Draw.color(fromColor, toColor, b.fin());
         for(int i = 0; i < (int)(serrations * realLength / length); i++){
-            Tmp.v1.trns(rot, i * serrationSpacing);
+            Tmp.v1().trns(rot, i * serrationSpacing);
             float sl = Mathf.clamp(b.fout() - serrationFadeOffset) * (serrationSpaceOffset - i * serrationLenScl);
-            Drawf.tri(b.x + Tmp.v1.x, b.y + Tmp.v1.y, serrationWidth, sl, b.rotation() + 90);
-            Drawf.tri(b.x + Tmp.v1.x, b.y + Tmp.v1.y, serrationWidth, sl, b.rotation() - 90);
+            Drawf.tri(b.x + Tmp.v1().x, b.y + Tmp.v1().y, serrationWidth, sl, b.rotation() + 90);
+            Drawf.tri(b.x + Tmp.v1().x, b.y + Tmp.v1().y, serrationWidth, sl, b.rotation() - 90);
         }
         Drawf.tri(b.x, b.y, width * b.fout(), (realLength + 4f), b.rotation());
         Drawf.tri(b.x, b.y, width * b.fout(), 10f, b.rotation() + 180f);

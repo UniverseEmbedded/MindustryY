@@ -39,8 +39,8 @@ public class PayloadMassDriver extends PayloadBlock{
 
     public Effect transferEffect = new Effect(11f, 600f, e -> {
         if(!(e.data instanceof PayloadMassDriverData data)) return;
-        Tmp.v1.set(data.x, data.y).lerp(data.ox, data.oy, Interp.sineIn.apply(e.fin()));
-        data.payload.set(Tmp.v1.x, Tmp.v1.y, e.rotation);
+        Tmp.v1().set(data.x, data.y).lerp(data.ox, data.oy, Interp.sineIn.apply(e.fin()));
+        data.payload.set(Tmp.v1().x, Tmp.v1().y, e.rotation);
         data.payload.draw();
     }).layer(Layer.flyingUnitLow - 1);
 
@@ -111,10 +111,10 @@ public class PayloadMassDriver extends PayloadBlock{
         if(selected == null || selected.block != this || !selected.within(x * tilesize, y * tilesize, range)) return;
 
         //if so, draw a dotted line towards it while it is in range
-        float sin = Mathf.absin(Time.time, 6f, 1f);
-        Tmp.v1.set(x * tilesize + offset, y * tilesize + offset).sub(selected.x, selected.y).limit((size / 2f + 1) * tilesize + sin + 0.5f);
-        float x2 = x * tilesize - Tmp.v1.x, y2 = y * tilesize - Tmp.v1.y,
-            x1 = selected.x + Tmp.v1.x, y1 = selected.y + Tmp.v1.y;
+        float sin = Mathf.absin(Time.time(), 6f, 1f);
+        Tmp.v1().set(x * tilesize + offset, y * tilesize + offset).sub(selected.x, selected.y).limit((size / 2f + 1) * tilesize + sin + 0.5f);
+        float x2 = x * tilesize - Tmp.v1().x, y2 = y * tilesize - Tmp.v1().y,
+            x1 = selected.x + Tmp.v1().x, y1 = selected.y + Tmp.v1().y;
         int segs = (int)(selected.dst(x * tilesize, y * tilesize) / tilesize);
 
         Lines.stroke(4f, Pal.gray);
@@ -164,7 +164,7 @@ public class PayloadMassDriver extends PayloadBlock{
 
             //discharge when charging isn't happening
             if(!charging){
-                charge -= Time.delta * 10f;
+                charge -= Time.delta() * 10f;
                 if(charge < 0) charge = 0f;
             }
 
@@ -176,7 +176,7 @@ public class PayloadMassDriver extends PayloadBlock{
             }
 
             boolean pos = effectDelayTimer > 0;
-            effectDelayTimer -= Time.delta;
+            effectDelayTimer -= Time.delta();
             if(effectDelayTimer <= 0 && pos && lastOther != null){
                 var other = lastOther;
                 float cx = Angles.trnsx(other.turretRotation, length), cy = Angles.trnsy(other.turretRotation, length);
@@ -385,10 +385,10 @@ public class PayloadMassDriver extends PayloadBlock{
             Draw.z(Layer.turret);
             Drawf.shadow(region, tx - (size / 2f), ty - (size / 2f), r);
 
-            Tmp.v1.trns(turretRotation, 0, -(curSize/2f - grabWidth));
-            Tmp.v2.trns(turretRotation, -Math.max(curSize/2f - grabHeight - length, 0f), 0f);
-            float rx = tx + Tmp.v1.x + Tmp.v2.x, ry = ty + Tmp.v1.y + Tmp.v2.y;
-            float lx = tx - Tmp.v1.x + Tmp.v2.x, ly = ty - Tmp.v1.y + Tmp.v2.y;
+            Tmp.v1().trns(turretRotation, 0, -(curSize/2f - grabWidth));
+            Tmp.v2().trns(turretRotation, -Math.max(curSize/2f - grabHeight - length, 0f), 0f);
+            float rx = tx + Tmp.v1().x + Tmp.v2().x, ry = ty + Tmp.v1().y + Tmp.v2().y;
+            float lx = tx - Tmp.v1().x + Tmp.v2().x, ly = ty - Tmp.v1().y + Tmp.v2().y;
 
             Draw.rect(capOutlineRegion, tx, ty, r);
             Draw.rect(leftOutlineRegion, lx, ly, r);
@@ -404,17 +404,17 @@ public class PayloadMassDriver extends PayloadBlock{
                 Building link = world.build(this.link);
 
                 float fin = Interp.pow2Out.apply(charge / chargeTime), fout = 1f-fin, len = length*1.8f, w = curSize/2f + 7f*fout;
-                Vec2 right = Tmp.v1.trns(turretRotation, len, w);
-                Vec2 left = Tmp.v2.trns(turretRotation, len, -w);
+                Vec2 right = Tmp.v1().trns(turretRotation, len, w);
+                Vec2 left = Tmp.v2().trns(turretRotation, len, -w);
 
                 Lines.stroke(fin * 1.2f, Pal.accent);
                 Lines.line(x + left.x, y + left.y, link.x - right.x, link.y - right.y);
                 Lines.line(x + right.x, y + right.y, link.x - left.x, link.y - left.y);
 
                 for(int i = 0; i < 4; i++){
-                    Tmp.v3.set(x, y).lerp(link.x, link.y, 0.5f + (i - 2) * 0.1f);
+                    Tmp.v3().set(x, y).lerp(link.x, link.y, 0.5f + (i - 2) * 0.1f);
                     Draw.scl(fin * 1.1f);
-                    Draw.rect(arrow, Tmp.v3.x, Tmp.v3.y, turretRotation);
+                    Draw.rect(arrow, Tmp.v3().x, Tmp.v3().y, turretRotation);
                     Draw.scl();
                 }
 
@@ -424,7 +424,7 @@ public class PayloadMassDriver extends PayloadBlock{
 
         @Override
         public void drawConfigure(){
-            float sin = Mathf.absin(Time.time, 6f, 1f);
+            float sin = Mathf.absin(Time.time(), 6f, 1f);
 
             Draw.color(Pal.accent);
             Lines.stroke(1f);

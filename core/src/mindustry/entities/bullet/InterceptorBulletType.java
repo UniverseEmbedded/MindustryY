@@ -32,9 +32,9 @@ public class InterceptorBulletType extends BasicBulletType{
                     b.deltaX, b.deltaY,
                     other.x, other.y,
                     other.hitSize, other.hitSize,
-                    other.deltaX, other.deltaY, Tmp.v1)){
+                    other.deltaX, other.deltaY, Tmp.v1())){
 
-                    b.set(Tmp.v1);
+                    b.set(Tmp.v1());
 
                     hit(b, b.x, b.y);
                     b.remove();

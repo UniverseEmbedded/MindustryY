@@ -68,7 +68,7 @@ public class Weather extends UnlockableContent{
 
     @Nullable
     public WeatherState instance(){
-        return Groups.weather.find(w -> w.weather() == this);
+        return Groups.current().weather.find(w -> w.weather() == this);
     }
 
     public boolean isActive(){
@@ -89,18 +89,18 @@ public class Weather extends UnlockableContent{
             if(state.effectTimer <= 0){
                 state.effectTimer = statusDuration - 5f;
 
-                Groups.unit.each(u -> {
+                Groups.current().unit.each(u -> {
                     if(u.checkTarget(statusAir, statusGround)){
                         u.apply(status, statusDuration);
                     }
                 });
             }else{
-                state.effectTimer -= Time.delta;
+                state.effectTimer -= Time.delta();
             }
         }
 
         if(!headless && sound != Sounds.none){
-            float noise = soundVolOscMag > 0 ? (float)Math.abs(Noise.rawNoise(Time.time / soundVolOscScl)) * soundVolOscMag : 0;
+            float noise = soundVolOscMag > 0 ? (float)Math.abs(Noise.rawNoise(Time.time() / soundVolOscScl)) * soundVolOscMag : 0;
             control.sound.loop(sound, Math.max((soundVol + noise) * state.opacity, soundVolMin));
         }
     }
@@ -121,31 +121,31 @@ public class Weather extends UnlockableContent{
                               float sinSclMin, float sinSclMax, float sinMagMin, float sinMagMax,
                               boolean randomParticleRotation){
         rand.setSeed(0);
-        Tmp.r1.setCentered(Core.camera.position.x, Core.camera.position.y, Core.graphics.getWidth() / renderer.minScale(), Core.graphics.getHeight() / renderer.minScale());
-        Tmp.r1.grow(sizeMax * 1.5f);
-        Core.camera.bounds(Tmp.r2);
-        int total = (int)(Tmp.r1.area() / density * intensity);
+        Tmp.r1().setCentered(Core.camera.position.x, Core.camera.position.y, Core.graphics.getWidth() / renderer.minScale(), Core.graphics.getHeight() / renderer.minScale());
+        Tmp.r1().grow(sizeMax * 1.5f);
+        Core.camera.bounds(Tmp.r2());
+        int total = (int)(Tmp.r1().area() / density * intensity);
         Draw.color(color, opacity);
 
         for(int i = 0; i < total; i++){
             float scl = rand.random(0.5f, 1f);
             float scl2 = rand.random(0.5f, 1f);
             float size = rand.random(sizeMin, sizeMax);
-            float x = (rand.random(0f, boundMax) + Time.time * windx * scl2);
-            float y = (rand.random(0f, boundMax) + Time.time * windy * scl);
+            float x = (rand.random(0f, boundMax) + Time.time() * windx * scl2);
+            float y = (rand.random(0f, boundMax) + Time.time() * windy * scl);
             float alpha = rand.random(minAlpha, maxAlpha);
             float rotation = randomParticleRotation ? rand.random(0f, 360f) : 0f;
 
             x += Mathf.sin(y, rand.random(sinSclMin, sinSclMax), rand.random(sinMagMin, sinMagMax));
 
-            x -= Tmp.r1.x;
-            y -= Tmp.r1.y;
-            x = Mathf.mod(x, Tmp.r1.width);
-            y = Mathf.mod(y, Tmp.r1.height);
-            x += Tmp.r1.x;
-            y += Tmp.r1.y;
+            x -= Tmp.r1().x;
+            y -= Tmp.r1().y;
+            x = Mathf.mod(x, Tmp.r1().width);
+            y = Mathf.mod(y, Tmp.r1().height);
+            x += Tmp.r1().x;
+            y += Tmp.r1().y;
 
-            if(Tmp.r3.setCentered(x, y, size).overlaps(Tmp.r2)){
+            if(Tmp.r3().setCentered(x, y, size).overlaps(Tmp.r2())){
                 Draw.alpha(alpha * opacity);
                 Draw.rect(region, x, y, size, size, rotation);
             }
@@ -158,10 +158,10 @@ public class Weather extends UnlockableContent{
         rand.setSeed(0);
         float padding = sizeMax*0.9f;
 
-        Tmp.r1.setCentered(Core.camera.position.x, Core.camera.position.y, Core.graphics.getWidth() / renderer.minScale(), Core.graphics.getHeight() / renderer.minScale());
-        Tmp.r1.grow(padding);
-        Core.camera.bounds(Tmp.r2);
-        int total = (int)(Tmp.r1.area() / density * intensity);
+        Tmp.r1().setCentered(Core.camera.position.x, Core.camera.position.y, Core.graphics.getWidth() / renderer.minScale(), Core.graphics.getHeight() / renderer.minScale());
+        Tmp.r1().grow(padding);
+        Core.camera.bounds(Tmp.r2());
+        int total = (int)(Tmp.r1().area() / density * intensity);
         Lines.stroke(stroke);
         float alpha = Draw.getColorAlpha();
         Draw.color(color);
@@ -170,18 +170,18 @@ public class Weather extends UnlockableContent{
             float scl = rand.random(0.5f, 1f);
             float scl2 = rand.random(0.5f, 1f);
             float size = rand.random(sizeMin, sizeMax);
-            float x = (rand.random(0f, boundMax) + Time.time * xspeed * scl2);
-            float y = (rand.random(0f, boundMax) - Time.time * yspeed * scl);
+            float x = (rand.random(0f, boundMax) + Time.time() * xspeed * scl2);
+            float y = (rand.random(0f, boundMax) - Time.time() * yspeed * scl);
             float tint = rand.random(1f) * alpha;
 
-            x -= Tmp.r1.x;
-            y -= Tmp.r1.y;
-            x = Mathf.mod(x, Tmp.r1.width);
-            y = Mathf.mod(y, Tmp.r1.height);
-            x += Tmp.r1.x;
-            y += Tmp.r1.y;
+            x -= Tmp.r1().x;
+            y -= Tmp.r1().y;
+            x = Mathf.mod(x, Tmp.r1().width);
+            y = Mathf.mod(y, Tmp.r1().height);
+            x += Tmp.r1().x;
+            y += Tmp.r1().y;
 
-            if(Tmp.r3.setCentered(x, y, size).overlaps(Tmp.r2)){
+            if(Tmp.r3().setCentered(x, y, size).overlaps(Tmp.r2())){
                 Draw.alpha(tint);
                 Lines.lineAngle(x, y, Angles.angle(xspeed * scl2, - yspeed * scl), size/2f);
             }
@@ -189,14 +189,14 @@ public class Weather extends UnlockableContent{
     }
 
     public static void drawSplashes(TextureRegion[] splashes, float padding, float density, float intensity, float opacity, float timeScale, float stroke, Color color, Liquid splasher){
-        Tmp.r1.setCentered(Core.camera.position.x, Core.camera.position.y, Core.graphics.getWidth() / renderer.minScale(), Core.graphics.getHeight() / renderer.minScale());
-        Tmp.r1.grow(padding);
-        Core.camera.bounds(Tmp.r2);
-        int total = (int)(Tmp.r1.area() / density * intensity) / 2;
+        Tmp.r1().setCentered(Core.camera.position.x, Core.camera.position.y, Core.graphics.getWidth() / renderer.minScale(), Core.graphics.getHeight() / renderer.minScale());
+        Tmp.r1().grow(padding);
+        Core.camera.bounds(Tmp.r2());
+        int total = (int)(Tmp.r1().area() / density * intensity) / 2;
         Lines.stroke(stroke);
         rand.setSeed(0);
 
-        float t = Time.time / timeScale;
+        float t = Time.time() / timeScale;
 
         for(int i = 0; i < total; i++){
             float offset = rand.random(0f, 1f);
@@ -207,19 +207,19 @@ public class Weather extends UnlockableContent{
             float x = (rand.random(0f, boundMax) + pos*953);
             float y = (rand.random(0f, boundMax) - pos*453);
 
-            x -= Tmp.r1.x;
-            y -= Tmp.r1.y;
-            x = Mathf.mod(x, Tmp.r1.width);
-            y = Mathf.mod(y, Tmp.r1.height);
-            x += Tmp.r1.x;
-            y += Tmp.r1.y;
+            x -= Tmp.r1().x;
+            y -= Tmp.r1().y;
+            x = Mathf.mod(x, Tmp.r1().width);
+            y = Mathf.mod(y, Tmp.r1().height);
+            x += Tmp.r1().x;
+            y += Tmp.r1().y;
 
-            if(Tmp.r3.setCentered(x, y, life * 4f).overlaps(Tmp.r2)){
+            if(Tmp.r3().setCentered(x, y, life * 4f).overlaps(Tmp.r2())){
                 Tile tile = world.tileWorld(x, y);
 
                 //only create splashes on specific liquid.
                 if(tile != null && tile.floor().liquidDrop == splasher){
-                    Draw.color(Tmp.c1.set(tile.floor().mapColor).mul(1.5f).a(opacity));
+                    Draw.color(Tmp.c1().set(tile.floor().mapColor).mul(1.5f).a(opacity));
                     Draw.rect(splashes[(int)(life * (splashes.length - 1))], x, y);
                 }else if(tile != null && tile.floor().liquidDrop == null && !tile.floor().solid){
                     Draw.color(color);
@@ -227,8 +227,8 @@ public class Weather extends UnlockableContent{
 
                     float space = 45f;
                     for(int j : Mathf.signs){
-                        Tmp.v1.trns(90f + j*space, 1f + 5f * life);
-                        Lines.lineAngle(x + Tmp.v1.x, y + Tmp.v1.y, 90f + j*space, 3f * (1f - life));
+                        Tmp.v1().trns(90f + j*space, 1f + 5f * life);
+                        Lines.lineAngle(x + Tmp.v1().x, y + Tmp.v1().y, 90f + j*space, 3f * (1f - life));
                     }
                 }
             }
@@ -313,7 +313,7 @@ public class Weather extends UnlockableContent{
                 opacity = Mathf.lerpDelta(opacity, 1f, 0.004f);
             }
 
-            life -= Time.delta;
+            life -= Time.delta();
 
             weather.update(self());
             weather.updateEffect(self());

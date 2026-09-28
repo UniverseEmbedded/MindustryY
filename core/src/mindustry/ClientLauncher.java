@@ -23,6 +23,7 @@ import mindustry.io.*;
 import mindustry.maps.*;
 import mindustry.mod.*;
 import mindustry.net.*;
+import mindustry.runtime.*;
 import mindustry.ui.*;
 
 import static arc.Core.*;
@@ -145,7 +146,10 @@ public abstract class ClientLauncher extends ApplicationCore implements Platform
 
         assets.load("sprites/error.png", Texture.class);
         atlas = TextureAtlas.blankAtlas();
-        Vars.net = new Net(platform.getNet());
+        // The primary desktop/application lane owns networking before Vars.init() runs. Bind it explicitly so
+        // strict multi-context providers never fall back to an implicit process-global runtime.
+        RuntimeContexts.bindPrimaryThread();
+        Vars.net = Vars.game().net = new Net(platform.getNet());
         MapPreviewLoader.setupLoaders();
         mods = new Mods();
         schematics = new Schematics();
@@ -174,12 +178,12 @@ public abstract class ClientLauncher extends ApplicationCore implements Platform
         assets.load(mods);
         assets.loadRun("mergeUI", PixmapPacker.class, () -> {}, () -> Fonts.mergeFontAtlas(atlas));
 
-        add(logic = new Logic());
+        add(logic = game().logic = new Logic());
         add(control = new Control());
         add(renderer = new Renderer());
         add(ui = new UI());
-        add(netServer = new NetServer());
-        add(netClient = new NetClient());
+        add(netServer = game().netServer = new NetServer());
+        add(netClient = game().netClient = new NetClient());
 
         assets.load(schematics);
 

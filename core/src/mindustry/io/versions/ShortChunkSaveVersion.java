@@ -39,9 +39,9 @@ public class ShortChunkSaveVersion extends SaveVersion{
             });
         }
 
-        Groups.all.each(Entityc::afterReadAll);
-        Groups.unit.each(Entityc::afterReadAll);
-        Groups.build.each(Entityc::afterReadAll);
+        Groups.current().all.each(Entityc::afterReadAll);
+        Groups.current().unit.each(Entityc::afterReadAll);
+        Groups.current().build.each(Entityc::afterReadAll);
     }
 
     @Override
@@ -63,6 +63,9 @@ public class ShortChunkSaveVersion extends SaveVersion{
                 short floorid = stream.readShort();
                 short oreid = stream.readShort();
                 int consecutives = stream.readUnsignedByte();
+                if(i + consecutives >= width * height){
+                    throw new IOException("Map data is corrupt: floor run at index " + i + " with " + consecutives + " consecutive tiles exceeds map size " + (width * height));
+                }
                 if(content.block(floorid) == Blocks.air) floorid = Blocks.stone.id;
 
                 context.create(x, y, floorid, oreid, (short)0);
@@ -145,6 +148,9 @@ public class ShortChunkSaveVersion extends SaveVersion{
                     }
                 }else{
                     int consecutives = stream.readUnsignedByte();
+                    if(i + consecutives >= width * height){
+                        throw new IOException("Map data is corrupt: block run at index " + i + " with " + consecutives + " consecutive tiles exceeds map size " + (width * height));
+                    }
 
                     for(int j = i + 1; j < i + 1 + consecutives; j++){
                         context.tile(j).setBlock(block);

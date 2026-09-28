@@ -121,14 +121,14 @@ public class BeamNode extends PowerBlock{
 
         for(int i = 0; i < 4; i++){
             switch(i){
-                case 0 -> Tmp.r1.set(cx - s, cy - s, r, s * 2f);
-                case 1 -> Tmp.r1.set(cx - s, cy - s, s * 2f, r);
-                case 2 -> Tmp.r1.set(cx + s, cy - s, -r, s * 2f).normalize();
-                case 3 -> Tmp.r1.set(cx - s, cy + s, s * 2f, -r).normalize();
+                case 0 -> Tmp.r1().set(cx - s, cy - s, r, s * 2f);
+                case 1 -> Tmp.r1().set(cx - s, cy - s, s * 2f, r);
+                case 2 -> Tmp.r1().set(cx + s, cy - s, -r, s * 2f).normalize();
+                case 3 -> Tmp.r1().set(cx - s, cy + s, s * 2f, -r).normalize();
             }
 
             tempBuilds.clear();
-            tree.intersect(Tmp.r1, tempBuilds);
+            tree.intersect(Tmp.r1(), tempBuilds);
             int fi = i;
             Building closest = tempBuilds.min(b -> b instanceof BeamNodeBuild node && node.couldConnect((fi + 2) % 4, block, tile.x, tile.y), b -> b.dst2(cx, cy));
             tempBuilds.clear();

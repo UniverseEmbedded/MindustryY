@@ -165,11 +165,11 @@ public class Duct extends Block implements Autotiler{
             //draw item
             if(!under && current != null){
                 Draw.z(Layer.blockUnder + 0.1f);
-                Tmp.v1.set(Geometry.d4x(recDir) * tilesize / 2f, Geometry.d4y(recDir) * tilesize / 2f)
+                Tmp.v1().set(Geometry.d4x(recDir) * tilesize / 2f, Geometry.d4y(recDir) * tilesize / 2f)
                 .lerp(Geometry.d4x(r) * tilesize / 2f, Geometry.d4y(r) * tilesize / 2f,
                 Mathf.clamp((progress + 1f) / (2f - 1f/speed)));
 
-                Draw.rect(current.fullIcon, x + Tmp.v1.x, y + Tmp.v1.y, itemSize, itemSize);
+                Draw.rect(current.fullIcon, x + Tmp.v1().x, y + Tmp.v1().y, itemSize, itemSize);
             }
 
             Draw.scl(xscl, yscl);

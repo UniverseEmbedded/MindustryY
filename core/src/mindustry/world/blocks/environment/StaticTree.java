@@ -18,7 +18,7 @@ public class StaticTree extends StaticWall{
     public void drawBase(Tile tile){
         TextureRegion reg = variants > 0 ? variantRegions[Mathf.randomSeed(tile.pos(), 0, Math.max(0, variantRegions.length - 1))] : region;
 
-        TextureRegion r = Tmp.tr1;
+        TextureRegion r = Tmp.tr1();
         r.set(reg);
         int crop = (r.width - tilesize*4) / 2;
         float ox = 0;

@@ -602,7 +602,7 @@ public class Block extends UnlockableContent implements Senseable{
 
     public Color getColor(Tile tile){
         int mc = minimapColor(tile);
-        return mc == 0 ? mapColor : Tmp.c3.set(mc);
+        return mc == 0 ? mapColor : Tmp.c3().set(mc);
     }
 
     public boolean outputsItems(){
@@ -842,7 +842,7 @@ public class Block extends UnlockableContent implements Senseable{
 
     public void drawPlan(BuildPlan plan, Eachable<BuildPlan> list, boolean valid, float alpha){
         Draw.reset();
-        Draw.mixcol(!valid ? Pal.breakInvalid : Color.white, (!valid ? 0.4f : 0.24f) + Mathf.absin(Time.globalTime, 6f, 0.28f));
+        Draw.mixcol(!valid ? Pal.breakInvalid : Color.white, (!valid ? 0.4f : 0.24f) + Mathf.absin(Time.globalTime(), 6f, 0.28f));
         Draw.alpha(alpha);
         float prevScale = Draw.scl;
         Draw.scl *= plan.animScale;
@@ -852,7 +852,7 @@ public class Block extends UnlockableContent implements Senseable{
     }
 
     public void drawOtherPlayerPlan(BuildPlan plan, Eachable<BuildPlan> list, float alpha){
-        Draw.mixcol(Color.white, Mathf.absin(Time.globalTime, 6f, 0.15f));
+        Draw.mixcol(Color.white, Mathf.absin(Time.globalTime(), 6f, 0.15f));
         Draw.alpha(alpha);
         float prevScale = Draw.scl;
         Draw.scl *= plan.animScale;

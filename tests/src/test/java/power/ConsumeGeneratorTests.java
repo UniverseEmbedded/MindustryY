@@ -79,8 +79,8 @@ public class ConsumeGeneratorTests extends PowerTestFixture{
     void simulateLiquidConsumption(float delta, InputType inputType, Liquid liquid, float availableLiquidAmount, String parameterDescription){
         Time.setDeltaProvider(() -> delta);
 
-        float expectedConsumptionPerTick = Math.min(maximumLiquidUsage * Time.delta, availableLiquidAmount);
-        float expectedEfficiency = expectedConsumptionPerTick / (maximumLiquidUsage * Time.delta);
+        float expectedConsumptionPerTick = Math.min(maximumLiquidUsage * Time.delta(), availableLiquidAmount);
+        float expectedEfficiency = expectedConsumptionPerTick / (maximumLiquidUsage * Time.delta());
         float expectedOutputEfficiency = expectedEfficiency * liquid.flammability;
         //it should either consume:
         //- the maximum amount used (maximumLiquidUsage) multiplied by speed (delta), or
@@ -161,7 +161,7 @@ public class ConsumeGeneratorTests extends PowerTestFixture{
         float expectedEfficiency = build.productionEfficiency;
 
         float currentDuration = 0.0f;
-        while((currentDuration += Time.delta) <= fakeItemDuration){
+        while((currentDuration += Time.delta()) <= fakeItemDuration){
             build.update();
             assertEquals(expectedEfficiency, build.productionEfficiency, "Duration: " + currentDuration);
         }

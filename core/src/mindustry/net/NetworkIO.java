@@ -6,6 +6,8 @@ import arc.struct.*;
 import arc.util.*;
 import arc.util.io.*;
 import mindustry.*;
+import mindustry.campaign.shared.runtime.*;
+import mindustry.runtime.*;
 import mindustry.core.*;
 import mindustry.ctype.*;
 import mindustry.game.*;
@@ -30,32 +32,22 @@ public class NetworkIO{
     public static void writeWorld(Player player, OutputStream os){
 
         try(DataOutputStream stream = new DataOutputStream(os)){
-            //write all researched content to rules if hosting
-            if(state.isCampaign()){
-                state.rules.researched.clear();
-                for(ContentType type : ContentType.all){
-                    for(Content c : content.getBy(type)){
-                        if(c instanceof UnlockableContent u && u.unlocked() && u.techNode != null){
-                            state.rules.researched.add(u);
-                        }
-                    }
-                }
-            }
+            Rules networkRules = rulesForWorldWrite();
 
             var writer = SaveIO.getSaveWriter();
 
             //data patches must be first, as rules can involve patched content
             writer.writeDataPatches(stream, false);
 
-            stream.writeUTF(JsonIO.write(state.rules));
-            stream.writeUTF(JsonIO.write(state.mapLocales));
-            writer.writeStringMap(stream, state.map.tags);
+            stream.writeUTF(JsonIO.write(networkRules));
+            stream.writeUTF(JsonIO.write(game().state.mapLocales));
+            writer.writeStringMap(stream, game().state.map.tags);
 
-            stream.writeInt(state.wave);
-            stream.writeFloat(state.wavetime);
-            stream.writeDouble(state.tick);
-            stream.writeLong(GlobalVars.rand.seed0);
-            stream.writeLong(GlobalVars.rand.seed1);
+            stream.writeInt(game().state.wave);
+            stream.writeFloat(game().state.wavetime);
+            stream.writeDouble(game().state.tick);
+            stream.writeLong(mindustry.Vars.game().logicVars.rand.seed0);
+            stream.writeLong(mindustry.Vars.game().logicVars.rand.seed1);
 
             stream.writeInt(player.id);
             player.write(new Writes(stream));
@@ -65,7 +57,7 @@ public class NetworkIO{
             //these three calls mimic what writeEntities has, except with a custom filter, which is a bit fragile
             writer.writeEntityMapping(stream);
             writer.writeTeamBlocks(stream);
-            writer.writeWorldEntities(stream, state.rules.fog ? u -> !u.inFogTo(player.team()) : null);
+            writer.writeWorldEntities(stream, game().state.rules.fog ? u -> !u.inFogTo(player.team()) : null);
 
             writer.writeMarkers(stream);
             writer.writeCustomChunks(stream, true);
@@ -74,22 +66,40 @@ public class NetworkIO{
         }
     }
 
+
+    /** Builds the Rules sent to a joining client without mutating the live authoritative world. */
+    static Rules rulesForWorldWrite(){
+        Rules live = game().state.rules;
+        Rules outbound = live.copy();
+        SharedCampaignRuntimeState shared = SharedCampaignRuntimeState.find(game());
+        boolean actionRuntime = shared != null && shared.actionEnabled();
+        if(game().state.isCampaign() && RuntimeContexts.isPrimary() && !actionRuntime){
+            outbound.researched.clear();
+            for(ContentType type : ContentType.all){
+                for(Content c : content.getBy(type)){
+                    if(c instanceof UnlockableContent u && u.unlocked() && u.techNode != null) outbound.researched.add(u);
+                }
+            }
+        }
+        return outbound;
+    }
+
     public static void loadWorld(InputStream is){
 
         try(DataInputStream stream = new DataInputStream(is)){
             var writer = SaveIO.getSaveWriter();
             Time.clear();
-            writer.readDataPatches(stream, new SaveReadState(world.context));
+            writer.readDataPatches(stream, new SaveReadState(game().world.context));
 
-            state.rules = JsonIO.read(Rules.class, stream.readUTF());
-            state.mapLocales = JsonIO.read(MapLocales.class, stream.readUTF());
-            state.map = new Map(writer.readStringMap(stream));
+            game().state.rules = JsonIO.read(Rules.class, stream.readUTF());
+            game().state.mapLocales = JsonIO.read(MapLocales.class, stream.readUTF());
+            game().state.map = new Map(writer.readStringMap(stream));
 
-            state.wave = stream.readInt();
-            state.wavetime = stream.readFloat();
-            state.tick = stream.readDouble();
-            GlobalVars.rand.seed0 = stream.readLong();
-            GlobalVars.rand.seed1 = stream.readLong();
+            game().state.wave = stream.readInt();
+            game().state.wavetime = stream.readFloat();
+            game().state.tick = stream.readDouble();
+            mindustry.Vars.game().logicVars.rand.seed0 = stream.readLong();
+            mindustry.Vars.game().logicVars.rand.seed1 = stream.readLong();
 
             Reads read = new Reads(stream);
 
@@ -100,7 +110,7 @@ public class NetworkIO{
             player.id = id;
             player.add();
 
-            var state = new SaveReadState(world.context);
+            var state = new SaveReadState(game().world.context);
 
             writer.readContentHeader(stream);
             writer.readMap(stream, state);
@@ -108,8 +118,8 @@ public class NetworkIO{
             writer.readMarkers(stream);
             writer.readCustomChunks(stream);
 
-            Groups.all.each(e -> netClient.addRemovedEntity(e.id()));
-            Groups.unit.each(e -> netClient.addRemovedEntity(e.id()));
+            Groups.current().all.each(e -> netClient.addRemovedEntity(e.id()));
+            Groups.current().unit.each(e -> netClient.addRemovedEntity(e.id()));
         }catch(IOException e){
             throw new RuntimeException(e);
         }finally{
@@ -188,23 +198,23 @@ public class NetworkIO{
     public static ByteBuffer writeServerData(){
         String name = (headless ? Config.serverName.string() : player.name);
         String description = headless && !Config.desc.string().equals("off") ? Config.desc.string() : "";
-        String map = state.map.name();
+        String map = game().state.map.name();
 
         ByteBuffer buffer = ByteBuffer.allocate(500);
 
         writeString(buffer, name, 100);
         writeString(buffer, map, 64);
 
-        buffer.putInt(Core.settings.getInt("totalPlayers", Groups.player.size()));
-        buffer.putInt(state.wave);
+        buffer.putInt(Core.settings.getInt("totalPlayers", Groups.current().player.size()));
+        buffer.putInt(game().state.wave);
         buffer.putInt(Version.build);
         writeString(buffer, Version.type);
 
-        buffer.put((byte)state.rules.mode().ordinal());
+        buffer.put((byte)game().state.rules.mode().ordinal());
         buffer.putInt(netServer.admins.getPlayerLimit());
 
         writeString(buffer, description, 100);
-        writeString(buffer, state.rules.modeName == null ? "" : state.rules.modeName, 50);
+        writeString(buffer, game().state.rules.modeName == null ? "" : game().state.rules.modeName, 50);
         buffer.putShort((short)Core.settings.getInt("port", port));
         return buffer;
     }

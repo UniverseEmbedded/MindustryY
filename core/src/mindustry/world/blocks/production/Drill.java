@@ -354,7 +354,7 @@ public class Drill extends Block{
             Draw.z(Layer.blockAfterCracks);
             if(drawRim){
                 Draw.color(heatColor);
-                Draw.alpha(warmup * ts * (1f - s + Mathf.absin(Time.time, 3f, s)));
+                Draw.alpha(warmup * ts * (1f - s + Mathf.absin(Time.time(), 3f, s)));
                 Draw.blend(Blending.additive);
                 Draw.rect(rimRegion, x, y);
                 Draw.blend();

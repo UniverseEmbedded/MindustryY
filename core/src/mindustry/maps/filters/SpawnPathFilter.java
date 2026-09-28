@@ -40,7 +40,7 @@ public class SpawnPathFilter extends GenerateFilter{
             if(tile.overlay() == Blocks.spawn){
                 spawns.add(tile);
             }
-            if(tile.block() instanceof CoreBlock && tile.team() != Vars.state.rules.waveTeam){
+            if(tile.block() instanceof CoreBlock && tile.team() != Vars.game().state.rules.waveTeam){
                 cores.add(tile);
             }
         }
@@ -52,7 +52,7 @@ public class SpawnPathFilter extends GenerateFilter{
                     for(int x = -radius; x <= radius; x++){
                         for(int y = -radius; y <= radius; y++){
                             int wx = tile.x + x, wy = tile.y + y;
-                            if(Structs.inBounds(wx, wy, world.width(), world.height()) && Mathf.within(x, y, radius)){
+                            if(Structs.inBounds(wx, wy, Vars.game().world.width(), Vars.game().world.height()) && Mathf.within(x, y, radius)){
                                 Tile other = tiles.getn(wx, wy);
                                 if(!other.synthetic()){
                                     other.setBlock(block);

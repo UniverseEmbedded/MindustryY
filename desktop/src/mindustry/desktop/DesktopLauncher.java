@@ -460,8 +460,8 @@ public class DesktopLauncher extends ClientLauncher{
                 gameMapWithWave += " | Wave " + state.wave;
             }
             gameMode = state.rules.pvp ? "PvP" : state.rules.attackMode ? "Attack" : state.rules.infiniteResources ? "Sandbox" : "Survival";
-            if(net.active() && Groups.player.size() > 1){
-                gamePlayersSuffix = " | " + Groups.player.size() + " Players";
+            if(net.active() && Groups.current().player.size() > 1){
+                gamePlayersSuffix = " | " + Groups.current().player.size() + " Players";
             }
         }else{
             if(ui.editor != null && ui.editor.isShown()){

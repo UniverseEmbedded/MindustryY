@@ -87,7 +87,7 @@ public class PlanetRenderer implements Disposable{
 
         if(params.drawSkybox){
             //render skybox at 0,0,0
-            Vec3 lastPos = Tmp.v31.set(cam.position);
+            Vec3 lastPos = Tmp.v31().set(cam.position);
             cam.position.setZero();
             cam.update();
 
@@ -174,7 +174,7 @@ public class PlanetRenderer implements Disposable{
         Vec3 center = planet.parent.position;
         float radius = planet.orbitRadius;
         int points = (int)(radius * 10);
-        Angles.circleVectors(points, radius, (cx, cy) -> batch.vertex(Tmp.v32.set(center).add(cx, 0, cy), Pal.gray.write(Tmp.c1).a(params.uiAlpha)));
+        Angles.circleVectors(points, radius, (cx, cy) -> batch.vertex(Tmp.v32().set(center).add(cx, 0, cy), Pal.gray.write(Tmp.c1()).a(params.uiAlpha)));
         batch.flush(Gl.lineLoop);
     }
 
@@ -184,7 +184,7 @@ public class PlanetRenderer implements Disposable{
     }
 
     public void drawArcLine(Planet planet, Vec3 a, Vec3 b){
-        drawArcLine(planet, a, b, Pal.accent, Tmp.c3.set(Pal.accent).a(0f), 1f, 80f, 25, 0.006f);
+        drawArcLine(planet, a, b, Pal.accent, Tmp.c3().set(Pal.accent).a(0f), 1f, 80f, 25, 0.006f);
     }
 
     public void drawArc(Planet planet, Vec3 a, Vec3 b){
@@ -226,7 +226,7 @@ public class PlanetRenderer implements Disposable{
     }
 
     public void drawSelection(Sector sector, float alpha){
-        drawSelection(sector, Tmp.c1.set(Pal.accent).a(alpha), 0.04f, 0.001f);
+        drawSelection(sector, Tmp.c1().set(Pal.accent).a(alpha), 0.04f, 0.001f);
     }
 
     public void drawSelection(Sector sector, Color color, float stroke, float length){
@@ -248,15 +248,15 @@ public class PlanetRenderer implements Disposable{
             curr.v.scl(arad);
             sector.tile.v.scl(arad);
 
-            Tmp.v31.set(curr.v).sub(sector.tile.v).setLength(curr.v.dst(sector.tile.v) - stroke).add(sector.tile.v);
-            Tmp.v32.set(next.v).sub(sector.tile.v).setLength(next.v.dst(sector.tile.v) - stroke).add(sector.tile.v);
-            Tmp.v33.set(Tmp.v31).lerp(Tmp.v32, span);
-            Tmp.v34.set(Tmp.v31).lerp(Tmp.v32, 1f - span);
+            Tmp.v31().set(curr.v).sub(sector.tile.v).setLength(curr.v.dst(sector.tile.v) - stroke).add(sector.tile.v);
+            Tmp.v32().set(next.v).sub(sector.tile.v).setLength(next.v.dst(sector.tile.v) - stroke).add(sector.tile.v);
+            Tmp.v33().set(Tmp.v31()).lerp(Tmp.v32(), span);
+            Tmp.v34().set(Tmp.v31()).lerp(Tmp.v32(), 1f - span);
 
-            Tmp.v31.set(Tmp.v33).sub(sector.tile.v).setLength(Tmp.v31.len() - stroke).add(sector.tile.v);
-            Tmp.v32.set(Tmp.v34).sub(sector.tile.v).setLength(Tmp.v32.len() - stroke).add(sector.tile.v);
+            Tmp.v31().set(Tmp.v33()).sub(sector.tile.v).setLength(Tmp.v31().len() - stroke).add(sector.tile.v);
+            Tmp.v32().set(Tmp.v34()).sub(sector.tile.v).setLength(Tmp.v32().len() - stroke).add(sector.tile.v);
 
-            batch.quad(Tmp.v33, Tmp.v34, Tmp.v32, Tmp.v31, color);
+            batch.quad(Tmp.v33(), Tmp.v34(), Tmp.v32(), Tmp.v31(), color);
 
             sector.tile.v.scl(1f / arad);
             next.v.scl(1f / arad);

@@ -113,9 +113,9 @@ public abstract class SaveVersion extends SaveFileReader{
 
     public void writeMeta(DataOutput stream, StringMap tags) throws IOException{
         //prepare campaign data for writing
-        if(state.isCampaign()){
-            state.rules.sector.info.prepare(state.rules.sector);
-            state.rules.sector.saveInfo();
+        if(mindustry.Vars.game().state.isCampaign()){
+            mindustry.Vars.game().state.rules.sector.info().prepare(mindustry.Vars.game().state.rules.sector);
+            mindustry.Vars.game().state.rules.sector.saveInfo();
         }
 
         //flush tech node progress
@@ -130,34 +130,34 @@ public abstract class SaveVersion extends SaveFileReader{
             "saved", Time.millis(),
             "playtime", headless ? 0 : control.saves.getTotalPlaytime(),
             "build", Version.build,
-            "mapname", state.map.name(),
-            "wave", state.wave,
-            "tick", state.tick,
-            "wavetime", state.wavetime,
-            "stats", JsonIO.write(state.stats),
-            "rules", JsonIO.write(state.rules),
-            "sectorPreset", state.rules.sector != null && state.rules.sector.preset != null ? state.rules.sector.preset.name : "", //empty string is a placeholder for null (null is possible but may be finicky)
-            "locales", JsonIO.write(state.mapLocales),
+            "mapname", mindustry.Vars.game().state.map.name(),
+            "wave", mindustry.Vars.game().state.wave,
+            "tick", mindustry.Vars.game().state.tick,
+            "wavetime", mindustry.Vars.game().state.wavetime,
+            "stats", JsonIO.write(mindustry.Vars.game().state.stats),
+            "rules", JsonIO.write(mindustry.Vars.game().state.rules),
+            "sectorPreset", mindustry.Vars.game().state.rules.sector != null && mindustry.Vars.game().state.rules.sector.preset != null ? mindustry.Vars.game().state.rules.sector.preset.name : "", //empty string is a placeholder for null (null is possible but may be finicky)
+            "locales", JsonIO.write(mindustry.Vars.game().state.mapLocales),
             "mods", JsonIO.write(mods.getModStrings().toArray(String.class)),
             "controlGroups", headless || control == null ? "null" : JsonIO.write(control.input.controlGroups),
-            "width", world.width(),
-            "height", world.height(),
-            "viewpos", Tmp.v1.set(player == null ? Vec2.ZERO : player).toString(),
+            "width", mindustry.Vars.game().world.width(),
+            "height", mindustry.Vars.game().world.height(),
+            "viewpos", Tmp.v1().set(player == null ? Vec2.ZERO : player).toString(),
             "controlledType", headless || control.input.controlledType == null ? "null" : control.input.controlledType.name,
-            "nocores", state.rules.defaultTeam.cores().isEmpty(),
-            "playerteam", player == null ? state.rules.defaultTeam.id : player.team().id,
-            "hasExternalAssets", state.data.getAllExternalAssets().size > 0
+            "nocores", mindustry.Vars.game().state.rules.defaultTeam.cores().isEmpty(),
+            "playerteam", player == null ? mindustry.Vars.game().state.rules.defaultTeam.id : player.team().id,
+            "hasExternalAssets", mindustry.Vars.game().state.data.getAllExternalAssets().size > 0
         )));
     }
 
     public void readMeta(DataInput stream, SaveReadState saveState) throws IOException{
         StringMap map = readStringMap(stream);
 
-        state.wave = map.getInt("wave");
-        state.wavetime = map.getFloat("wavetime", state.rules.waveSpacing);
-        state.tick = map.getFloat("tick");
-        state.stats = JsonIO.read(GameStats.class, map.get("stats", "{}"));
-        state.mapLocales = JsonIO.read(MapLocales.class, map.get("locales", "{}"));
+        mindustry.Vars.game().state.wave = map.getInt("wave");
+        mindustry.Vars.game().state.wavetime = map.getFloat("wavetime", mindustry.Vars.game().state.rules.waveSpacing);
+        mindustry.Vars.game().state.tick = map.getFloat("tick");
+        mindustry.Vars.game().state.stats = JsonIO.read(GameStats.class, map.get("stats", "{}"));
+        mindustry.Vars.game().state.mapLocales = JsonIO.read(MapLocales.class, map.get("locales", "{}"));
 
         saveState.ruleString = map.get("rules", "{}");
 
@@ -167,13 +167,13 @@ public abstract class SaveVersion extends SaveFileReader{
         }
 
         if(!headless){
-            Tmp.v1.tryFromString(map.get("viewpos"));
-            Core.camera.position.set(Tmp.v1);
-            player.set(Tmp.v1);
+            Tmp.v1().tryFromString(map.get("viewpos"));
+            Core.camera.position.set(Tmp.v1());
+            player.set(Tmp.v1());
 
             control.input.controlledType = content.getByName(ContentType.unit, map.get("controlledType", "<none>"));
-            Team team = Team.get(map.getInt("playerteam", state.rules.defaultTeam.id));
-            if(!net.client() && team != Team.derelict){
+            Team team = Team.get(map.getInt("playerteam", mindustry.Vars.game().state.rules.defaultTeam.id));
+            if(!mindustry.Vars.game().net.client() && team != Team.derelict){
                 player.team(team);
             }
 
@@ -184,7 +184,7 @@ public abstract class SaveVersion extends SaveFileReader{
         }
 
         Map worldmap = maps.byName(map.get("mapname", "\\\\\\"));
-        state.map = worldmap == null ? new Map(StringMap.of(
+        mindustry.Vars.game().state.map = worldmap == null ? new Map(StringMap.of(
             "name", map.get("mapname", "Unknown"),
             "width", 1,
             "height", 1
@@ -193,37 +193,37 @@ public abstract class SaveVersion extends SaveFileReader{
 
     public void readRules(SaveReadState saveState){
         if(saveState.ruleString == null) return; //in NetworkIO, rules are null, not read here
-        state.rules = JsonIO.read(Rules.class, saveState.ruleString);
+        mindustry.Vars.game().state.rules = JsonIO.read(Rules.class, saveState.ruleString);
 
-        if(state.rules.spawns.isEmpty()) state.rules.spawns = waves.get();
+        if(mindustry.Vars.game().state.rules.spawns.isEmpty()) mindustry.Vars.game().state.rules.spawns = mindustry.Vars.game().waves.get();
 
         if(saveState.context.getSector() != null){
-            state.rules.sector = saveState.context.getSector();
-            if(state.rules.sector != null){
-                state.rules.sector.planet.applyRules(state.rules);
+            mindustry.Vars.game().state.rules.sector = saveState.context.getSector();
+            if(mindustry.Vars.game().state.rules.sector != null){
+                mindustry.Vars.game().state.rules.sector.planet.applyRules(mindustry.Vars.game().state.rules);
             }
         }
 
         //replace the default serpulo env with erekir
-        if(state.rules.planet == Planets.serpulo && state.rules.hasEnv(Env.scorching)){
-            state.rules.planet = Planets.erekir;
+        if(mindustry.Vars.game().state.rules.planet == Planets.serpulo && mindustry.Vars.game().state.rules.hasEnv(Env.scorching)){
+            mindustry.Vars.game().state.rules.planet = Planets.erekir;
         }
     }
 
     public void writeMap(DataOutput stream) throws IOException{
         //write world size
-        stream.writeShort(world.width());
-        stream.writeShort(world.height());
+        stream.writeShort(mindustry.Vars.game().world.width());
+        stream.writeShort(mindustry.Vars.game().world.height());
 
         //floor + overlay
-        for(int i = 0; i < world.width() * world.height(); i++){
-            Tile tile = world.tiles.geti(i);
+        for(int i = 0; i < mindustry.Vars.game().world.width() * mindustry.Vars.game().world.height(); i++){
+            Tile tile = mindustry.Vars.game().world.tiles.geti(i);
             stream.writeShort(tile.floorID());
             stream.writeShort(tile.overlayID());
             int consecutives = 0;
 
-            for(int j = i + 1; j < world.width() * world.height() && consecutives < 255; j++){
-                Tile nextTile = world.rawTile(j % world.width(), j / world.width());
+            for(int j = i + 1; j < mindustry.Vars.game().world.width() * mindustry.Vars.game().world.height() && consecutives < 255; j++){
+                Tile nextTile = mindustry.Vars.game().world.rawTile(j % mindustry.Vars.game().world.width(), j / mindustry.Vars.game().world.width());
 
                 if(nextTile.floorID() != tile.floorID() || nextTile.overlayID() != tile.overlayID()){
                     break;
@@ -237,8 +237,8 @@ public abstract class SaveVersion extends SaveFileReader{
         }
 
         //blocks
-        for(int i = 0; i < world.width() * world.height(); i++){
-            Tile tile = world.tiles.geti(i);
+        for(int i = 0; i < mindustry.Vars.game().world.width() * mindustry.Vars.game().world.height(); i++){
+            Tile tile = mindustry.Vars.game().world.tiles.geti(i);
             stream.writeShort(tile.blockID());
 
             boolean savedata = tile.shouldSaveData();
@@ -273,8 +273,8 @@ public abstract class SaveVersion extends SaveFileReader{
                 //write consecutive non-entity blocks
                 int consecutives = 0;
 
-                for(int j = i + 1; j < world.width() * world.height() && consecutives < 255; j++){
-                    Tile nextTile = world.rawTile(j % world.width(), j / world.width());
+                for(int j = i + 1; j < mindustry.Vars.game().world.width() * mindustry.Vars.game().world.height() && consecutives < 255; j++){
+                    Tile nextTile = mindustry.Vars.game().world.rawTile(j % mindustry.Vars.game().world.width(), j / mindustry.Vars.game().world.width());
 
                     if(nextTile.blockID() != tile.blockID() || savedata != nextTile.shouldSaveData()){
                         break;
@@ -397,7 +397,7 @@ public abstract class SaveVersion extends SaveFileReader{
 
     public void writeTeamBlocks(DataOutput stream) throws IOException{
         //write team data with entities.
-        Seq<TeamData> data = state.teams.getActive().copy();
+        Seq<TeamData> data = mindustry.Vars.game().state.teams.getActive().copy();
         if(!data.contains(Team.sharded.data())) data.add(Team.sharded.data());
 
         Writes writes = new Writes(stream);
@@ -421,18 +421,17 @@ public abstract class SaveVersion extends SaveFileReader{
     }
 
     public void writeWorldEntities(DataOutput stream, @Nullable Boolf<Unit> unitFilter) throws IOException{
-        //units are not included in Groups.all
-        stream.writeInt(Groups.all.count(Entityc::serialize) + (unitFilter == null ? Groups.unit.size() : Groups.unit.count(unitFilter)));
+        //units are not included in Groups.current().all
+        stream.writeInt(Groups.current().all.count(Entityc::serialize) + (unitFilter == null ? Groups.current().unit.size() : Groups.current().unit.count(unitFilter)));
 
-        for(Entityc entity : Groups.all){
+        for(Entityc entity : Groups.current().all){
             if(!entity.serialize()) continue;
 
             writeEntity(entity, stream);
         }
 
-        for(Unit entity : Groups.unit){
+        for(Unit entity : Groups.current().unit){
             if(unitFilter != null && !unitFilter.get(entity)) continue;
-
             writeEntity(entity, stream);
         }
     }
@@ -461,11 +460,11 @@ public abstract class SaveVersion extends SaveFileReader{
     }
 
     public void writeMarkers(DataOutput stream) throws IOException{
-        state.markers.write(stream);
+        mindustry.Vars.game().state.markers.write(stream);
     }
 
     public void readMarkers(DataInput stream) throws IOException{
-        state.markers.read(stream);
+        mindustry.Vars.game().state.markers.read(stream);
     }
 
     public void readTeamBlocks(DataInput stream) throws IOException{
@@ -525,8 +524,8 @@ public abstract class SaveVersion extends SaveFileReader{
             ent.add();
         }
 
-        Groups.all.each(Entityc::afterReadAll);
-        Groups.unit.each(Entityc::afterReadAll);
+        Groups.current().all.each(Entityc::afterReadAll);
+        Groups.current().unit.each(Entityc::afterReadAll);
         state.allBuildings.each(Buildingc::afterReadAll);
     }
 
@@ -595,7 +594,7 @@ public abstract class SaveVersion extends SaveFileReader{
 
         Events.fire(new DataPatchLoadEvent(assets));
 
-        state.data.load(assets);
+        mindustry.Vars.game().state.data.load(assets);
 
         //now that patches are loaded, the rules can actually be read
         readRules(saveState);
@@ -604,7 +603,7 @@ public abstract class SaveVersion extends SaveFileReader{
     public void writeDataPatches(DataOutput stream, boolean forceEmbed) throws IOException{
         stream.writeInt(DataPatcher.patchFormatVersion);
 
-        var assets = state.data.getAllAssets();
+        var assets = mindustry.Vars.game().state.data.getAllAssets();
         stream.writeInt(assets.size);
 
         for(var asset : assets){
@@ -649,7 +648,7 @@ public abstract class SaveVersion extends SaveFileReader{
             Seq<DataAsset> assets = new Seq<>();
             Events.fire(new DataPatchLoadEvent(assets));
 
-            state.data.load(assets);
+            mindustry.Vars.game().state.data.load(assets);
         }
     }
 

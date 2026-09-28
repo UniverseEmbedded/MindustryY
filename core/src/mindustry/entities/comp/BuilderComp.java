@@ -94,7 +94,7 @@ abstract class BuilderComp implements Posc, Statusc, Teamc, Rotc{
         float finalPlaceDst = state.rules.infiniteResources ? Float.MAX_VALUE : type.buildRange;
         boolean infinite = state.rules.infiniteResources || team().rules().infiniteResources;
 
-        buildCounter += Time.delta;
+        buildCounter += Time.delta();
         if(Float.isNaN(buildCounter) || Float.isInfinite(buildCounter)) buildCounter = 0f;
         buildCounter = Math.min(buildCounter, 10f);
 
@@ -236,7 +236,7 @@ abstract class BuilderComp implements Posc, Statusc, Teamc, Rotc{
     void drawPlanTop(BuildPlan plan, float alpha){
         if(!plan.breaking){
             Draw.reset();
-            Draw.mixcol(Color.white, 0.24f + Mathf.absin(Time.globalTime, 6f, 0.28f));
+            Draw.mixcol(Color.white, 0.24f + Mathf.absin(Time.globalTime(), 6f, 0.28f));
             Draw.alpha(alpha);
             plan.block.drawPlanConfigTop(plan, plans);
         }
@@ -338,7 +338,7 @@ abstract class BuilderComp implements Posc, Statusc, Teamc, Rotc{
         }
 
         if(type.drawBuildBeam){
-            float focusLen = type.buildBeamOffset + Mathf.absin(Time.time, 3f, 0.6f);
+            float focusLen = type.buildBeamOffset + Mathf.absin(Time.time(), 3f, 0.6f);
             float px = x + Angles.trnsx(rotation, focusLen);
             float py = y + Angles.trnsy(rotation, focusLen);
 
@@ -373,7 +373,7 @@ abstract class BuilderComp implements Posc, Statusc, Teamc, Rotc{
 
         Drawf.buildBeam(px, py, tx, ty, Vars.tilesize * size / 2f);
 
-        Fill.square(px, py, 1.8f + Mathf.absin(Time.time, 2.2f, 1.1f), rotation + 45);
+        Fill.square(px, py, 1.8f + Mathf.absin(Time.time(), 2.2f, 1.1f), rotation + 45);
 
         Draw.reset();
         Draw.z(Layer.flyingUnit);

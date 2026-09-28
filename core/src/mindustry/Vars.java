@@ -27,6 +27,7 @@ import mindustry.maps.Map;
 import mindustry.maps.*;
 import mindustry.mod.*;
 import mindustry.net.*;
+import mindustry.runtime.*;
 import mindustry.service.*;
 import mindustry.ui.*;
 import mindustry.ui.dialogs.*;
@@ -41,6 +42,21 @@ import java.util.concurrent.*;
 import static arc.Core.*;
 
 public class Vars implements Loadable{
+    /** Current explicitly-bound real-time game runtime. */
+    public static GameContext game(){
+        return RuntimeContexts.requireCurrent();
+    }
+
+    /** True when the active runtime must suppress client/render behavior. */
+    public static boolean runtimeHeadless(){
+        return game().headless || headless;
+    }
+
+    /** Whether the current runtime owns the process client visual lane. */
+    public static boolean runtimeVisualsEnabled(){
+        return !runtimeHeadless() && RuntimeContexts.isPrimary() && (Core.app == null || Core.app.isOnMainThread());
+    }
+
     /** Whether the game failed to launch last time. */
     public static boolean failedToLaunch = false;
     /** Whether to load locales.*/
@@ -73,8 +89,8 @@ public class Vars implements Loadable{
     public static final int bufferSize = 8192;
     /** global charset, since Android doesn't support the Charsets class */
     public static final Charset charset = Charset.forName("UTF-8");
-    /** main application name, capitalized */
-    public static final String appName = "Mindustry";
+    /** main application name, capitalized; also the per-user data directory name (e.g. %AppData%/Mindustry-Y-Preview) */
+    public static final String appName = "Mindustry-Y-Preview";
     /** Github API URL. */
     public static final String ghApi = "https://api.github.com";
     /** URL for discord invite. */
@@ -280,7 +296,7 @@ public class Vars implements Loadable{
     public static GlobalVars logicVars;
     public static MapEditor editor;
     public static AvoidanceProcess avoidance;
-    public static PhysicsProcess unitPhysics = new PhysicsProcess();
+    public static PhysicsProcess unitPhysics;
     public static DataAssetCache assetCache;
     public static GameService service = new GameService();
 
@@ -309,6 +325,8 @@ public class Vars implements Loadable{
     }
 
     public static void init(){
+        RuntimeContexts.bindPrimaryThread();
+        game().headless = headless;
         Groups.init();
 
         if(loadLocales){
@@ -331,7 +349,7 @@ public class Vars implements Loadable{
         CacheLayer.init();
 
         if(!headless){
-            Log.info("[Mindustry] Version: @", Version.buildString());
+            Log.info("[Mindustry] Version: @ (commit @)", Version.buildString(), Version.commitHash);
         }
 
         dataDirectory = settings.getDataDirectory();
@@ -339,6 +357,7 @@ public class Vars implements Loadable{
         customMapDirectory = dataDirectory.child("maps/");
         mapPreviewDirectory = dataDirectory.child("previews/");
         saveDirectory = dataDirectory.child("saves/");
+        game().storage = new RuntimeStorage(dataDirectory.parent());
         tmpDirectory = dataDirectory.child("tmp/");
         modDirectory = dataDirectory.child("mods/");
         assetCacheDirectory = dataDirectory.child("assetCache");
@@ -351,22 +370,24 @@ public class Vars implements Loadable{
         if(mods == null) mods = new Mods();
 
         content = new ContentLoader();
-        waves = new Waves();
-        collisions = new EntityCollisions();
-        world = new World();
-        universe = new Universe();
+        waves = game().waves = new Waves();
+        collisions = game().collisions = new EntityCollisions();
+        world = game().world = new World();
+        universe = game().universe = new Universe();
         becontrol = new BeControl();
-        asyncCore = new AsyncCore();
+        asyncCore = game().asyncCore = new AsyncCore();
+        unitPhysics = game().unitPhysics;
+        avoidance = game().avoidance;
         if(!headless) editor = new MapEditor();
 
         maps = new Maps();
-        spawner = new WaveSpawner();
-        indexer = new BlockIndexer();
-        pathfinder = new Pathfinder();
-        controlPath = new ControlPathfinder();
-        fogControl = new FogControl();
+        spawner = game().spawner = new WaveSpawner();
+        indexer = game().indexer = new BlockIndexer();
+        pathfinder = game().pathfinder = new Pathfinder();
+        controlPath = game().controlPath = new ControlPathfinder();
+        fogControl = game().fogControl = new FogControl();
         bases = new BaseRegistry();
-        logicVars = new GlobalVars();
+        logicVars = game().logicVars = new GlobalVars();
         assetCache = new DataAssetCache();
         javaPath =
             new Fi(OS.prop("java.home")).child("bin/java").exists() ? new Fi(OS.prop("java.home")).child("bin/java").absolutePath() :
@@ -374,7 +395,7 @@ public class Vars implements Loadable{
             Core.files.local("jre/bin/java.exe").exists() ? Core.files.local("jre/bin/java.exe").absolutePath() : // Windows
             "java";
 
-        state = new GameState();
+        state = game().state = new GameState();
 
         mobile = Core.app.isMobile() || testMobile;
         ios = Core.app.isIOS();

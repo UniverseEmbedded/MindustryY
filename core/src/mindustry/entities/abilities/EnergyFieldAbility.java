@@ -85,8 +85,8 @@ public class EnergyFieldAbility extends Ability{
 
         Draw.z(layer);
         Draw.color(color);
-        Tmp.v1.trns(unit.rotation - 90, x, y).add(unit.x, unit.y);
-        float rx = Tmp.v1.x, ry = Tmp.v1.y;
+        Tmp.v1().trns(unit.rotation - 90, x, y).add(unit.x, unit.y);
+        float rx = Tmp.v1().x, ry = Tmp.v1().y;
         float orbRadius = effectRadius * (1f + Mathf.absin(blinkScl, blinkSize));
 
         Fill.circle(rx, ry, orbRadius);
@@ -96,7 +96,7 @@ public class EnergyFieldAbility extends Ability{
         Lines.stroke((0.7f + Mathf.absin(blinkScl, 0.7f)), color);
 
         for(int i = 0; i < sectors; i++){
-            float rot = unit.rotation + i * 360f/sectors - Time.time * rotateSpeed;
+            float rot = unit.rotation + i * 360f/sectors - Time.time() * rotateSpeed;
             Lines.arc(rx, ry, orbRadius + 3f, sectorRad, rot);
         }
 
@@ -104,7 +104,7 @@ public class EnergyFieldAbility extends Ability{
 
         if(curStroke > 0){
             for(int i = 0; i < sectors; i++){
-                float rot = unit.rotation + i * 360f/sectors + Time.time * rotateSpeed;
+                float rot = unit.rotation + i * 360f/sectors + Time.time() * rotateSpeed;
                 Lines.arc(rx, ry, range, sectorRad, rot);
             }
         }
@@ -119,9 +119,9 @@ public class EnergyFieldAbility extends Ability{
 
         curStroke = Mathf.lerpDelta(curStroke, anyNearby ? 1 : 0, 0.09f);
 
-        if((timer += Time.delta) >= reload){
-            Tmp.v1.trns(unit.rotation - 90, x, y).add(unit.x, unit.y);
-            float rx = Tmp.v1.x, ry = Tmp.v1.y;
+        if((timer += Time.delta()) >= reload){
+            Tmp.v1().trns(unit.rotation - 90, x, y).add(unit.x, unit.y);
+            float rx = Tmp.v1().x, ry = Tmp.v1().y;
             anyNearby = false;
 
             all.clear();

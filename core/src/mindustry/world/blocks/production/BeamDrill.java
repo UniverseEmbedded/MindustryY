@@ -141,12 +141,12 @@ public class BeamDrill extends Block{
         int count = 0;
 
         for(int i = 0; i < size; i++){
-            nearbySide(x, y, rotation, i, Tmp.p1);
+            nearbySide(x, y, rotation, i, Tmp.p1());
 
             int j = 0;
             Item found = null;
             for(; j < range; j++){
-                int rx = Tmp.p1.x + Geometry.d4x(rotation)*j, ry = Tmp.p1.y + Geometry.d4y(rotation)*j;
+                int rx = Tmp.p1().x + Geometry.d4x(rotation)*j, ry = Tmp.p1().y + Geometry.d4y(rotation)*j;
                 Tile other = world.tile(rx, ry);
                 if(other != null && other.solid()){
                     Item drop = other.wallDrop();
@@ -172,10 +172,10 @@ public class BeamDrill extends Block{
 
             int len = Math.min(j, range - 1);
             Drawf.dashLine(found == null ? Pal.remove : Pal.placing,
-            Tmp.p1.x * tilesize,
-            Tmp.p1.y *tilesize,
-            (Tmp.p1.x + Geometry.d4x(rotation)*len) * tilesize,
-            (Tmp.p1.y + Geometry.d4y(rotation)*len) * tilesize
+            Tmp.p1().x * tilesize,
+            Tmp.p1().y *tilesize,
+            (Tmp.p1().x + Geometry.d4x(rotation)*len) * tilesize,
+            (Tmp.p1().y + Geometry.d4y(rotation)*len) * tilesize
             );
         }
 
@@ -197,9 +197,9 @@ public class BeamDrill extends Block{
     @Override
     public boolean canPlaceOn(Tile tile, Team team, int rotation){
         for(int i = 0; i < size; i++){
-            nearbySide(tile.x, tile.y, rotation, i, Tmp.p1);
+            nearbySide(tile.x, tile.y, rotation, i, Tmp.p1());
             for(int j = 0; j < range; j++){
-                Tile other = world.tile(Tmp.p1.x + Geometry.d4x(rotation)*j, Tmp.p1.y + Geometry.d4y(rotation)*j);
+                Tile other = world.tile(Tmp.p1().x + Geometry.d4x(rotation)*j, Tmp.p1().y + Geometry.d4y(rotation)*j);
                 if(other != null && other.solid()){
                     Item drop = other.wallDrop();
                     if(drop != null && drop.hardness <= tier && (blockedItems == null || !blockedItems.contains(drop))){
@@ -290,10 +290,10 @@ public class BeamDrill extends Block{
                     Point2 p = lasers[i];
                     float lx = face.worldx() - (dir.x/2f)*tilesize, ly = face.worldy() - (dir.y/2f)*tilesize;
 
-                    float width = (laserWidth + Mathf.absin(Time.time + i*5 + (id % 9)*9, glowScl, pulseIntensity)) * warmup;
+                    float width = (laserWidth + Mathf.absin(Time.time() + i*5 + (id % 9)*9, glowScl, pulseIntensity)) * warmup;
 
                     Draw.z(Layer.power - 1);
-                    Draw.mixcol(glowColor, Mathf.absin(Time.time + i*5 + id*9, glowScl, glowIntensity));
+                    Draw.mixcol(glowColor, Mathf.absin(Time.time() + i*5 + id*9, glowScl, glowIntensity));
                     if(Math.abs(p.x - face.x) + Math.abs(p.y - face.y) == 0){
                         Draw.scl(width);
 
@@ -329,15 +329,15 @@ public class BeamDrill extends Block{
                         Lines.stroke(warmup);
                         rand.setState(i, id);
                         Color col = drop.color;
-                        Color spark = Tmp.c3.set(sparkColor).lerp(boostHeatColor, boostWarmup);
+                        Color spark = Tmp.c3().set(sparkColor).lerp(boostHeatColor, boostWarmup);
                         for(int j = 0; j < sparks; j++){
-                            float fin = (Time.time / sparkLife + rand.random(sparkRecurrence + 1f)) % sparkRecurrence;
+                            float fin = (Time.time() / sparkLife + rand.random(sparkRecurrence + 1f)) % sparkRecurrence;
                             float or = rand.range(2f);
-                            Tmp.v1.set(sparkRange * fin, 0).rotate(rotdeg() + rand.range(sparkSpread));
+                            Tmp.v1().set(sparkRange * fin, 0).rotate(rotdeg() + rand.range(sparkSpread));
 
-                            Color result = Tmp.c1.set(spark).lerp(col, fin);
+                            Color result = Tmp.c1().set(spark).lerp(col, fin);
                             Draw.color(result.r, result.g, result.b, result.a * Lod.alpha2);
-                            float px = Tmp.v1.x, py = Tmp.v1.y;
+                            float px = Tmp.v1().x, py = Tmp.v1().y;
                             if(fin <= 1f) Lines.lineAngle(lx + px + or * ddx, ly + py + or * ddy, Angles.angle(px, py), Mathf.slope(fin) * sparkSize);
                         }
                         Draw.reset();
@@ -348,7 +348,7 @@ public class BeamDrill extends Block{
             if(glowRegion.found()){
                 Draw.z(Layer.blockAdditive);
                 Draw.blend(Blending.additive);
-                Draw.color(Tmp.c1.set(heatColor).lerp(boostHeatColor, boostWarmup), warmup * (heatColor.a * (1f - heatPulse + Mathf.absin(heatPulseScl, heatPulse))));
+                Draw.color(Tmp.c1().set(heatColor).lerp(boostHeatColor, boostWarmup), warmup * (heatColor.a * (1f - heatPulse + Mathf.absin(heatPulseScl, heatPulse))));
                 Draw.rect(glowRegion, x, y, rotdeg());
                 Draw.blend();
                 Draw.color();

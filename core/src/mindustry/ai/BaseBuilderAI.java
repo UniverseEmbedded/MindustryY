@@ -156,8 +156,8 @@ public class BaseBuilderAI{
                 //when there are no random positions, do nothing.
                 if(pos == null) return;
 
-                Tmp.v1.rnd(Mathf.random(range));
-                int wx = (int)(World.toTile(pos.getX()) + Tmp.v1.x), wy = (int)(World.toTile(pos.getY()) + Tmp.v1.y);
+                Tmp.v1().rnd(Mathf.random(range));
+                int wx = (int)(World.toTile(pos.getX()) + Tmp.v1().x), wy = (int)(World.toTile(pos.getY()) + Tmp.v1().y);
                 Tile tile = world.tiles.getc(wx, wy);
 
                 //try not to block the spawn point

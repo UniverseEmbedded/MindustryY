@@ -45,7 +45,7 @@ public class ShieldRegenFieldAbility extends Ability{
 
     @Override
     public void update(Unit unit){
-        timer += Time.delta;
+        timer += Time.delta();
 
         if(timer >= reload){
             applied = false;

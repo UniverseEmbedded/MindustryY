@@ -48,7 +48,7 @@ public class PlayerListFragment{
             });
 
             cont.table(Tex.buttonTrans, pane -> {
-                pane.label(() -> Core.bundle.format(Groups.player.size() == 1 ? "players.single" : "players", Groups.player.size()));
+                pane.label(() -> Core.bundle.format(Groups.current().player.size() == 1 ? "players.single" : "players", Groups.current().player.size()));
                 pane.row();
 
                 search = pane.field(null, text -> rebuild()).grow().pad(8).name("search").maxTextLength(maxNameLength).get();
@@ -82,7 +82,7 @@ public class PlayerListFragment{
         boolean found = false;
 
         players.clear();
-        Groups.player.copy(players);
+        Groups.current().player.copy(players);
 
         players.sort(Structs.comps(Structs.comparing(Player::team), Structs.comparingBool(p -> !p.admin)));
         if(search.getText().length() > 0){
@@ -240,7 +240,7 @@ public class PlayerListFragment{
 
                     }).size(h);
                 }
-            }else if(!user.isLocal() && !user.admin && net.client() && Groups.player.size() >= 3 && player.team() == user.team()){ //votekick
+            }else if(!user.isLocal() && !user.admin && net.client() && Groups.current().player.size() >= 3 && player.team() == user.team()){ //votekick
                 button.add().growY();
 
                 button.button(Icon.hammer, ustyle,

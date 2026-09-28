@@ -53,7 +53,7 @@ public class Damage{
             if(build.wasRecentlyHealed(60f * 12f) || build.block.suppressable){
 
                 //add prev check so ability spam doesn't lead to particle spam (essentially, recently suppressed blocks don't get new particles)
-                if(!headless && prev - Time.time <= reload/2f){
+                if(!headless && prev - Time.time() <= reload/2f){
                     builds.add(build);
                 }
             }
@@ -272,7 +272,7 @@ public class Damage{
 
                     for(Point2 p : Geometry.d4){
                         Tile other = world.tile(p.x + cx, p.y + cy);
-                        if(other != null && (large || Intersector.intersectSegmentRectangle(seg1, seg2, other.getBounds(Tmp.r1)))){
+                        if(other != null && (large || Intersector.intersectSegmentRectangle(seg1, seg2, other.getBounds(Tmp.r1())))){
                             Building build = other.build;
                             if(build != null && hitter.checkUnderBuild(build, cx * tilesize, cy * tilesize) && collidedBlocks.add(build.pos())){
                                 collided.add(collidePool.obtain().set((p.x + cx * tilesize), (p.y + cy) * tilesize, build));

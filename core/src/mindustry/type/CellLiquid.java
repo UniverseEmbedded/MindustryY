@@ -43,7 +43,7 @@ public class CellLiquid extends Liquid{
             for(var point : Geometry.d4c){
                 Tile tile = puddle.tile.nearby(point);
                 if(tile != null && tile.build != null && tile.build.liquids != null && tile.build.liquids.get(spreadTarget) > 0.0001f){
-                    float amount = Math.min(tile.build.liquids.get(spreadTarget), maxSpread * Time.delta * scaling);
+                    float amount = Math.min(tile.build.liquids.get(spreadTarget), maxSpread * Time.delta() * scaling);
                     tile.build.liquids.remove(spreadTarget, amount * removeScaling);
                     Puddles.deposit(tile, this, amount * spreadConversion);
                     reacted = true;
@@ -55,7 +55,7 @@ public class CellLiquid extends Liquid{
                 reacted = true;
 
                 //spread in 4 adjacent directions around thing it is on
-                float amountSpread = Math.min(puddle.tile.build.liquids.get(spreadTarget) * spreadConversion, maxSpread * Time.delta) / 2f;
+                float amountSpread = Math.min(puddle.tile.build.liquids.get(spreadTarget) * spreadConversion, maxSpread * Time.delta()) / 2f;
                 for(var dir : Geometry.d4){
                     Tile other = puddle.tile.nearby(dir);
                     if(other != null){
@@ -63,7 +63,7 @@ public class CellLiquid extends Liquid{
                     }
                 }
 
-                puddle.tile.build.damage(spreadDamage * Time.delta * scaling);
+                puddle.tile.build.damage(spreadDamage * Time.delta() * scaling);
             }
 
             //spread to nearby puddles
@@ -73,7 +73,7 @@ public class CellLiquid extends Liquid{
                     var other = Puddles.get(tile);
                     if(other != null && other.liquid == spreadTarget){
                         //TODO looks somewhat buggy when outputs are occurring
-                        float amount = Math.min(other.amount, Math.max(maxSpread * Time.delta * scaling, other.amount * 0.25f * scaling));
+                        float amount = Math.min(other.amount, Math.max(maxSpread * Time.delta() * scaling, other.amount * 0.25f * scaling));
                         other.amount -= amount;
                         puddle.amount += amount;
                         reacted = true;
@@ -114,15 +114,15 @@ public class CellLiquid extends Liquid{
         rand.setSeed(id);
         for(int i = 0; i < cells; i++){
             Draw.z(baseLayer + i/1000f + (id % 100) / 10000f);
-            Tmp.v1.trns(rand.random(360f), rand.random(length));
-            float vx = x + Tmp.v1.x, vy = y + Tmp.v1.y;
+            Tmp.v1().trns(rand.random(360f), rand.random(length));
+            float vx = x + Tmp.v1().x, vy = y + Tmp.v1().y;
 
             Draw.color(colorFrom, colorTo, rand.random(1f));
 
             Fill.circle(
-            vx + Mathf.sin(Time.time + i * 532, sscl, smag),
-            vy + Mathf.sin(Time.time + i * 53, sscl, smag),
-            f * 3.8f * rand.random(0.35f, 1f) * Mathf.absin(Time.time + ((i + id) % 60) * 54, 75f * rand.random(1f, 2f), 1f));
+            vx + Mathf.sin(Time.time() + i * 532, sscl, smag),
+            vy + Mathf.sin(Time.time() + i * 53, sscl, smag),
+            f * 3.8f * rand.random(0.35f, 1f) * Mathf.absin(Time.time() + ((i + id) % 60) * 54, 75f * rand.random(1f, 2f), 1f));
         }
 
         Draw.color();

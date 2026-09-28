@@ -68,7 +68,7 @@ public class PointLaserBulletType extends BulletType{
         super.draw(b);
 
         Draw.color(color);
-        Drawf.laser(laser, laserEnd, b.x, b.y, b.aimX, b.aimY, b.fslope() * (1f - oscMag + Mathf.absin(Time.time, oscScl, oscMag)));
+        Drawf.laser(laser, laserEnd, b.x, b.y, b.aimX, b.aimY, b.fslope() * (1f - oscMag + Mathf.absin(Time.time(), oscScl, oscMag)));
 
         Draw.reset();
     }
@@ -114,7 +114,7 @@ public class PointLaserBulletType extends BulletType{
                 b.trail = new Trail(trailLength);
             }
             b.trail.length = trailLength;
-            b.trail.update(b.aimX, b.aimY, b.fslope() * (1f - (trailSinMag > 0 ? Mathf.absin(Time.time, trailSinScl, trailSinMag) : 0f)));
+            b.trail.update(b.aimX, b.aimY, b.fslope() * (1f - (trailSinMag > 0 ? Mathf.absin(Time.time(), trailSinScl, trailSinMag) : 0f)));
         }
     }
 

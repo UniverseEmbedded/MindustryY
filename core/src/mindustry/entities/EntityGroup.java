@@ -8,6 +8,7 @@ import arc.util.*;
 import arc.util.Time.*;
 import arc.util.pooling.*;
 import mindustry.gen.*;
+import mindustry.runtime.*;
 
 import java.util.*;
 
@@ -16,8 +17,6 @@ import static mindustry.Vars.*;
 /** Represents a group of a certain type of entity.*/
 @SuppressWarnings("unchecked")
 public class EntityGroup<T extends Entityc> implements Iterable<T>{
-    private static int lastId = 0;
-
     private final Seq<T> array;
     private final Seq<T> intersectArray = new Seq<>();
     private final Rect viewport = new Rect();
@@ -34,13 +33,12 @@ public class EntityGroup<T extends Entityc> implements Iterable<T>{
     private Seq<DelayRun> timeRuns = new Seq<>();
 
     public static int nextId(){
-        if(lastId >= Integer.MAX_VALUE - 2) lastId = 0;
-        return lastId++;
+        return RuntimeContexts.requireCurrent().nextEntityId();
     }
 
-    /** Makes sure the next ID counter is higher than this number, so future entities cannot possibly use this ID. */
+    /** Makes sure the current runtime's next ID counter is higher than this number. */
     public static void checkNextId(int id){
-        lastId = Math.max(lastId, id + 1);
+        RuntimeContexts.requireCurrent().checkEntityId(id);
     }
 
     public EntityGroup(Class<T> type, boolean spatial, boolean mapping){
@@ -78,7 +76,7 @@ public class EntityGroup<T extends Entityc> implements Iterable<T>{
     }
 
     public void collide(){
-        collisions.collide((EntityGroup<? extends Hitboxc>)this);
+        game().collisions.collide((EntityGroup<? extends Hitboxc>)this);
     }
 
     public void updatePhysics(){
@@ -116,12 +114,12 @@ public class EntityGroup<T extends Entityc> implements Iterable<T>{
 
         double targetDelta = 1.0 / targetUps;
         float timeDelta = (float)targetDelta * 60f;
-        float prevDelta = Time.delta;
+        float prevDelta = Time.delta();
         double prevTime = Time.getInternalTime();
         var oldRuns = Time.getRuns();
 
-        //since some logic (incorrectly!) relies on Time.time, it has to be passed like this across several variables.
-        Time.delta = timeDelta;
+        //since some logic (incorrectly!) relies on Time.time(), it has to be passed like this across several variables.
+        Time.setDelta(timeDelta);
         Time.setInternalTime(timeCounter);
         Time.setRuns(timeRuns);
         int updates = 0;
@@ -137,7 +135,7 @@ public class EntityGroup<T extends Entityc> implements Iterable<T>{
 
         timeCounter = Time.getInternalTime();
 
-        Time.delta = prevDelta;
+        Time.setDelta(prevDelta);
         Time.setInternalTime(prevTime);
         Time.setRuns(oldRuns);
 

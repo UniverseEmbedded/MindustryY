@@ -65,10 +65,10 @@ public class FileMapGenerator implements WorldGenerator{
     public void generate(Tiles tiles, WorldParams params){
         if(map == null) throw new RuntimeException("Generator has null map, cannot be used.");
 
-        Sector sector = state.rules.sector;
+        Sector sector = mindustry.Vars.game().state.rules.sector;
 
-        world.setGenerating(false);
-        SaveIO.load(map.file, world.new FilterContext(map){
+        mindustry.Vars.game().world.setGenerating(false);
+        SaveIO.load(map.file, mindustry.Vars.game().world.new FilterContext(map){
             @Override
             public Sector getSector(){
                 return sector;
@@ -80,19 +80,19 @@ public class FileMapGenerator implements WorldGenerator{
                 //no super.end(), don't call world load event twice
             }
         });
-        world.setGenerating(true);
+        mindustry.Vars.game().world.setGenerating(true);
 
         //make sure sector is maintained - don't reset it after map load.
         if(sector != null){
-            state.rules.sector = sector;
+            mindustry.Vars.game().state.rules.sector = sector;
         }
 
-        tiles = world.tiles;
+        tiles = mindustry.Vars.game().world.tiles;
 
         boolean anyCores = false;
 
         //TODO: unsure if indexer even works at this stage
-        Block coreTypeToUse = state.rules.defaultTeam.cores().isEmpty() ? sector.planet.defaultCore : state.rules.defaultTeam.core().block;
+        Block coreTypeToUse = mindustry.Vars.game().state.rules.defaultTeam.cores().isEmpty() ? sector.planet.defaultCore : mindustry.Vars.game().state.rules.defaultTeam.core().block;
 
         for(Tile tile : tiles){
 
@@ -111,19 +111,19 @@ public class FileMapGenerator implements WorldGenerator{
                         Schematics.placeLaunchLoadout(tile.x, tile.y);
                     }else{
                         //if there's an override and no loadout schematic is allowed, try to place a fitting core instead.
-                        tile.setBlock(coreTypeToUse, state.rules.defaultTeam, 0);
+                        tile.setBlock(coreTypeToUse, mindustry.Vars.game().state.rules.defaultTeam, 0);
                     }
                     anyCores = true;
 
                     if(preset.addStartingItems || !preset.planet.allowLaunchLoadout){
                         tile.build.items.clear();
-                        tile.build.items.add(state.rules.loadout);
+                        tile.build.items.add(mindustry.Vars.game().state.rules.loadout);
                     }
-                }else if(tile.build instanceof CoreBuild && tile.team() == state.rules.defaultTeam && tile.build.pos() != params.corePositionOverride){
+                }else if(tile.build instanceof CoreBuild && tile.team() == mindustry.Vars.game().state.rules.defaultTeam && tile.build.pos() != params.corePositionOverride){
                     //other cores placed must be cleared; they have been overridden
                     tile.remove();
                 }
-            }else if(tile.isCenter() && tile.block() instanceof CoreBlock && tile.team() == state.rules.defaultTeam && !anyCores){
+            }else if(tile.isCenter() && tile.block() instanceof CoreBlock && tile.team() == mindustry.Vars.game().state.rules.defaultTeam && !anyCores){
                 if(sector != null && sector.allowLaunchLoadout()){
                     Schematics.placeLaunchLoadout(tile.x, tile.y);
                 }
@@ -131,7 +131,7 @@ public class FileMapGenerator implements WorldGenerator{
 
                 if(preset.addStartingItems || !preset.planet.allowLaunchLoadout){
                     tile.build.items.clear();
-                    tile.build.items.add(state.rules.loadout);
+                    tile.build.items.add(mindustry.Vars.game().state.rules.loadout);
                 }
             }
         }
@@ -140,6 +140,6 @@ public class FileMapGenerator implements WorldGenerator{
             throw new IllegalArgumentException("All maps must have a core.");
         }
 
-        state.map = map;
+        mindustry.Vars.game().state.map = map;
     }
 }

@@ -20,6 +20,7 @@ import mindustry.mod.*;
 import mindustry.mod.Mods.*;
 import mindustry.net.*;
 import mindustry.net.Packets.*;
+import mindustry.runtime.*;
 import mindustry.type.*;
 import mindustry.world.*;
 import mindustry.world.blocks.payloads.*;
@@ -58,6 +59,7 @@ public class ApplicationTests{
             ApplicationCore core = new ApplicationCore(){
                 @Override
                 public void setup(){
+                    RuntimeContexts.bindPrimaryThread();
                     //clear older data
                     if(clear){
                         ApplicationTests.testDataFolder.deleteDirectory();
@@ -65,10 +67,10 @@ public class ApplicationTests{
 
                     Core.settings.setDataDirectory(testDataFolder);
                     headless = true;
-                    net = new Net(null);
+                    net = Vars.game().net = new Net(null);
                     tree = new FileTree();
                     Vars.init();
-                    world = new World(){
+                    world = Vars.game().world = new World(){
                         @Override
                         public float getDarkness(int x, int y){
                             //for world borders
@@ -79,8 +81,8 @@ public class ApplicationTests{
                     mods.loadScripts();
                     content.createModContent();
 
-                    add(logic = new Logic());
-                    add(netServer = new NetServer());
+                    add(logic = Vars.game().logic = new Logic());
+                    add(netServer = Vars.game().netServer = new NetServer());
 
                     content.init();
 
@@ -115,6 +117,7 @@ public class ApplicationTests{
                 }
                 Thread.sleep(10);
             }
+            RuntimeContexts.bindPrimaryThread();
 
             Block block = content.getByName(ContentType.block, "build2");
             assertEquals("build2", block == null ? null : block.name, "2x2 construct block doesn't exist?");
@@ -241,8 +244,8 @@ public class ApplicationTests{
         Time.setDeltaProvider(() -> 1000f);
         Time.update();
         Time.update();
-        Groups.unit.update();
-        assertFalse(Groups.unit.isEmpty(), "No enemies spawned.");
+        Groups.current().unit.update();
+        assertFalse(Groups.current().unit.isEmpty(), "No enemies spawned.");
     }
 
     @Test
@@ -344,7 +347,7 @@ public class ApplicationTests{
         resetWorld();
         SaveIO.load(saveDirectory.child("0.msav"));
 
-        Unit spawned = Groups.unit.find(u -> u.type == UnitTypes.dagger);
+        Unit spawned = Groups.current().unit.find(u -> u.type == UnitTypes.dagger);
         assertNotNull(spawned, "Saved daggers must persist");
         assertEquals(hp, spawned.health, "Spawned dagger health must save.");
 
@@ -648,7 +651,7 @@ public class ApplicationTests{
         resetWorld();
         SaveIO.load(Core.files.internal("152.msav"));
 
-        assertTrue(Groups.unit.contains(u -> u.type == UnitTypes.scepter));
+        assertTrue(Groups.current().unit.contains(u -> u.type == UnitTypes.scepter));
 
         assertEquals(2000, world.width());
         assertEquals(195, world.height());

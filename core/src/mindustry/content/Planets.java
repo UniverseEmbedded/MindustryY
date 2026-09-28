@@ -200,7 +200,7 @@ public class Planets{
                     meshes.add(new MatMesh(
                         new NoiseMesh(this, seed + j + 1, 1, 0.022f + rand.random(0.039f) * scale, 2, 0.6f, 0.38f, 20f,
                         color, tinted, 3, 0.6f, 0.38f, tintThresh),
-                        new Mat3D().setToTranslation(Tmp.v31.setToRandomDirection(rand).setLength(rand.random(0.44f, 1.4f) * scale)))
+                        new Mat3D().setToTranslation(Tmp.v31().setToRandomDirection(rand).setLength(rand.random(0.44f, 1.4f) * scale)))
                     );
                 }
 

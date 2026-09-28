@@ -101,14 +101,14 @@ public class ItemBridge extends Block{
 
         Lines.stroke(bridgeWidth);
 
-        Tmp.v1.set(ox, oy).sub(req.drawx(), req.drawy()).setLength(tilesize/2f);
+        Tmp.v1().set(ox, oy).sub(req.drawx(), req.drawy()).setLength(tilesize/2f);
 
         Lines.line(
         bridgeRegion,
-        req.drawx() + Tmp.v1.x,
-        req.drawy() + Tmp.v1.y,
-        ox - Tmp.v1.x,
-        oy - Tmp.v1.y, false
+        req.drawx() + Tmp.v1().x,
+        req.drawy() + Tmp.v1().y,
+        ox - Tmp.v1().x,
+        oy - Tmp.v1().y, false
         );
 
         Draw.rect(arrowRegion, (req.drawx() + ox) / 2f, (req.drawy() + oy) / 2f,
@@ -247,10 +247,10 @@ public class ItemBridge extends Block{
             if(!linkValid(tile, other, false)) return;
             boolean linked = other.pos() == link;
 
-            Tmp.v2.trns(tile.angleTo(other), 2f);
+            Tmp.v2().trns(tile.angleTo(other), 2f);
             float tx = tile.drawx(), ty = tile.drawy();
             float ox = other.drawx(), oy = other.drawy();
-            float alpha = Math.abs((linked ? 100 : 0)-(Time.time * 2f) % 100f) / 100f;
+            float alpha = Math.abs((linked ? 100 : 0)-(Time.time() * 2f) % 100f) / 100f;
             float x = Mathf.lerp(ox, tx, alpha);
             float y = Mathf.lerp(oy, ty, alpha);
 
@@ -262,14 +262,14 @@ public class ItemBridge extends Block{
             Lines.stroke(2.5f);
             Lines.square(ox, oy, 2f, 45f);
             Lines.stroke(2.5f);
-            Lines.line(tx + Tmp.v2.x, ty + Tmp.v2.y, ox - Tmp.v2.x, oy - Tmp.v2.y);
+            Lines.line(tx + Tmp.v2().x, ty + Tmp.v2().y, ox - Tmp.v2().x, oy - Tmp.v2().y);
 
             float color = (linked ? Pal.place : Pal.accent).toFloatBits();
 
             //draw foreground colors
             Draw.color(color);
             Lines.stroke(1f);
-            Lines.line(tx + Tmp.v2.x, ty + Tmp.v2.y, ox - Tmp.v2.x, oy - Tmp.v2.y);
+            Lines.line(tx + Tmp.v2().x, ty + Tmp.v2().y, ox - Tmp.v2().x, oy - Tmp.v2().y);
 
             Lines.square(ox, oy, 2f, 45f);
             Draw.mixcol(color);
@@ -289,7 +289,7 @@ public class ItemBridge extends Block{
                         boolean linked = other.pos() == link;
 
                         Drawf.select(other.drawx(), other.drawy(),
-                            other.block().size * tilesize / 2f + 2f + (linked ? 0f : Mathf.absin(Time.time, 4f, 1f)), linked ? Pal.place : Pal.breakInvalid);
+                            other.block().size * tilesize / 2f + 2f + (linked ? 0f : Mathf.absin(Time.time(), 4f, 1f)), linked ? Pal.place : Pal.breakInvalid);
                     }
                 }
             }
@@ -394,7 +394,7 @@ public class ItemBridge extends Block{
             int i = relativeTo(other.x, other.y);
 
             if(pulse){
-                Draw.color(Color.white, Color.black, Mathf.absin(Time.time, 6f, 0.07f));
+                Draw.color(Color.white, Color.black, Mathf.absin(Time.time(), 6f, 0.07f));
             }
 
             float warmup = hasPower ? this.warmup : 1f;
@@ -406,13 +406,13 @@ public class ItemBridge extends Block{
 
             Lines.stroke(bridgeWidth);
 
-            Tmp.v1.set(x, y).sub(other.worldx(), other.worldy()).setLength(tilesize/2f).scl(-1f);
+            Tmp.v1().set(x, y).sub(other.worldx(), other.worldy()).setLength(tilesize/2f).scl(-1f);
 
             Lines.line(bridgeRegion,
-            x + Tmp.v1.x,
-            y + Tmp.v1.y,
-            other.worldx() - Tmp.v1.x,
-            other.worldy() - Tmp.v1.y, false);
+            x + Tmp.v1().x,
+            y + Tmp.v1().y,
+            other.worldx() - Tmp.v1().x,
+            other.worldy() - Tmp.v1().y, false);
 
             int dist = Math.max(Math.abs(other.x - tile.x), Math.abs(other.y - tile.y)) - 1;
 

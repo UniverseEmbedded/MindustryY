@@ -13,6 +13,8 @@ import arc.util.serialization.JsonValue.*;
 import arc.util.serialization.JsonWriter.*;
 import arc.util.serialization.Jval.*;
 import mindustry.*;
+import mindustry.campaign.shared.*;
+import mindustry.campaign.shared.runtime.*;
 import mindustry.core.GameState.*;
 import mindustry.core.*;
 import mindustry.ctype.*;
@@ -76,6 +78,7 @@ public class ServerControl implements ApplicationListener{
     private boolean autoPaused = false;
     private Fi dataAssetDirectory, rulesFile;
     private Seq<DataAsset> dataAssets = new Seq<>();
+    private static final String sharedCampaignHostIdSetting = "sharedCampaignHostId";
 
     private boolean hasTerminal = false;
     private LineReader lineReader;
@@ -105,9 +108,9 @@ public class ServerControl implements ApplicationListener{
 
     public Cons<GameOverEvent> gameOverListener = event -> {
         if(state.rules.waves){
-            info("Game over! Reached wave @ with @ players online on map @.", state.wave, Groups.player.size(), Strings.capitalize(state.map.plainName()));
+            info("Game over! Reached wave @ with @ players online on map @.", state.wave, Groups.current().player.size(), Strings.capitalize(state.map.plainName()));
         }else{
-            info("Game over! Team @ is victorious with @ players online on map @.", event.winner.name, Groups.player.size(), Strings.capitalize(state.map.plainName()));
+            info("Game over! Team @ is victorious with @ players online on map @.", event.winner.name, Groups.current().player.size(), Strings.capitalize(state.map.plainName()));
         }
 
         //set the next map to be played
@@ -320,7 +323,7 @@ public class ServerControl implements ApplicationListener{
 
             if(state.isGame()){ //run this only if the server's actually hosting
                 if(Config.autoPause.bool()){
-                    if(Groups.player.isEmpty()){
+                    if(Groups.current().player.isEmpty()){
                         autoPaused = true;
                         state.set(State.paused);
                     }else if(autoPaused){
@@ -474,6 +477,8 @@ public class ServerControl implements ApplicationListener{
     }
 
     protected void registerCommands(){
+        registerSharedCampaignCommands();
+
         handler.register("help", "[command]", "Display the command list, or get help for a specific command.", arg -> {
             if(arg.length > 0){
                 Command command = handler.getCommandList().find(c -> c.text.equalsIgnoreCase(arg[0]));
@@ -492,7 +497,7 @@ public class ServerControl implements ApplicationListener{
         });
 
         handler.register("version", "Displays server version info.", arg -> {
-            info("Version: Mindustry @-@ @ / build @", Version.number, Version.modifier, Version.type, Version.build + (Version.revision == 0 ? "" : "." + Version.revision));
+            info("Version: Mindustry @-@ @ / build @ (commit @)", Version.number, Version.modifier, Version.type, Version.build + (Version.revision == 0 ? "" : "." + Version.revision), Version.commitHash);
             info("Java Version: @", OS.javaVersion);
         });
 
@@ -623,13 +628,13 @@ public class ServerControl implements ApplicationListener{
                 if(state.rules.waves){
                     info("  @ seconds until next wave.", (int)(state.wavetime / 60));
                 }
-                info("  @ units / @ enemies", Groups.unit.size(), state.enemies);
+                info("  @ units / @ enemies", Groups.current().unit.size(), state.enemies);
 
                 info("  @ FPS, @ MB used.", Core.graphics.getFramesPerSecond(), Core.app.getJavaHeap() / 1024 / 1024);
 
-                if(Groups.player.size() > 0){
-                    info("  Players: @", Groups.player.size());
-                    for(Player p : Groups.player){
+                if(Groups.current().player.size() > 0){
+                    info("  Players: @", Groups.current().player.size());
+                    for(Player p : Groups.current().player){
                         info("    @ @ / @", p.admin() ? "&r[A]&c" : "&b[P]&c", p.plainName(), p.uuid());
                     }
                 }else{
@@ -994,7 +999,7 @@ public class ServerControl implements ApplicationListener{
                 return;
             }
 
-            Player target = Groups.player.find(p -> p.name().equals(arg[0]));
+            Player target = Groups.current().player.find(p -> p.name().equals(arg[0]));
 
             if(target != null){
                 Call.sendMessage("[scarlet]" + target.name() + "[scarlet] has been kicked by the server.");
@@ -1010,7 +1015,7 @@ public class ServerControl implements ApplicationListener{
                 netServer.admins.banPlayerID(arg[1]);
                 info("Banned.");
             }else if(arg[0].equals("name")){
-                Player target = Groups.player.find(p -> p.name().equalsIgnoreCase(arg[1]));
+                Player target = Groups.current().player.find(p -> p.name().equalsIgnoreCase(arg[1]));
                 if(target != null){
                     netServer.admins.banPlayer(target.uuid());
                     info("Banned.");
@@ -1024,7 +1029,7 @@ public class ServerControl implements ApplicationListener{
                 err("Invalid type.");
             }
 
-            for(Player player : Groups.player){
+            for(Player player : Groups.current().player){
                 if(netServer.admins.isIDBanned(player.uuid())){
                     Call.sendMessage("[scarlet]" + player.name + " has been banned.");
                     player.con.kick(KickReason.banned);
@@ -1095,12 +1100,12 @@ public class ServerControl implements ApplicationListener{
             boolean add = arg[0].equals("add");
 
             PlayerInfo target;
-            Player playert = Groups.player.find(p -> p.plainName().equalsIgnoreCase(Strings.stripColors(arg[1])));
+            Player playert = Groups.current().player.find(p -> p.plainName().equalsIgnoreCase(Strings.stripColors(arg[1])));
             if(playert != null){
                 target = playert.getInfo();
             }else{
                 target = netServer.admins.getInfoOptional(arg[1]);
-                playert = Groups.player.find(p -> p.getInfo() == target);
+                playert = Groups.current().player.find(p -> p.getInfo() == target);
             }
 
             if(target != null){
@@ -1130,11 +1135,11 @@ public class ServerControl implements ApplicationListener{
         });
 
         handler.register("players", "List all players currently in game.", arg -> {
-            if(Groups.player.size() == 0){
+            if(Groups.current().player.size() == 0){
                 info("No players are currently in the server.");
             }else{
-                info("Players: @", Groups.player.size());
-                for(Player user : Groups.player){
+                info("Players: @", Groups.current().player.size());
+                for(Player user : Groups.current().player){
                     info(" @&lm @ / ID: @ / IP: @", user.admin ? "&r[A]&c" : "&b[P]&c", user.plainName(), user.uuid(), user.ip());
                 }
             }
@@ -1322,6 +1327,343 @@ public class ServerControl implements ApplicationListener{
         });
 
         mods.eachClass(p -> p.registerServerCommands(handler));
+    }
+
+    private void registerSharedCampaignCommands(){
+        handler.register("sc-status", "Display the active Shared Campaign and dedicated host identity.", arg -> {
+            SharedCampaignService service = sharedCampaignService();
+            if(!service.localAuthorityOpen()){
+                info("No local Shared Campaign authority is open.");
+                info("Host ID: @", sharedCampaignHostId());
+                info("Campaign root: @", sharedCampaignRoot().absolutePath());
+                return;
+            }
+
+            SharedCampaignState state = service.state();
+            SharedCampaignCoordinator coordinator = service.authority().coordinator();
+            info("Shared Campaign: @ (@)", state.displayName, state.campaignId);
+            info("Revision: @ | schema: @ | origin: @", state.revision, state.schema, state.origin);
+            info("Owner: @ | authority host: @ | generation: @", state.ownerId, state.authorityHostId, state.authorityGeneration);
+            info("Members: @ | actions: @ live / @ total | sectors: @", state.members.size, state.runningActions(), state.actions.size, state.sectors.size);
+            info("Persistence: @ | Action autosave: @s", state.persistenceProfile,
+                SharedCampaignPersistence.policy(state.persistenceProfile).actionAutosaveSeconds());
+            info("Public entry port: @ | Action control port: @", coordinator.publicEntryPort(), coordinator.actionControlPort());
+            if(state.migrationPending){
+                warn("Host migration is pending for target '@' (generation @).", state.migrationTargetHostId, state.authorityGeneration);
+            }
+        });
+
+        handler.register("sc-create", "[name...]", "Create and open a new Shared Campaign under the dedicated campaign root.", arg -> {
+            requireSharedCampaignIdle();
+            SharedCampaignService service = sharedCampaignService();
+            String hostId = sharedCampaignHostId();
+            SharedCampaignCreationOptions options = dedicatedCreationOptions(hostId, arg.length == 0 ? "Shared Campaign" : String.join(" ", arg));
+            Fi directory = uniqueSharedCampaignDirectory();
+            SharedCampaignState created = service.createLocal(directory, options, sharedCampaignAdvertisedHost(), 0, Config.port.num());
+            info("Created Shared Campaign '@' (@).", created.displayName, created.campaignId);
+            info("Directory: @", directory.absolutePath());
+            printSharedCampaignEntry(service);
+        });
+
+        handler.register("sc-import-profile", "[name...]", "Create a Shared Campaign by importing the current vanilla campaign profile.", arg -> {
+            requireSharedCampaignIdle();
+            SharedCampaignService service = sharedCampaignService();
+            String hostId = sharedCampaignHostId();
+            SharedCampaignCreationOptions options = dedicatedCreationOptions(hostId, arg.length == 0 ? "Imported Shared Campaign" : String.join(" ", arg));
+            options.origin = SharedCampaignState.CampaignOrigin.singlePlayerImport;
+            options.importAllPlanets = true;
+            Fi directory = uniqueSharedCampaignDirectory();
+            SharedCampaignState created = service.createLocal(directory, options, sharedCampaignAdvertisedHost(), 0, Config.port.num());
+            info("Imported current vanilla campaign into '@' (@).", created.displayName, created.campaignId);
+            info("Directory: @", directory.absolutePath());
+            printSharedCampaignEntry(service);
+        });
+
+        handler.register("sc-import-zip", "<zip> [name...]", "Create a Shared Campaign from a Mindustry data-export ZIP in shared-campaign-imports/ or an absolute path.", arg -> {
+            requireSharedCampaignIdle();
+            Fi source = resolveSharedCampaignImport(arg[0]);
+            if(!source.exists() || source.isDirectory()) throw new IllegalArgumentException("Import ZIP does not exist: " + source.absolutePath());
+            SharedCampaignService service = sharedCampaignService();
+            String hostId = sharedCampaignHostId();
+            String name = arg.length <= 1 ? "Imported Shared Campaign" : String.join(" ", Arrays.copyOfRange(arg, 1, arg.length));
+            SharedCampaignCreationOptions options = dedicatedCreationOptions(hostId, name);
+            options.origin = SharedCampaignState.CampaignOrigin.singlePlayerImport;
+            options.importAllPlanets = true;
+            options.source = source;
+            options.sourceLabel = source.name();
+            Fi directory = uniqueSharedCampaignDirectory();
+            SharedCampaignState created = service.createLocal(directory, options, sharedCampaignAdvertisedHost(), 0, Config.port.num());
+            info("Imported data export into '@' (@).", created.displayName, created.campaignId);
+            info("Directory: @", directory.absolutePath());
+            printSharedCampaignEntry(service);
+        });
+
+        handler.register("sc-open", "<directory> [host-id]", "Open a local Shared Campaign authority. Relative names resolve under shared-campaigns/.", arg -> {
+            requireSharedCampaignIdle();
+            Fi directory = resolveSharedCampaignDirectory(arg[0]);
+            String hostId = arg.length > 1 ? arg[1].trim() : sharedCampaignHostId();
+            SharedCampaignState opened = sharedCampaignService().openLocal(directory, hostId, sharedCampaignAdvertisedHost(), 0, Config.port.num());
+            if(arg.length > 1) rememberSharedCampaignHostId(hostId);
+            info("Opened Shared Campaign '@' (@), revision @.", opened.displayName, opened.campaignId, opened.revision);
+            printSharedCampaignEntry(sharedCampaignService());
+        });
+
+        handler.register("sc-close", "Close the active Shared Campaign authority or client.", arg -> {
+            SharedCampaignService service = sharedCampaignService();
+            if(!service.sharedModeActive()){
+                info("No Shared Campaign is active.");
+                return;
+            }
+            service.closeCurrent();
+            info("Closed Shared Campaign.");
+        });
+
+        handler.register("sc-save-mode", "[high|low|traditional]", "Show or change the active Shared Campaign persistence profile.", arg -> {
+            SharedCampaignService service = requireLocalSharedCampaign();
+            SharedCampaignState current = service.state();
+            if(arg.length == 0){
+                SharedCampaignPersistence.Policy policy = SharedCampaignPersistence.policy(current.persistenceProfile);
+                info("Persistence mode: @", current.persistenceProfile);
+                info("WAL: @ | immediate fsync: @ | checkpoint: @ ms | Action autosave: @s",
+                    policy.walEnabled(), policy.walImmediateSync(), policy.checkpointIntervalMillis(), policy.actionAutosaveSeconds());
+                return;
+            }
+            SharedCampaignState.PersistenceProfile profile = switch(arg[0].trim().toLowerCase(Locale.ROOT)){
+                case "high", "high-frequency-wal", "highfrequencywal" -> SharedCampaignState.PersistenceProfile.highFrequencyWal;
+                case "low", "low-frequency-wal", "lowfrequencywal" -> SharedCampaignState.PersistenceProfile.lowFrequencyWal;
+                case "traditional", "classic" -> SharedCampaignState.PersistenceProfile.traditional;
+                default -> throw new IllegalArgumentException("Expected high, low, or traditional");
+            };
+            SharedCampaignState updated = service.authority().coordinator().store().transact(current.ownerId,
+                "shared-campaign:update-persistence-profile", state -> state.persistenceProfile = profile);
+            service.authority().coordinator().actionCommands().synchronizeConnectedActionSnapshots(updated.revision);
+            info("Persistence mode changed to @ at revision @.", updated.persistenceProfile, updated.revision);
+        });
+
+        handler.register("sc-save-now", "Force Shared Campaign strategic state and every running Action world to durable storage.", arg -> {
+            SharedCampaignService service = requireLocalSharedCampaign();
+            SharedCampaignState current = service.state();
+            int savedActions = service.authority().coordinator().actionCommands().forceSaveRunningActions(current.ownerId);
+            service.authority().coordinator().store().flushCoalescedIfNeeded();
+            info("Shared Campaign checkpoint is durable at revision @; saved @ running Action world(s).", service.state().revision, savedActions);
+        });
+
+        handler.register("sc-invite", "[rotate]", "Display or rotate the active Shared Campaign invite code.", arg -> {
+            SharedCampaignService service = requireLocalSharedCampaign();
+            if(arg.length > 0 && arg[0].equalsIgnoreCase("rotate")){
+                try{
+                    info("New invite code: @", service.controlClient().rotateInviteCode());
+                }catch(IOException failure){ throw new UncheckedIOException(failure); }
+            }else{
+                info("Invite code: @", service.localInviteCode());
+            }
+        });
+
+        handler.register("sc-vanilla-admit", "<target> <uuid> <ip> [display-name...]", "Create a member and stage one short-lived direct admission for an unmodified vanilla client.", arg -> {
+            SharedCampaignService service = requireLocalSharedCampaign();
+            String target = arg[0].trim(), uuid = arg[1].trim(), ip = arg[2].trim();
+            String displayName = arg.length > 3 ? String.join(" ", Arrays.copyOfRange(arg, 3, arg.length)) : "Vanilla player";
+            CampaignClientControlPlane clients = service.authority().coordinator().clientControl();
+            CoordinatorCredentials.MemberCredential member = clients.enrollTrustedLocal(displayName);
+            RuntimePayloads.VanillaTransferResult admission;
+            try{
+                admission = service.authority().coordinator().actionCommands().prepareVanillaBootstrap(member.memberId(), target, uuid, ip, false);
+                if(admission.error() != null && !admission.error().isBlank()) throw new IllegalStateException(admission.error());
+            }catch(Throwable failure){
+                clients.rollbackTrustedEnrollment(member.memberId());
+                throw failure;
+            }
+            info("Prepared one-shot vanilla admission for member @ (@).", member.memberId(), displayName);
+            info("Connect to @:@ before @ (epoch ms). UUID/IP are bound to this one attempt.", admission.host(), admission.port(), admission.expiresAt());
+        });
+
+        handler.register("sc-members", "List durable Shared Campaign members without exposing credentials.", arg -> {
+            SharedCampaignService service = requireLocalSharedCampaign();
+            SharedCampaignState state = service.state();
+            Seq<SharedCampaignState.MemberState> members = state.members.values().toSeq();
+            members.sort(Comparator.comparing(member -> member.displayName == null ? "" : member.displayName, String.CASE_INSENSITIVE_ORDER));
+            info("Shared Campaign members (@):", members.size);
+            for(SharedCampaignState.MemberState member : members){
+                String owner = member.memberId.equals(state.ownerId) ? " [owner]" : "";
+                String action = member.lastActionId == null || member.lastActionId.isBlank() ? "-" : member.lastActionId;
+                info("  @ @ (@) lastAction=@ lastSeen=@", member.memberId, owner, member.displayName, action, member.lastSeenAt);
+            }
+        });
+
+        handler.register("sc-member-remove", "<member-id>", "Remove a durable Shared Campaign member and revoke its credential.", arg -> {
+            SharedCampaignService service = requireLocalSharedCampaign();
+            String target = arg[0].trim();
+            try{
+                SharedCampaignState updated = service.controlClient().removeMember(target);
+                info("Removed Shared Campaign member @. Remaining members: @.", target, updated.members.size);
+            }catch(IOException failure){
+                throw new UncheckedIOException(failure);
+            }
+        });
+
+        handler.register("sc-backup", "[name...]", "Create a durable Shared Campaign restore point.", arg -> {
+            SharedCampaignService service = requireLocalSharedCampaign();
+            SharedCampaignState state = service.state();
+            String name = arg.length == 0 ? "manual" : String.join(" ", arg);
+            SharedCampaignState.BackupState backup = service.createRestorePoint(state.ownerId, name, "dedicated-server", 32);
+            Fi file = service.authority().coordinator().store().root().child(backup.relativePath);
+            info("Created backup @ (revision @, @ bytes).", file.absolutePath(), backup.campaignRevision, backup.sizeBytes);
+            info("SHA-256: @", backup.sha256);
+        });
+
+        handler.register("sc-restore", "<archive> <destination>", "Restore a Shared Campaign backup archive while no campaign is active.", arg -> {
+            requireSharedCampaignInactive();
+            Fi archive = resolveSharedCampaignPath(arg[0]);
+            Fi destination = resolveSharedCampaignDirectory(arg[1]);
+            sharedCampaignService().restoreBackup(archive, destination);
+            info("Restored Shared Campaign backup to @. Use sc-open to start authority.", destination.absolutePath());
+        });
+
+        handler.register("sc-migrate-export", "<target-host-id> <bundle> [valid-seconds]", "Cold-migrate the active authority and write an authenticated migration bundle.", arg -> {
+            SharedCampaignService service = requireLocalSharedCampaign();
+            long validMillis = arg.length > 2 ? parsePositiveSeconds(arg[2]) * 1000L : 15L * 60L * 1000L;
+            Fi bundle = resolveSharedCampaignPath(arg[1]);
+            HostMigrationService.MigrationBundle exported = service.exportMigration(bundle, arg[0], validMillis);
+            warn("Source authority is now fenced and closed. Transfer this code separately from the bundle:");
+            info("Transfer code: @", exported.transferCode());
+            info("Bundle: @", exported.file().absolutePath());
+            info("Target authority generation: @ | expires at: @", exported.authorityGeneration(), exported.expiresAt());
+        });
+
+        handler.register("sc-migrate-import", "<bundle> <destination> <target-host-id> <transfer-code>", "Import a cold-migration bundle and start the target authority.", arg -> {
+            requireSharedCampaignIdle();
+            Fi bundle = resolveSharedCampaignPath(arg[0]);
+            Fi destination = resolveSharedCampaignDirectory(arg[1]);
+            SharedCampaignState imported = sharedCampaignService().importMigration(bundle, destination, arg[2], arg[3], sharedCampaignAdvertisedHost(), 0, Config.port.num());
+            rememberSharedCampaignHostId(arg[2]);
+            info("Imported migrated Shared Campaign '@' (@), generation @.", imported.displayName, imported.campaignId, imported.authorityGeneration);
+            printSharedCampaignEntry(sharedCampaignService());
+        });
+
+        handler.register("sc-migrate-recover", "<directory>", "Recover the locally persisted transfer code for an already-fenced migration.", arg -> {
+            requireSharedCampaignInactive();
+            HostMigrationService.MigrationBundle recovered = sharedCampaignService().recoverPendingMigration(resolveSharedCampaignDirectory(arg[0]));
+            info("Recovered migration bundle: @", recovered.file().absolutePath());
+            info("Transfer code: @", recovered.transferCode());
+            info("Authority generation: @ | expires at: @", recovered.authorityGeneration(), recovered.expiresAt());
+        });
+
+        handler.register("sc-migrate-reissue", "<directory> <bundle> [valid-seconds]", "Reissue the transfer archive/code for an already-fenced migration without reclaiming source authority.", arg -> {
+            requireSharedCampaignInactive();
+            long validMillis = arg.length > 2 ? parsePositiveSeconds(arg[2]) * 1000L : 15L * 60L * 1000L;
+            HostMigrationService.MigrationBundle reissued = sharedCampaignService().reissuePendingMigration(resolveSharedCampaignDirectory(arg[0]), resolveSharedCampaignPath(arg[1]), validMillis);
+            info("Reissued migration bundle: @", reissued.file().absolutePath());
+            info("Transfer code: @", reissued.transferCode());
+            info("Authority generation: @ | expires at: @", reissued.authorityGeneration(), reissued.expiresAt());
+        });
+    }
+
+    private SharedCampaignService sharedCampaignService(){
+        return SharedCampaignService.install(game(), modDirectory);
+    }
+
+    private SharedCampaignService requireLocalSharedCampaign(){
+        SharedCampaignService service = sharedCampaignService();
+        if(!service.localAuthorityOpen()) throw new IllegalStateException("No local Shared Campaign authority is open");
+        return service;
+    }
+
+    private void requireSharedCampaignInactive(){
+        if(sharedCampaignService().sharedModeActive()) throw new IllegalStateException("Close the active Shared Campaign first");
+    }
+
+    private void requireSharedCampaignIdle(){
+        requireSharedCampaignInactive();
+        if(state.isGame() || net.server()) throw new IllegalStateException("Stop the ordinary game server before starting a Shared Campaign authority");
+    }
+
+    private SharedCampaignCreationOptions dedicatedCreationOptions(String hostId, String displayName){
+        SharedCampaignCreationOptions options = new SharedCampaignCreationOptions();
+        options.displayName = displayName == null || displayName.isBlank() ? "Shared Campaign" : displayName.trim();
+        options.ownerId = hostId;
+        options.ownerDisplayName = Config.serverName.string();
+        options.advertisedHost = sharedCampaignAdvertisedHost();
+        options.primaryPlanetName = "serpulo";
+        options.persistenceProfile = SharedCampaignState.PersistenceProfile.highFrequencyWal;
+        return options;
+    }
+
+    private Fi sharedCampaignRoot(){
+        Fi root = dataDirectory.child("shared-campaigns");
+        root.mkdirs();
+        return root;
+    }
+
+    private Fi sharedCampaignImportRoot(){
+        Fi root = dataDirectory.child("shared-campaign-imports");
+        root.mkdirs();
+        return root;
+    }
+
+    private Fi uniqueSharedCampaignDirectory(){
+        Fi root = sharedCampaignRoot();
+        while(true){
+            Fi result = root.child(UUID.randomUUID().toString());
+            if(!result.exists()) return result;
+        }
+    }
+
+    private Fi resolveSharedCampaignDirectory(String value){
+        Fi raw = new Fi(value);
+        return raw.file().isAbsolute() ? raw : sharedCampaignRoot().child(value);
+    }
+
+    private Fi resolveSharedCampaignImport(String value){
+        Fi raw = new Fi(value);
+        return raw.file().isAbsolute() ? raw : sharedCampaignImportRoot().child(value);
+    }
+
+    private Fi resolveSharedCampaignPath(String value){
+        Fi raw = new Fi(value);
+        return raw.file().isAbsolute() ? raw : dataDirectory.child(value);
+    }
+
+    private String sharedCampaignHostId(){
+        String hostId = Core.settings.getString(sharedCampaignHostIdSetting, "").trim();
+        if(hostId.isBlank()){
+            hostId = UUID.randomUUID().toString();
+            rememberSharedCampaignHostId(hostId);
+        }
+        return hostId;
+    }
+
+    private void rememberSharedCampaignHostId(String hostId){
+        String normalized = hostId == null ? "" : hostId.trim();
+        if(normalized.isBlank()) throw new IllegalArgumentException("Shared Campaign host ID is required");
+        Core.settings.put(sharedCampaignHostIdSetting, normalized);
+        Core.settings.forceSave();
+    }
+
+    private String sharedCampaignAdvertisedHost(){
+        return Core.settings.getString("sharedCampaignAdvertisedHost", "127.0.0.1").trim();
+    }
+
+    private static long parsePositiveSeconds(String value){
+        long seconds = Long.parseLong(value);
+        if(seconds < 60L || seconds > 7L * 24L * 60L * 60L) throw new IllegalArgumentException("valid-seconds must be between 60 and 604800");
+        return seconds;
+    }
+
+    private void printSharedCampaignEntry(SharedCampaignService service){
+        SharedCampaignCoordinator coordinator = service.authority().coordinator();
+        info("Public entry: @:@", sharedCampaignAdvertisedHost(), coordinator.publicEntryPort());
+        info("Action control port: @", coordinator.actionControlPort());
+        info("Invite code: @", service.localInviteCode());
+    }
+
+    @Override
+    public void dispose(){
+        SharedCampaignRuntimeState runtime = SharedCampaignRuntimeState.find(game());
+        if(runtime != null){
+            SharedCampaignService service = runtime.component(SharedCampaignService.class);
+            if(service != null) service.close();
+        }
+        toggleSocket(false);
     }
 
     public void handleCommandString(String line){

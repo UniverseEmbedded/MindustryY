@@ -63,8 +63,8 @@ public class GroundAI extends AIController{
         if(moved){
 
             if(unit.within(stuckX, stuckY, stuckRange)){
-                stuckTime += Time.delta;
-                if(stuckTime - Time.delta < stuckThreshold && stuckTime >= stuckThreshold){
+                stuckTime += Time.delta();
+                if(stuckTime - Time.delta() < stuckThreshold && stuckTime >= stuckThreshold){
                     float radius = unit.hitSize * Vars.unitCollisionRadiusScale * 2f;
                     Units.nearby(unit.team, unit.x, unit.y, radius, other -> {
                         if(other != unit && other.controller() instanceof GroundAI ai && other.within(unit.x, unit.y, radius + other.hitSize * unitCollisionRadiusScale)){

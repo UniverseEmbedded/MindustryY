@@ -93,7 +93,7 @@ public class ParticleRenderer{
     }
 
     void updateAsync(){
-        count = update(data, count, Time.delta);
+        count = update(data, count, Time.delta());
         buildVertices();
     }
 

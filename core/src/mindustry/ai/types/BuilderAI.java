@@ -86,7 +86,7 @@ public class BuilderAI extends AIController{
             }
 
             //fly away from enemy when not doing anything, but only after a delay
-            if((retreatTimer += Time.delta) >= retreatDelay || alwaysFlee){
+            if((retreatTimer += Time.delta()) >= retreatDelay || alwaysFlee){
                 if(enemy != null){
                     unit.clearBuilding();
                     var core = unit.closestCore();
@@ -105,7 +105,7 @@ public class BuilderAI extends AIController{
 
             //clear break plan if another player is breaking something
             if(!req.breaking && timer.get(timerTarget2, 40f)){
-                for(Player player : Groups.player){
+                for(Player player : Groups.current().player){
                     if(player.isBuilder() && player.unit().activelyBuilding() && player.unit().buildPlan().samePos(req) && player.unit().buildPlan().breaking){
                         unit.plans.removeFirst();
                         //remove from list of plans
@@ -171,7 +171,7 @@ public class BuilderAI extends AIController{
                 if(onlyAssist){
                     float minDst = Float.MAX_VALUE;
                     Player closest = null;
-                    for(var player : Groups.player){
+                    for(var player : Groups.current().player){
                         if(!player.dead() && player.isBuilder() && player.team() == unit.team){
                             float dst = player.dst2(unit);
                             if(dst < minDst){

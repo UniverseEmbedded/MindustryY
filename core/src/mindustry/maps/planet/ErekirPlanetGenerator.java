@@ -159,7 +159,7 @@ public class ErekirPlanetGenerator extends PlanetGenerator{
         //TODO ice biome
 
         float length = width/2.6f;
-        Vec2 trns = Tmp.v1.trns(rand.random(360f), length);
+        Vec2 trns = Tmp.v1().trns(rand.random(360f), length);
         int
         spawnX = (int)(trns.x + width/2f), spawnY = (int)(trns.y + height/2f),
         endX = (int)(-trns.x + width/2f), endY = (int)(-trns.y + height/2f);

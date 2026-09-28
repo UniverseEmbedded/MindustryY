@@ -34,7 +34,7 @@ public class LogicFilter extends GenerateFilter{
     @Override
     public void apply(Tiles tiles, GenerateInput in){
         //this updates map width/height global variables
-        logicVars.update();
+        mindustry.Vars.game().logicVars.update();
 
         LExecutor.runLogicScript(code, maxInstructionsExecution, loop);
     }

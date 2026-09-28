@@ -19,11 +19,13 @@ import mindustry.gen.*;
 import mindustry.io.*;
 import mindustry.maps.*;
 import mindustry.maps.filters.*;
+import mindustry.runtime.*;
 import mindustry.maps.filters.GenerateFilter.*;
 import mindustry.type.*;
 import mindustry.world.*;
 import mindustry.world.blocks.environment.*;
 import mindustry.world.blocks.legacy.*;
+import mindustry.y.campaign.partition.*;
 
 import static mindustry.Vars.*;
 
@@ -46,7 +48,7 @@ public class World{
             floorChanges = -1;
 
             //make each building check if it can update in the given map area
-            for(var build : Groups.build){
+            for(var build : Groups.current().build){
                 build.checkAllowUpdate();
             }
         });
@@ -263,24 +265,43 @@ public class World{
     }
 
     public void loadSector(Sector sector, WorldParams params){
+        // Planet generators are process-shared Content objects with mutable generation scratch. Serialize the full
+        // lifecycle for generated sectors so sibling GameContexts cannot overwrite each other's generator state.
+        if(sector.preset == null && sector.planet.generator != null){
+            synchronized(sector.planet.generator){
+                loadSectorInternal(sector, params);
+            }
+        }else{
+            loadSectorInternal(sector, params);
+        }
+    }
+
+    private void loadSectorInternal(Sector sector, WorldParams params){
         setSectorRules(sector, params.saveInfo);
 
-        int size = sector.getSize();
-        loadGenerator(size, size, tiles -> {
+        // J1/J3 partition plan first.
+        // TRADITIONAL: single plan width==height==sector.getSize() (legacy-equivalent).
+        // WAFER: plan() is the CENTER die only; full grid is provider.plans(sector).
+        // HALF-DONE by design: this World still owns one Tiles grid, so non-center dies are
+        // not loaded. TODO(J4+): loop plans() and host one map per MapRegionId.
+        // Must not silently fall back to a traditional full-sector plan when mode is WAFER.
+        MapPlanProvider provider = MapPlanProvider.forSector(sector);
+        MapPlan plan = provider.plan(sector);
+        loadGenerator(plan.width, plan.height, tiles -> {
             if(sector.preset != null){
                 sector.preset.generator.generate(tiles, params);
-                sector.preset.rules.get(state.rules); //apply extra rules
+                sector.preset.rules.get(mindustry.Vars.game().state.rules); //apply extra rules
             }else if(sector.planet.generator != null){
                 sector.planet.generator.generate(tiles, sector, params);
             }else{
                 throw new RuntimeException("Sector " + sector.id + " on planet " + sector.planet.name + " has no generator or preset defined. Provide a planet generator or preset map.");
             }
             //just in case
-            state.rules.sector = sector;
+            mindustry.Vars.game().state.rules.sector = sector;
         });
 
-        if(params.saveInfo && state.rules.waves){
-            sector.info.waves = state.rules.waves;
+        if(params.saveInfo && mindustry.Vars.game().state.rules.waves){
+            sector.info().waves = mindustry.Vars.game().state.rules.waves;
         }
 
         //postgenerate for bases
@@ -291,22 +312,22 @@ public class World{
         //reset rules
         setSectorRules(sector, params.saveInfo);
 
-        if(state.rules.defaultTeam.core() != null){
-            sector.info.spawnPosition = state.rules.defaultTeam.core().pos();
+        if(mindustry.Vars.game().state.rules.defaultTeam.core() != null){
+            sector.info().spawnPosition = mindustry.Vars.game().state.rules.defaultTeam.core().pos();
         }
     }
 
     private void setSectorRules(Sector sector, boolean saveInfo){
-        state.map = new Map(StringMap.of("name", sector.preset == null ? sector.planet.localizedName + "; Sector " + sector.id : sector.preset.localizedName));
-        state.rules.sector = sector;
+        mindustry.Vars.game().state.map = new Map(StringMap.of("name", sector.preset == null ? sector.planet.localizedName + "; Sector " + sector.id : sector.preset.localizedName));
+        mindustry.Vars.game().state.rules.sector = sector;
 
-        sector.planet.generator.addWeather(sector, state.rules);
+        sector.planet.generator.addWeather(sector, mindustry.Vars.game().state.rules);
 
         ObjectSet<UnlockableContent> content = new ObjectSet<>();
 
         //resources can be outside area
-        boolean border = state.rules.limitMapArea;
-        state.rules.limitMapArea = false;
+        boolean border = mindustry.Vars.game().state.rules.limitMapArea;
+        mindustry.Vars.game().state.rules.limitMapArea = false;
 
         for(Tile tile : tiles){
             if(getDarkness(tile.x, tile.y) >= 3){
@@ -319,14 +340,14 @@ public class World{
             if(tile.wallDrop() != null) content.add(tile.wallDrop());
             if(liquid != null && !tile.block().isStatic()) content.add(liquid);
         }
-        state.rules.limitMapArea = border;
+        mindustry.Vars.game().state.rules.limitMapArea = border;
 
-        state.rules.cloudColor = sector.planet.landCloudColor;
-        state.rules.env = sector.planet.defaultEnv;
-        state.rules.planet = sector.planet;
-        sector.planet.applyRules(state.rules, !saveInfo);
-        sector.info.resources = content.toSeq();
-        sector.info.resources.sort(Structs.comps(Structs.comparing(Content::getContentType), Structs.comparingInt(c -> c.id)));
+        mindustry.Vars.game().state.rules.cloudColor = sector.planet.landCloudColor;
+        mindustry.Vars.game().state.rules.env = sector.planet.defaultEnv;
+        mindustry.Vars.game().state.rules.planet = sector.planet;
+        sector.planet.applyRules(mindustry.Vars.game().state.rules, !saveInfo);
+        sector.info().resources = content.toSeq();
+        sector.info().resources.sort(Structs.comps(Structs.comparing(Content::getContentType), Structs.comparingInt(c -> c.id)));
 
         if(saveInfo){
             sector.saveInfo();
@@ -335,7 +356,7 @@ public class World{
 
     /** @return whether the coordinates are inside the map's defined limit rect. */
     public boolean isInMapArea(int x, int y){
-        return tiles.in(x, y) && (!state.rules.limitMapArea || Rect.contains(state.rules.limitX, state.rules.limitY, state.rules.limitWidth, state.rules.limitHeight, x, y));
+        return tiles.in(x, y) && (!mindustry.Vars.game().state.rules.limitMapArea || Rect.contains(mindustry.Vars.game().state.rules.limitX, mindustry.Vars.game().state.rules.limitY, mindustry.Vars.game().state.rules.limitWidth, mindustry.Vars.game().state.rules.limitHeight, x, y));
     }
 
     public Context filterContext(Map map){
@@ -357,43 +378,43 @@ public class World{
             SaveIO.load(map.file, new FilterContext(map));
         }catch(Throwable e){
             Log.err(e);
-            if(!headless){
+            if(runtimeVisualsEnabled()){
                 ui.showErrorMessage("@map.invalid");
-                Core.app.post(() -> state.set(State.menu));
+                RuntimeContexts.post(() -> mindustry.Vars.game().state.set(State.menu));
                 invalidMap = true;
             }
             generating = false;
             return;
         }
 
-        state.map = map;
+        mindustry.Vars.game().state.map = map;
 
         invalidMap = false;
 
-        if(!headless){
-            if(state.teams.cores(checkRules.defaultTeam).size == 0 && !checkRules.pvp){
+        if(runtimeVisualsEnabled()){
+            if(mindustry.Vars.game().state.teams.cores(checkRules.defaultTeam).size == 0 && !checkRules.pvp){
                 invalidMap = true;
                 ui.showErrorMessage(Core.bundle.format("map.nospawn", checkRules.defaultTeam.coloredName()));
             }else if(checkRules.pvp){ //pvp maps need two cores to be valid
-                if(state.teams.getActive().count(TeamData::hasCore) < 2){
+                if(mindustry.Vars.game().state.teams.getActive().count(TeamData::hasCore) < 2){
                     invalidMap = true;
                     ui.showErrorMessage("@map.nospawn.pvp");
                 }
             }else if(checkRules.attackMode){ //attack maps need two cores to be valid
-                invalidMap = state.rules.waveTeam.data().noCores();
+                invalidMap = mindustry.Vars.game().state.rules.waveTeam.data().noCores();
                 if(invalidMap){
                     ui.showErrorMessage(Core.bundle.format("map.nospawn.attack", checkRules.waveTeam.coloredName()));
                 }
             }
         }else{
-            invalidMap = !state.teams.getActive().contains(TeamData::hasCore);
+            invalidMap = !mindustry.Vars.game().state.teams.getActive().contains(TeamData::hasCore);
 
             if(invalidMap){
                 throw new MapException(map, "Map has no cores!");
             }
         }
 
-        if(invalidMap) Core.app.post(() -> state.set(State.menu));
+        if(invalidMap) RuntimeContexts.post(() -> mindustry.Vars.game().state.set(State.menu));
     }
 
     public void addDarkness(Tiles tiles){
@@ -467,7 +488,7 @@ public class World{
     }
 
     public void checkMapArea(int x, int y, int w, int h){
-        for(var team : state.teams.present){
+        for(var team : mindustry.Vars.game().state.teams.present){
             for(var build : team.buildings){
                 //reset map-area-based disabled blocks that were not in the previous map area
                 if(!build.enabled && build.block.autoResetEnabled && !Rect.contains(x, y, w, h, build.tile.x, build.tile.y)){
@@ -484,17 +505,17 @@ public class World{
     public float getDarkness(int x, int y){
         float dark = 0;
 
-        if(Vars.state.rules.borderDarkness){
+        if(mindustry.Vars.game().state.rules.borderDarkness){
             int edgeBlend = 2;
             int edgeDst;
 
-            if(!state.rules.limitMapArea){
+            if(!mindustry.Vars.game().state.rules.limitMapArea){
                 edgeDst = Math.min(x, Math.min(y, Math.min(-(x - (tiles.width - 1)), -(y - (tiles.height - 1)))));
             }else{
                 edgeDst =
-                    Math.min(x - state.rules.limitX,
-                    Math.min(y - state.rules.limitY,
-                    Math.min(-(x - (state.rules.limitX + state.rules.limitWidth - 1)), -(y - (state.rules.limitY + state.rules.limitHeight - 1)))));
+                    Math.min(x - mindustry.Vars.game().state.rules.limitX,
+                    Math.min(y - mindustry.Vars.game().state.rules.limitY,
+                    Math.min(-(x - (mindustry.Vars.game().state.rules.limitX + mindustry.Vars.game().state.rules.limitWidth - 1)), -(y - (mindustry.Vars.game().state.rules.limitY + mindustry.Vars.game().state.rules.limitHeight - 1)))));
             }
 
             if(edgeDst <= edgeBlend){
@@ -502,20 +523,20 @@ public class World{
             }
         }
 
-        if(state.hasSector() && state.getSector().preset == null){
+        if(mindustry.Vars.game().state.hasSector() && mindustry.Vars.game().state.getSector().preset == null){
             int circleBlend = 5;
             //quantized angle
-            float offset = state.getSector().rect.rotation + 90;
+            float offset = mindustry.Vars.game().state.getSector().rect.rotation + 90;
             float angle = Angles.angle(x, y, tiles.width/2, tiles.height/2) + offset;
             //polygon sides, depends on sector
-            int sides = state.getSector().tile.corners.length;
+            int sides = mindustry.Vars.game().state.getSector().tile.corners.length;
             float step = 360f / sides;
             //prev and next angles of poly
             float prev = Mathf.round(angle, step);
             float next = prev + step;
             //raw line length to be translated
-            float length = state.getSector().getSize()/2f;
-            float rawDst = Intersector.distanceLinePoint(Tmp.v1.trns(prev, length), Tmp.v2.trns(next, length), Tmp.v3.set(x - tiles.width/2, y - tiles.height/2).rotate(offset)) / Mathf.sqrt3 - 1;
+            float length = mindustry.Vars.game().state.getSector().getSize()/2f;
+            float rawDst = Intersector.distanceLinePoint(Tmp.v1().trns(prev, length), Tmp.v2().trns(next, length), Tmp.v3().set(x - tiles.width/2, y - tiles.height/2).rotate(offset)) / Mathf.sqrt3 - 1;
 
             //noise
             rawDst += Noise.noise(x, y, 11f, 7f) + Noise.noise(x, y, 22f, 15f);

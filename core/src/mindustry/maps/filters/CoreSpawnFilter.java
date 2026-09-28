@@ -27,7 +27,7 @@ public class CoreSpawnFilter extends GenerateFilter{
     public void apply(Tiles tiles, GenerateInput in){
         IntSeq spawns = new IntSeq();
         for(Tile tile : tiles){
-            if(tile.team() == state.rules.defaultTeam && tile.block() instanceof CoreBlock && tile.isCenter()){
+            if(tile.team() == mindustry.Vars.game().state.rules.defaultTeam && tile.block() instanceof CoreBlock && tile.isCenter()){
                 spawns.add(tile.pos());
             }
         }

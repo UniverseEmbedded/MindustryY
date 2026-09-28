@@ -256,7 +256,7 @@ public class GenericCrafter extends Block{
             }
 
             //TODO may look bad, revert to edelta() if so
-            totalProgress += warmup * Time.delta;
+            totalProgress += warmup * Time.delta();
 
             if(progress >= 1f){
                 craft();

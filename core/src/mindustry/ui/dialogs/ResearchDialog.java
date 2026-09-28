@@ -16,6 +16,9 @@ import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.content.*;
+import mindustry.campaign.shared.*;
+import mindustry.campaign.shared.api.*;
+import mindustry.campaign.shared.ui.*;
 import mindustry.content.TechTree.*;
 import mindustry.core.*;
 import mindustry.game.EventType.*;
@@ -48,26 +51,56 @@ public class ResearchDialog extends BaseDialog{
 
     private final Seq<Planet> rootPlanets = new Seq<>(false, 4);
     private boolean showTechSelect;
-    private boolean needsRebuild;
+    private volatile boolean needsRebuild;
+    private final SharedCampaignService sharedCampaign;
+    /** Explicit strategic presentation; coordinator connectivity alone must not hijack ordinary Local Campaign UI. */
+    private boolean sharedStrategicPresentation;
+    private @Nullable Planet sharedResearchPlanet;
+    private SharedCampaignState sharedViewState;
+    private boolean sharedAudioSuppressed;
+    private final ObjectSet<String> requestingResearch = new ObjectSet<>();
 
     public ResearchDialog(){
         super("");
+        name = "researchDialog";
+        sharedCampaign = SharedCampaignService.install(game(), modDirectory);
 
         Events.on(ResetEvent.class, e -> {
             hide();
+        });
+
+        Events.on(SharedCampaignEvents.CampaignSnapshotUpdated.class, e -> {
+            if(needsRebuild) return;
+            needsRebuild = true;
+            Core.app.post(() -> {
+                try{
+                    if(!isShown() || !sharedResearchMode()) return;
+                    refreshSharedViewState();
+                    rebuildItems();
+                    checkNodes(root);
+                    view.hoverNode = null;
+                    treeLayout();
+                    view.rebuild();
+                    Core.scene.act();
+                }finally{
+                    needsRebuild = false;
+                }
+            });
         });
 
         Events.on(UnlockEvent.class, e -> {
             if(net.client() && !needsRebuild){
                 needsRebuild = true;
                 Core.app.post(() -> {
-                    needsRebuild = false;
-
-                    checkNodes(root);
-                    view.hoverNode = null;
-                    treeLayout();
-                    view.rebuild();
-                    Core.scene.act();
+                    try{
+                        checkNodes(root);
+                        view.hoverNode = null;
+                        treeLayout();
+                        view.rebuild();
+                        Core.scene.act();
+                    }finally{
+                        needsRebuild = false;
+                    }
                 });
             }
         });
@@ -88,7 +121,7 @@ public class ResearchDialog extends BaseDialog{
                     t.table(Tex.button, in -> {
                         in.defaults().width(300f).height(60f);
                         for(TechNode node : TechTree.roots){
-                            if(node.requiresUnlock && !node.content.unlockedHost() && node != getPrefRoot()) continue;
+                            if(!rootVisible(node) && node != getPrefRoot()) continue;
 
                             //TODO toggle
                             in.button(node.localizedName(), node.icon(), Styles.flatTogglet, iconMed, () -> {
@@ -98,18 +131,18 @@ public class ResearchDialog extends BaseDialog{
 
                                 rebuildTree(node);
                                 hide();
-                            }).marginLeft(12f).checked(node == lastNode).row();
+                            }).marginLeft(12f).checked(node == lastNode).name("research.root." + node.content.name).row();
                         }
                     });
                 });
 
                 addCloseButton();
             }}.show();
-        }).visible(() -> showTechSelect = TechTree.roots.count(node -> !(node.requiresUnlock && !node.content.unlockedHost())) > 1).minWidth(300f);
+        }).visible(() -> showTechSelect = TechTree.roots.count(this::rootVisible) > 1).minWidth(300f);
 
         margin(0f).marginBottom(8);
         cont.stack(titleTable, view = new View(), itemDisplay = new ItemsDisplay()).grow();
-        itemDisplay.visible(() -> !net.client());
+        itemDisplay.visible(() -> !net.client() || sharedResearchMode());
 
         titleTable.toFront();
 
@@ -121,13 +154,24 @@ public class ResearchDialog extends BaseDialog{
             checkMargin();
             Core.app.post(this::checkMargin);
 
-            Planet currPlanet = ui.planet.isShown() ?
-                ui.planet.state.planet :
-                state.isCampaign() ? state.rules.sector.planet : null;
-
+            acquireSharedAudioSuppression();
+            Planet currPlanet = sharedResearchMode() ? sharedResearchPlanet : null;
+            if(currPlanet == null && sharedResearchMode() && sharedCampaign != null && sharedCampaign.sharedModeActive() &&
+                state != null && state.rules != null && state.rules.sector != null){
+                currPlanet = state.rules.sector.planet;
+            }
+            if(currPlanet == null && sharedResearchMode()){
+                SharedCampaignState campaign = sharedCampaign.strategicState();
+                if(campaign != null && campaign.primaryPlanetName != null) currPlanet = content.planet(campaign.primaryPlanetName);
+            }
+            if(currPlanet == null){
+                currPlanet = ui.planet.isShown() ? ui.planet.state.planet : state.isCampaign() && state.rules.sector != null ? state.rules.sector.planet : null;
+            }
+            if(sharedResearchMode() && currPlanet != null) sharedResearchPlanet = currPlanet;
             if(currPlanet != null && currPlanet.techTree != null){
                 switchTree(currPlanet.techTree);
             }
+            refreshSharedViewState();
             rebuildItems();
 
             checkNodes(root);
@@ -138,7 +182,14 @@ public class ResearchDialog extends BaseDialog{
             view.infoTable.clear();
         });
 
-        hidden(ui.planet::setup);
+        hidden(() -> {
+            boolean wasShared = sharedResearchMode();
+            releaseSharedAudioSuppression();
+            sharedViewState = null;
+            sharedStrategicPresentation = false;
+            sharedResearchPlanet = null;
+            if(!wasShared) ui.planet.setup();
+        });
 
         addCloseButton();
 
@@ -150,7 +201,7 @@ public class ResearchDialog extends BaseDialog{
 
         buttons.button("@database", Icon.book, () -> {
             hide();
-            ui.database.show();
+            SharedCampaignUiRouter.showDatabase();
         }).size(210f, 64f).name("database");
 
         //scaling/drag input
@@ -210,6 +261,13 @@ public class ResearchDialog extends BaseDialog{
     }
 
     public void rebuildItems(){
+        if(sharedResearchMode()){
+            SharedCampaignState campaign = sharedViewState();
+            Planet planet = researchRequestPlanet(lastNode);
+            items = campaign == null ? new ItemSeq() : SharedCampaignProgress.researchItems(campaign, lastNode, planet == null ? "" : planet.name);
+            itemDisplay.rebuild(items);
+            return;
+        }
         items = new ItemSeq(){
             //store sector item amounts for modifications
             ObjectMap<Sector, ItemSeq> cache = new ObjectMap<>();
@@ -299,6 +357,7 @@ public class ResearchDialog extends BaseDialog{
     }
 
     public @Nullable TechNode getPrefRoot(){
+        if(sharedResearchMode() && sharedResearchPlanet != null) return sharedResearchPlanet.techTree;
         Planet currPlanet = ui.planet.isShown() ?
             ui.planet.state.planet :
             state.isCampaign() ? state.rules.sector.planet : null;
@@ -307,6 +366,12 @@ public class ResearchDialog extends BaseDialog{
 
     public void switchTree(TechNode node){
         if(lastNode == node || node == null) return;
+        if(sharedResearchMode()){
+            Seq<Planet> planets = SharedCampaignProgress.researchPlanets(node);
+            if(sharedResearchPlanet == null || !planets.contains(sharedResearchPlanet, true)){
+                sharedResearchPlanet = planets.isEmpty() ? null : planets.first();
+            }
+        }
         nodes.clear();
         root = new TechTreeNode(node, null);
         lastNode = node;
@@ -401,12 +466,90 @@ public class ResearchDialog extends BaseDialog{
     }
 
     boolean selectable(TechNode node){
+        if(sharedResearchMode()){
+            SharedCampaignState campaign = sharedViewState();
+            return campaign != null && SharedCampaignProgress.researchSelectable(campaign, node);
+        }
         //there's a desync here as far as sectors go, since the client doesn't know about that, but I'm not too concerned
         return node.content.unlockedHost() || !node.objectives.contains(i -> !i.complete());
     }
 
     boolean locked(TechNode node){
+        if(sharedResearchMode()){
+            SharedCampaignState campaign = sharedViewState();
+            return campaign == null || !SharedCampaignProgress.researchUnlocked(campaign, node.content);
+        }
         return !node.content.unlockedHost();
+    }
+
+    /** Opens the familiar vanilla tech tree against Shared Campaign strategic authority. */
+    public void showSharedCampaign(){ showSharedCampaign(null); }
+
+    public void showSharedCampaign(@Nullable Planet planet){
+        sharedResearchPlanet = planet;
+        sharedStrategicPresentation = true;
+        show();
+    }
+
+    boolean sharedResearchMode(){
+        return sharedCampaign != null && (sharedStrategicPresentation || sharedCampaign.sharedModeActive());
+    }
+
+    private boolean rootVisible(TechNode node){
+        if(node == null || !node.requiresUnlock) return true;
+        if(sharedResearchMode()){
+            SharedCampaignState campaign = sharedViewState();
+            return campaign != null && SharedCampaignProgress.researchUnlocked(campaign, node.content);
+        }
+        return node.content.unlockedHost();
+    }
+
+    private void refreshSharedViewState(){
+        sharedViewState = sharedResearchMode() ? sharedCampaign.strategicState() : null;
+    }
+
+    private SharedCampaignState sharedViewState(){
+        if(!sharedResearchMode()){
+            sharedViewState = null;
+            return null;
+        }
+        if(sharedViewState == null) sharedViewState = sharedCampaign.strategicState();
+        return sharedViewState;
+    }
+
+    private int sharedContribution(TechNode node, Item item){
+        SharedCampaignState campaign = sharedViewState();
+        return campaign == null ? 0 : SharedCampaignProgress.researchContribution(campaign, node, item);
+    }
+
+    private boolean sharedObjectiveComplete(Objective objective){
+        if(!sharedResearchMode()) return objective.complete();
+        SharedCampaignState campaign = sharedViewState();
+        return campaign != null && SharedObjectiveEvaluator.complete(campaign, objective);
+    }
+
+    private int completedAmount(TechNode node, int index){
+        if(index < 0 || index >= node.requirements.length) return 0;
+        return sharedResearchMode() ? sharedContribution(node, node.requirements[index].item) :
+            index < node.finishedRequirements.length ? node.finishedRequirements[index].amount : 0;
+    }
+
+    private void acquireSharedAudioSuppression(){
+        if(sharedAudioSuppressed || sharedCampaign == null || !sharedCampaign.sharedModeActive()) return;
+        game().pushGameplayAudioSuppression();
+        sharedAudioSuppressed = true;
+    }
+
+    private void releaseSharedAudioSuppression(){
+        if(!sharedAudioSuppressed) return;
+        sharedAudioSuppressed = false;
+        game().popGameplayAudioSuppression();
+    }
+
+    private @Nullable Planet researchRequestPlanet(TechNode node){
+        Seq<Planet> planets = SharedCampaignProgress.researchPlanets(node);
+        if(sharedResearchPlanet != null && planets.contains(sharedResearchPlanet, true)) return sharedResearchPlanet;
+        return planets.isEmpty() ? null : planets.first();
     }
 
     class LayoutNode extends TreeNode<LayoutNode>{
@@ -456,10 +599,11 @@ public class ResearchDialog extends BaseDialog{
 
             for(TechTreeNode node : nodes){
                 ImageButton button = new ImageButton(node.node.content.uiIcon, Styles.nodei);
+                button.name = "research.node." + node.node.content.name;
                 button.resizeImage(32f);
                 button.getImage().setScaling(Scaling.fit);
                 button.visible(() -> node.visible);
-                if(!net.client()){
+                if(!net.client() || sharedResearchMode()){
                     button.clicked(() -> {
                         if(moved) return;
 
@@ -503,13 +647,13 @@ public class ResearchDialog extends BaseDialog{
                 button.userObject = node.node;
                 button.setSize(nodeSize);
                 button.update(() -> {
-                    button.setDisabled(net.client() && !mobile);
+                    button.setDisabled((net.client() && !sharedResearchMode() && !mobile) || requestingResearch.contains(node.node.content.name));
                     float offset = (Core.graphics.getHeight() % 2) / 2f;
                     button.setPosition(node.x + panX + width / 2f, node.y + panY + height / 2f + offset, Align.center);
-                    button.getStyle().up = !locked(node.node) ? Tex.buttonOver : !selectable(node.node) || (!canSpend(node.node) && !net.client()) ? Tex.buttonRed : Tex.button;
+                    button.getStyle().up = !locked(node.node) ? Tex.buttonOver : !selectable(node.node) || (!canSpend(node.node) && (!net.client() || sharedResearchMode())) ? Tex.buttonRed : Tex.button;
 
                     ((TextureRegionDrawable)button.getStyle().imageUp).setRegion(node.selectable ? node.node.content.uiIcon : Icon.lock.getRegion());
-                    button.getImage().setColor(!locked(node.node) ? Color.white : node.selectable ? Color.gray : Pal.gray);
+                    button.getImage().setColor(requestingResearch.contains(node.node.content.name) ? Pal.accent : !locked(node.node) ? Color.white : node.selectable ? Color.gray : Pal.gray);
                     button.getImage().layout();
                 });
                 addChild(button);
@@ -549,7 +693,16 @@ public class ResearchDialog extends BaseDialog{
         }
 
         boolean canSpend(TechNode node){
-            if(!selectable(node) || net.client()) return false;
+            if(!selectable(node) || (net.client() && !sharedResearchMode())) return false;
+            if(sharedResearchMode()){
+                if(!locked(node)) return false;
+                if(node.requirements.length == 0) return true;
+                for(ItemStack requirement : node.requirements){
+                    int remaining = Math.max(0, requirement.amount - sharedContribution(node, requirement.item));
+                    if(remaining > 0 && items.has(requirement.item)) return true;
+                }
+                return false;
+            }
 
             if(node.requirements.length == 0) return true;
 
@@ -565,6 +718,34 @@ public class ResearchDialog extends BaseDialog{
         }
 
         void spend(TechNode node){
+            if(sharedResearchMode()){
+                if(!requestingResearch.add(node.content.name)) return;
+                Planet requestPlanet = researchRequestPlanet(node);
+                String requestPlanetName = requestPlanet == null ? "" : requestPlanet.name;
+                Threads.daemon("shared-campaign-research", () -> {
+                    try{
+                        sharedCampaign.requestResearch(node.content.name, requestPlanetName);
+                        Core.app.post(() -> {
+                            if(!requestingResearch.remove(node.content.name) || !isShown()) return;
+                            refreshSharedViewState();
+                            rebuildItems();
+                            checkNodes(root);
+                            treeLayout();
+                            rebuild();
+                            Sounds.uiUnlock.play();
+                        });
+                    }catch(Throwable error){
+                        Core.app.post(() -> {
+                            requestingResearch.remove(node.content.name);
+                            if(!isShown()) return;
+                            rebuild();
+                            if(SharedCampaignUserException.isUserFacing(error)) ui.showInfo(SharedCampaignUserException.displayMessage(error));
+                            else ui.showException(error);
+                        });
+                    }
+                });
+                return;
+            }
             if(net.client()) return;
 
             boolean complete = true;
@@ -672,9 +853,9 @@ public class ResearchDialog extends BaseDialog{
                     desc.left().defaults().left();
                     desc.add(selectable ? node.content.localizedName : "[accent]???");
                     desc.row();
-                    if(locked(node) || (debugShowRequirements && !net.client())){
+                    if(locked(node) || (debugShowRequirements && (!net.client() || sharedResearchMode()))){
 
-                        if(net.client()){
+                        if(net.client() && !sharedResearchMode()){
                             desc.add("@locked").color(Pal.remove);
                         }else{
                             desc.table(t -> {
@@ -682,13 +863,15 @@ public class ResearchDialog extends BaseDialog{
                                 if(selectable){
 
                                     //check if there is any progress, add research progress text
-                                    if(Structs.contains(node.finishedRequirements, s -> s.amount > 0)){
+                                    boolean hasProgress = false;
+                                    for(int i = 0; i < node.requirements.length; i++) if(completedAmount(node, i) > 0){ hasProgress = true; break; }
+                                    if(hasProgress){
                                         float sum = 0f, used = 0f;
                                         boolean shiny = false;
 
                                         for(int i = 0; i < node.requirements.length; i++){
                                             sum += node.requirements[i].item.cost * node.requirements[i].amount;
-                                            used += node.finishedRequirements[i].item.cost * node.finishedRequirements[i].amount;
+                                            used += node.requirements[i].item.cost * completedAmount(node, i);
                                             if(shine != null) shiny |= shine[i];
                                         }
 
@@ -706,14 +889,14 @@ public class ResearchDialog extends BaseDialog{
 
                                     for(int i = 0; i < node.requirements.length; i++){
                                         ItemStack req = node.requirements[i];
-                                        ItemStack completed = node.finishedRequirements[i];
+                                        int completed = completedAmount(node, i);
 
                                         //skip finished stacks
-                                        if(req.amount <= completed.amount && !debugShowRequirements) continue;
+                                        if(req.amount <= completed && !debugShowRequirements) continue;
                                         boolean shiny = shine != null && shine[i];
 
                                         t.table(list -> {
-                                            int reqAmount = debugShowRequirements ? req.amount : req.amount - completed.amount;
+                                            int reqAmount = debugShowRequirements ? req.amount : req.amount - completed;
 
                                             list.left();
                                             list.image(req.item.uiIcon).size(8 * 3).padRight(3);
@@ -739,10 +922,11 @@ public class ResearchDialog extends BaseDialog{
                                         r.add("@complete").colspan(2).left();
                                         r.row();
                                         for(Objective o : node.objectives){
-                                            if(o.complete()) continue;
+                                            boolean complete = sharedObjectiveComplete(o);
+                                            if(complete) continue;
 
                                             r.add("> " + o.display()).color(Color.lightGray).left();
-                                            r.image(o.complete() ? Icon.ok : Icon.cancel, o.complete() ? Color.lightGray : Color.scarlet).padLeft(3);
+                                            r.image(complete ? Icon.ok : Icon.cancel, complete ? Color.lightGray : Color.scarlet).padLeft(3);
                                             r.row();
                                         }
                                     });
@@ -755,7 +939,7 @@ public class ResearchDialog extends BaseDialog{
                     }
                 }).pad(9).left().growX();
 
-                if(mobile && locked(node) && !net.client()){
+                if(mobile && locked(node) && (!net.client() || sharedResearchMode())){
                     b.row();
                     b.button("@research", Icon.ok, new TextButtonStyle(){{
                         disabled = Tex.button;

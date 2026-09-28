@@ -134,7 +134,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
             float amount = cy / yscale;
             amount = Mathf.clamp(upV + amount, margin, 180f - margin) - upV;
 
-            pos.rotate(Tmp.v31.set(state.camUp).rotate(state.camDir, 90), amount);
+            pos.rotate(Tmp.v31().set(state.camUp).rotate(state.camDir, 90), amount);
         });
 
         addListener(new InputListener(){
@@ -404,7 +404,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
 
     public void lookAt(Sector sector, float alpha){
         float len = state.camPos.len();
-        state.camPos.slerp(sector.planet.lookAt(sector, Tmp.v33).setLength(len), alpha);
+        state.camPos.slerp(sector.planet.lookAt(sector, Tmp.v33()).setLength(len), alpha);
     }
 
     void clampZoom(){
@@ -457,15 +457,15 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
                 if(canSelect(sec) || sec.unlocked() || debugSelect){
 
                     Color color =
-                    sec.hasBase() ? Tmp.c2.set(Team.sharded.color).lerp(Team.crux.color, sec.hasEnemyBase() ? 0.5f : 0f) :
+                    sec.hasBase() ? Tmp.c2().set(Team.sharded.color).lerp(Team.crux.color, sec.hasEnemyBase() ? 0.5f : 0f) :
                     sec.preset != null && sec.preset.requireUnlock ?
-                        sec.preset.unlocked() ? Tmp.c2.set(Team.derelict.color).lerp(Color.white, Mathf.absin(Time.time, 10f, 1f)) :
+                        sec.preset.unlocked() ? Tmp.c2().set(Team.derelict.color).lerp(Color.white, Mathf.absin(Time.time(), 10f, 1f)) :
                         Color.gray :
                     sec.hasEnemyBase() ? Team.crux.color :
                     null;
 
                     if(color != null){
-                        var destColor = Tmp.c1.set(color).mul(0.8f).a(state.uiAlpha);
+                        var destColor = Tmp.c1().set(color).mul(0.8f).a(state.uiAlpha);
                         if(!sec.isCaptured() && sec.preset != null && sec.preset.showHidden){
                             planets.drawSpecialSelection(sec, destColor, 0.026f, -0.001f);
                         }else{
@@ -473,7 +473,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
                         }
                     }
                 }else{
-                    planets.fill(sec, Tmp.c1.set(shadowColor).mul(1, 1, 1, state.uiAlpha), -0.001f);
+                    planets.fill(sec, Tmp.c1().set(shadowColor).mul(1, 1, 1, state.uiAlpha), -0.001f);
                 }
             }
         }
@@ -481,12 +481,12 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
         Sector current = Vars.state.getSector() != null && Vars.state.getSector().isBeingPlayed() && Vars.state.getSector().planet == state.planet ? Vars.state.getSector() : null;
 
         if(current != null){
-            planets.fill(current, hoverColor.write(Tmp.c1).mulA(state.uiAlpha), -0.001f);
+            planets.fill(current, hoverColor.write(Tmp.c1()).mulA(state.uiAlpha), -0.001f);
         }
 
         //draw hover border
         if(hovered != null){
-            planets.fill(hovered, hoverColor.write(Tmp.c1).mulA(state.uiAlpha), -0.003f);
+            planets.fill(hovered, hoverColor.write(Tmp.c1()).mulA(state.uiAlpha), -0.003f);
             planets.drawBorders(hovered, borderColor, state.uiAlpha);
         }
 
@@ -517,7 +517,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
 
                 //draw shield arc
                 if(sec.shieldTarget != null && !sec.isCaptured() && !sec.shieldTarget.isCaptured() && (planet.generator.allowLanding(sec) || planet.generator.allowLanding(sec.shieldTarget))){
-                    planets.drawArcLine(planet, sec.tile.v, sec.shieldTarget.tile.v, Team.crux.color.write(Tmp.c2).a(state.uiAlpha), Tmp.c3.set(Tmp.c2).mulA(0.5f), 0.3f, 110f, 25, 0.006f);
+                    planets.drawArcLine(planet, sec.tile.v, sec.shieldTarget.tile.v, Team.crux.color.write(Tmp.c2()).a(state.uiAlpha), Tmp.c3().set(Tmp.c2()).mulA(0.5f), 0.3f, 110f, 25, 0.006f);
                 }
 
                 if(sec.hasBase()){
@@ -525,7 +525,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
                     if(planet.campaignRules.sectorInvasion){
                         for(Sector enemy : sec.near()){
                             if(enemy.hasEnemyBase() && (enemy.preset == null || !enemy.preset.requireUnlock)){
-                                planets.drawArcLine(planet, enemy.tile.v, sec.tile.v, Team.crux.color.write(Tmp.c2).a(state.uiAlpha), Color.clear, 0.24f, 110f, 25, 0.005f);
+                                planets.drawArcLine(planet, enemy.tile.v, sec.tile.v, Team.crux.color.write(Tmp.c2()).a(state.uiAlpha), Color.clear, 0.24f, 110f, 25, 0.005f);
                             }
                         }
                     }
@@ -533,11 +533,11 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
                     if(selected != null && selected != sec && selected.hasBase()){
                         //imports
                         if(sec.info.destination == selected && sec.info.anyExports()){
-                            planets.drawArc(planet, sec.tile.v, selected.tile.v, Color.gray.write(Tmp.c2).a(state.uiAlpha), Pal.accent.write(Tmp.c3).a(state.uiAlpha), 0.4f, 90f, 25);
+                            planets.drawArc(planet, sec.tile.v, selected.tile.v, Color.gray.write(Tmp.c2()).a(state.uiAlpha), Pal.accent.write(Tmp.c3()).a(state.uiAlpha), 0.4f, 90f, 25);
                         }
                         //exports
                         if(selected.info.destination == sec && selected.info.anyExports()){
-                            planets.drawArc(planet, selected.tile.v, sec.tile.v, Pal.place.write(Tmp.c2).a(state.uiAlpha), Pal.accent.write(Tmp.c3).a(state.uiAlpha), 0.4f, 90f, 25);
+                            planets.drawArc(planet, selected.tile.v, sec.tile.v, Pal.place.write(Tmp.c2()).a(state.uiAlpha), Pal.accent.write(Tmp.c3()).a(state.uiAlpha), 0.4f, 90f, 25);
                         }
                     }
                 }
@@ -677,7 +677,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
                     if(debugSectorAttackEdit){
                         int timeShift = input.keyDown(KeyCode.rightBracket) ? 1 : input.keyDown(KeyCode.leftBracket) ? -1 : 0;
                         if(timeShift != 0){
-                            universe.setSeconds(universe.secondsf() + timeShift * Time.delta * 2.5f);
+                            universe.setSeconds(universe.secondsf() + timeShift * Time.delta() * 2.5f);
                         }
 
                         if(input.keyTap(KeyCode.r)){
@@ -833,7 +833,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
 
                                 if(sec.isAttacked()){
                                     head.image(Icon.warningSmall).update(i -> {
-                                        i.color.set(Pal.accent).lerp(Pal.remove, Mathf.absin(Time.globalTime, 9f, 1f));
+                                        i.color.set(Pal.accent).lerp(Pal.remove, Mathf.absin(Time.globalTime(), 9f, 1f));
                                     }).padRight(4f);
                                 }else if(sec.preset != null && sec.preset.requireUnlock){
                                     head.image(sec.preset.uiIcon).size(iconSmall).padRight(4f);
@@ -934,7 +934,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
 
             if(Mathf.equal(state.otherCamAlpha, 1f, 0.01f)){
                 //TODO change zoom too
-                state.camPos.set(Tmp.v31.set(state.otherCamPos).slerp(state.planet.position, state.otherCamAlpha).add(state.camPos).sub(state.planet.position));
+                state.camPos.set(Tmp.v31().set(state.otherCamPos).slerp(state.planet.position, state.otherCamAlpha).add(state.camPos).sub(state.planet.position));
 
                 state.otherCamPos = null;
                 //announce new sector
@@ -956,7 +956,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
             hoverLabel.touchable = Touchable.disabled;
             hoverLabel.color.a = state.uiAlpha;
 
-            Vec3 pos = hovered.planet.project(hovered, planets.cam, Tmp.v31);
+            Vec3 pos = hovered.planet.project(hovered, planets.cam, Tmp.v31());
             hoverLabel.setPosition(pos.x - Core.scene.marginLeft, pos.y - Core.scene.marginBottom, Align.center);
 
             hoverLabel.getText().setLength(0);
@@ -986,7 +986,7 @@ public class PlanetDialog extends BaseDialog implements PlanetInterfaceRenderer{
         if(showing()){
             Sector to = newPresets.peek();
 
-            presetShow += Time.delta;
+            presetShow += Time.delta();
 
             lookAt(to, 0.11f);
             zoom = 0.75f;

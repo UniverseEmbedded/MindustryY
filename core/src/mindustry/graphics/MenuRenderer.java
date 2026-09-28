@@ -209,7 +209,7 @@ public class MenuRenderer implements Disposable{
     }
 
     public void render(){
-        time += Time.delta;
+        time += Time.delta();
         float scaling = Math.max(Scl.scl(4f), Math.max(Core.graphics.getWidth() / ((width - 1f) * tilesize), Core.graphics.getHeight() / ((height - 1f) * tilesize)));
         camera.position.set(width * tilesize / 2f, height * tilesize / 2f);
         camera.resize(Core.graphics.getWidth() / scaling,
@@ -261,11 +261,11 @@ public class MenuRenderer implements Disposable{
         float offset = -100f;
 
         for(int i = 0; i < flyers; i++){
-            Tmp.v1.trns(flyerRot, time * (flyerType.speed));
+            Tmp.v1().trns(flyerRot, time * (flyerType.speed));
 
             cons.get(
-            (Mathf.randomSeedRange(i, range) + Tmp.v1.x + Mathf.absin(time + Mathf.randomSeedRange(i + 2, 500), 10f, 3.4f) + offset) % (tw + Mathf.randomSeed(i + 5, 0, 500)),
-            (Mathf.randomSeedRange(i + 1, range) + Tmp.v1.y + Mathf.absin(time + Mathf.randomSeedRange(i + 3, 500), 10f, 3.4f) + offset) % th
+            (Mathf.randomSeedRange(i, range) + Tmp.v1().x + Mathf.absin(time + Mathf.randomSeedRange(i + 2, 500), 10f, 3.4f) + offset) % (tw + Mathf.randomSeed(i + 5, 0, 500)),
+            (Mathf.randomSeedRange(i + 1, range) + Tmp.v1().y + Mathf.absin(time + Mathf.randomSeedRange(i + 3, 500), 10f, 3.4f) + offset) % th
             );
         }
     }

@@ -9,12 +9,15 @@ import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.annotations.Annotations.*;
+import mindustry.campaign.shared.*;
+import mindustry.campaign.shared.runtime.*;
 import mindustry.content.*;
 import mindustry.content.TechTree.*;
 import mindustry.game.EventType.*;
 import mindustry.graphics.*;
 import mindustry.graphics.MultiPacker.*;
 import mindustry.mod.*;
+import mindustry.runtime.*;
 import mindustry.type.*;
 import mindustry.ui.*;
 import mindustry.world.meta.*;
@@ -247,9 +250,53 @@ public abstract class UnlockableContent extends MappableContent{
         return !isHidden();
     }
 
+    /** Non-primary worlds and Shared Campaign Action runtimes own unlock state in their runtime Rules, never desktop settings. */
+    private boolean runtimeScopedUnlocks(){
+        GameContext current = game();
+        SharedCampaignRuntimeState shared = SharedCampaignRuntimeState.find(current);
+        return current != RuntimeContexts.primary() || shared != null && shared.actionEnabled();
+    }
+
+    private boolean runtimeResearched(){
+        return game().state != null && game().state.rules != null && game().state.rules.researched.contains(this);
+    }
+
+    /**
+     * Shared Campaign research state is campaign-wide and every unlock query short-circuits on
+     * {@link #alwaysUnlocked}, so first-tier cores and bootstrap blocks of one planet (vanilla core-bastion,
+     * Tantros sealed duct/rotor/anchor) would otherwise appear in every other planet's palette. Campaign play
+     * is planet-scoped: accept content whose tech-tree home planet is the active planet or one of its
+     * ancestors (so child planets such as the floating-islands frontier keep their parent's vanilla blocks).
+     * Content without a tech node, without a resolvable home, or outside campaign play keeps the
+     * unconstrained behavior.
+     */
+    private boolean belongsToActiveCampaignPlanet(){
+        mindustry.core.GameState state = game().state;
+        if(state == null || !state.isCampaign()) return true;
+        mindustry.type.Planet active = state.getPlanet();
+        if(active == null || techNode == null) return true;
+        Seq<mindustry.type.Planet> homes = mindustry.campaign.shared.SharedCampaignProgress.researchPlanets(techNode);
+        if(homes.isEmpty()) return true;
+        for(mindustry.type.Planet cursor = active; cursor != null; cursor = cursor.parent){
+            for(mindustry.type.Planet home : homes){
+                if(home != null && cursor.name.equals(home.name)) return true;
+            }
+        }
+        return false;
+    }
+
     /** Makes this piece of content unlocked; if it already unlocked, nothing happens. */
     public void unlock(){
-        if(!unlocked && !alwaysUnlocked){
+        if(alwaysUnlocked) return;
+        if(runtimeScopedUnlocks()){
+            if(!runtimeResearched()){
+                game().state.rules.researched.add(this);
+                onUnlock();
+                Events.fire(new UnlockEvent(this));
+            }
+            return;
+        }
+        if(!unlocked){
             unlocked = true;
             Core.settings.put(name + "-unlocked", true);
 
@@ -260,6 +307,10 @@ public abstract class UnlockableContent extends MappableContent{
 
     /** Unlocks this content, but does not fire any events. */
     public void quietUnlock(){
+        if(runtimeScopedUnlocks()){
+            if(!alwaysUnlocked) game().state.rules.researched.add(this);
+            return;
+        }
         if(!unlocked()){
             unlocked = true;
             Core.settings.put(name + "-unlocked", true);
@@ -267,29 +318,39 @@ public abstract class UnlockableContent extends MappableContent{
     }
 
     public boolean unlockedNowHost(){
-        return !state.isCampaign() || unlockedHost();
+        return !game().state.isCampaign() || unlockedHost();
     }
 
     /** @return in multiplayer, whether this is unlocked for the host player, otherwise, whether it is unlocked for the local player (same as unlocked()) */
     public boolean unlockedHost(){
-        return net != null && net.client() ?
-            alwaysUnlocked || state.rules.researched.contains(this) :
+        if(runtimeScopedUnlocks()) return alwaysUnlocked || runtimeResearched();
+        SharedCampaignService shared = SharedCampaignService.find(game());
+        if(shared != null && shared.sharedModeActive()) return belongsToActiveCampaignPlanet() && (alwaysUnlocked || shared.sharedUnlocked(name));
+        return game().net != null && game().net.client() ?
+            alwaysUnlocked || game().state.rules.researched.contains(this) :
             unlocked || alwaysUnlocked;
     }
 
     /** @return whether this content is unlocked, or the player is in a custom (non-campaign) game. */
     public boolean unlockedNow(){
-        return unlocked() || !state.isCampaign();
+        return unlocked() || !game().state.isCampaign();
     }
 
     public boolean unlocked(){
-        return net != null && net.client() ?
-            alwaysUnlocked || unlocked || state.rules.researched.contains(this) :
+        if(runtimeScopedUnlocks()) return alwaysUnlocked || runtimeResearched();
+        SharedCampaignService shared = SharedCampaignService.find(game());
+        if(shared != null && shared.sharedModeActive()) return belongsToActiveCampaignPlanet() && (alwaysUnlocked || shared.sharedUnlocked(name));
+        return game().net != null && game().net.client() ?
+            alwaysUnlocked || unlocked || game().state.rules.researched.contains(this) :
             unlocked || alwaysUnlocked;
     }
 
     /** Locks this content again. */
     public void clearUnlock(){
+        if(runtimeScopedUnlocks()){
+            if(game().state != null && game().state.rules != null) game().state.rules.researched.remove(this);
+            return;
+        }
         if(unlocked){
             unlocked = false;
             Core.settings.put(name + "-unlocked", false);

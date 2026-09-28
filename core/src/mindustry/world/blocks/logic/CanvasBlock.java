@@ -101,10 +101,10 @@ public class CanvasBlock extends Block{
             int blending = tempBlend;
 
             float x = plan.drawx(), y = plan.drawy();
-            Tmp.tr1.set(previewTexture);
+            Tmp.tr1().set(previewTexture);
             float pad = blending == 0 ? padding : 0f;
 
-            Draw.rect(Tmp.tr1, x, y, size * tilesize - pad, size * tilesize - pad);
+            Draw.rect(Tmp.tr1(), x, y, size * tilesize - pad, size * tilesize - pad);
             Draw.flush(); //texture is reused, so flush it now
 
             //code duplication, awful
@@ -268,10 +268,10 @@ public class CanvasBlock extends Block{
                 updateTexture();
             }
 
-            Tmp.tr1.set(texture);
+            Tmp.tr1().set(texture);
             float pad = blending == 0 ? padding : 0f;
 
-            Draw.rect(Tmp.tr1, x, y, size * tilesize - pad, size * tilesize - pad);
+            Draw.rect(Tmp.tr1(), x, y, size * tilesize - pad, size * tilesize - pad);
             for(int i = 0; i < 4; i ++){
                 if((blending & (1 << i)) == 0){
                     Draw.rect(i >= 2 ? side2 : side1, x, y, i * 90);

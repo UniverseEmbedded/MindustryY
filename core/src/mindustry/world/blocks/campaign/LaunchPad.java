@@ -243,7 +243,7 @@ public class LaunchPad extends Block{
 
             float rad = 0.2f + fslope();
 
-            Fill.light(cx, cy, 10, 25f * (rad + scale-1f), Tmp.c2.set(Pal.engine).a(alpha), Tmp.c1.set(Pal.engine).a(0f));
+            Fill.light(cx, cy, 10, 25f * (rad + scale-1f), Tmp.c2().set(Pal.engine).a(alpha), Tmp.c1().set(Pal.engine).a(0f));
 
             Draw.alpha(alpha);
             for(int i = 0; i < 4; i++){
@@ -261,11 +261,11 @@ public class LaunchPad extends Block{
             Draw.alpha(alpha);
             Draw.rect(region, cx, cy, rw, rh, rotation);
 
-            Tmp.v1.trns(225f, fin(Interp.pow3In) * 250f);
+            Tmp.v1().trns(225f, fin(Interp.pow3In) * 250f);
 
             Draw.z(Layer.flyingUnit + 1);
             Draw.color(0, 0, 0, 0.22f * alpha);
-            Draw.rect(region, cx + Tmp.v1.x, cy + Tmp.v1.y, rw, rh, rotation);
+            Draw.rect(region, cx + Tmp.v1().x, cy + Tmp.v1().y, rw, rh, rotation);
 
             Draw.reset();
         }

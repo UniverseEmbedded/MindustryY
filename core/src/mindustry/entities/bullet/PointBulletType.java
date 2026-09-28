@@ -44,8 +44,8 @@ public class PointBulletType extends BulletType{
         Units.nearbyEnemies(b.team, px - range, py - range, range*2f, range*2f, e -> {
             if(e.dead() || !e.checkTarget(collidesAir, collidesGround) || !e.hittable()) return;
 
-            e.hitbox(Tmp.r1);
-            if(!Tmp.r1.contains(px, py)) return;
+            e.hitbox(Tmp.r1());
+            if(!Tmp.r1().contains(px, py)) return;
 
             float dst = e.dst(px, py) - e.hitSize;
             if((result == null || dst < cdist)){

@@ -70,7 +70,7 @@ public class LiquidBulletType extends BulletType{
     public void draw(Bullet b){
         super.draw(b);
         if(liquid.willBoil()){
-            Draw.color(liquid.color, Tmp.c3.set(liquid.gasColor).a(0.4f), b.time / Mathf.randomSeed(b.id, boilTime));
+            Draw.color(liquid.color, Tmp.c3().set(liquid.gasColor).a(0.4f), b.time / Mathf.randomSeed(b.id, boilTime));
             Fill.circle(b.x, b.y, orbSize * (b.fin() * 1.1f + 1f));
         }else{
             Draw.color(liquid.color, Color.white, b.fout() / 100f);

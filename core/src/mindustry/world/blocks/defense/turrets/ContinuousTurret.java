@@ -115,10 +115,10 @@ public class ContinuousTurret extends Turret{
             //resulting length of the bullet (smoothed)
             float resultLength = Mathf.approachDelta(curLength, shootLength, aimChangeSpeed);
             //actual aim end point based on length
-            Tmp.v1.trns(rotation, lastLength = resultLength).add(x, y);
+            Tmp.v1().trns(rotation, lastLength = resultLength).add(x, y);
 
-            entry.bullet.aimX = Tmp.v1.x;
-            entry.bullet.aimY = Tmp.v1.y;
+            entry.bullet.aimX = Tmp.v1().x;
+            entry.bullet.aimY = Tmp.v1().y;
             if(scaleDamageEfficiency){
                 entry.bullet.damage = entry.bullet.type.damage * Math.min(efficiency, 1f) * timeScale * entry.bullet.damageMultiplier();
             }
@@ -156,9 +156,9 @@ public class ContinuousTurret extends Turret{
                 bullets.add(new BulletEntry(bullet, offsetX, offsetY, angleOffset, 0f));
 
                 //make sure the length updates to the last set value
-                Tmp.v1.trns(rotation, shootY + lastLength).add(x, y);
-                bullet.aimX = Tmp.v1.x;
-                bullet.aimY = Tmp.v1.y;
+                Tmp.v1().trns(rotation, shootY + lastLength).add(x, y);
+                bullet.aimX = Tmp.v1().x;
+                bullet.aimY = Tmp.v1().y;
             }
         }
 

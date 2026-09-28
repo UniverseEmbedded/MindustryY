@@ -21,6 +21,7 @@ import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.editor.*;
+import mindustry.campaign.shared.ui.*;
 import mindustry.game.EventType.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
@@ -79,6 +80,7 @@ public class UI implements ApplicationListener, Loadable{
     public FullTextDialog fullText;
     public CampaignCompleteDialog campaignComplete;
     public CampaignRulesDialog campaignRules;
+    public SharedCampaignDialog sharedCampaignDialog;
 
     public Cursor drillCursor, unloadCursor, targetCursor, repairCursor;
 
@@ -226,6 +228,7 @@ public class UI implements ApplicationListener, Loadable{
         fullText = new FullTextDialog();
         campaignComplete = new CampaignCompleteDialog();
         campaignRules = new CampaignRulesDialog();
+        sharedCampaignDialog = new SharedCampaignDialog();
 
         Group group = Core.scene.root;
 
@@ -393,7 +396,7 @@ public class UI implements ApplicationListener, Loadable{
             @Override
             protected void setContainerPosition(Element element, float x, float y){
                 this.targetActor = element;
-                Vec2 pos = element.localToStageCoordinates(Tmp.v1.set(0, 0));
+                Vec2 pos = element.localToStageCoordinates(Tmp.v1().set(0, 0));
                 container.pack();
                 container.setPosition(pos.x, pos.y, Align.topLeft);
                 container.setOrigin(0, element.getHeight());

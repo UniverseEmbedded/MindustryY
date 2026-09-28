@@ -155,7 +155,7 @@ public class Wall extends Block{
                 Draw.reset();
 
                 if(!state.isPaused()){
-                    hit = Mathf.clamp(hit - Time.delta / 10f);
+                    hit = Mathf.clamp(hit - Time.delta() / 10f);
                 }
             }
         }

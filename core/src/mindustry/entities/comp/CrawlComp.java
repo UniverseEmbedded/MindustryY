@@ -54,7 +54,7 @@ abstract class CrawlComp implements Posc, Rotc, Hitboxc, Unitc{
     @Override
     public void update(){
         if(moving()){
-            segmentRot = Angles.moveToward(segmentRot, rotation, type.segmentRotSpeed * Time.delta);
+            segmentRot = Angles.moveToward(segmentRot, rotation, type.segmentRotSpeed * Time.delta());
 
             int radius = (int)Math.max(0, hitSize / tilesize * 2f);
             int count = 0, solids = 0, deeps = 0;
@@ -79,7 +79,7 @@ abstract class CrawlComp implements Posc, Rotc, Hitboxc, Unitc{
 
                             //TODO area damage to units
                             if(t.build != null && t.build.team != team){
-                                t.build.damage(team, type.crushDamage * Time.delta * state.rules.unitDamage(team));
+                                t.build.damage(team, type.crushDamage * Time.delta() * state.rules.unitDamage(team));
                             }
 
                             if(Mathf.chanceDelta(0.025)){

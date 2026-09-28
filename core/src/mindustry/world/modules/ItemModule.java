@@ -5,13 +5,51 @@ import arc.struct.*;
 import arc.util.*;
 import arc.util.io.*;
 import mindustry.type.*;
+import mindustry.runtime.*;
 
 import java.util.*;
 
 import static mindustry.Vars.*;
 
 public class ItemModule extends BlockModule{
-    public static final ItemModule empty = new ItemModule();
+    /**
+     * Legacy API compatibility only. Authoritative runtime code must use {@link #emptyForContext()} so one live
+     * GameContext can never observe mutations made through another world's no-core fallback module.
+     */
+    @Deprecated
+    public static final ItemModule empty = new ImmutableEmptyItemModule();
+    private static final Object contextEmptyKey = new Object();
+
+    /** Read-only compatibility sentinel. Legacy callers may inspect it, but writes are intentionally discarded. */
+    private static final class ImmutableEmptyItemModule extends ItemModule{
+        @Override public void set(ItemModule other){}
+        @Override public void set(Item item, int amount){}
+        @Override public void add(Iterable<ItemStack> stacks){}
+        @Override public void add(ItemSeq stacks){}
+        @Override public void add(ItemModule items){}
+        @Override public void add(Item item, int amount){}
+        @Override public void handleFlow(Item item, int amount){}
+        @Override public void undoFlow(Item item){}
+        @Override public void remove(Item item, int amount){}
+        @Override public void remove(ItemStack[] stacks){}
+        @Override public void remove(ItemSeq stacks){}
+        @Override public void remove(Iterable<ItemStack> stacks){}
+        @Override public void remove(ItemStack stack){}
+        @Override public void clear(){}
+        @Override public void checkArrayCapacity(int size){}
+        @Override public void read(Reads read, boolean legacy){
+            int count = legacy ? read.ub() : read.s();
+            for(int i = 0; i < count; i++){
+                if(legacy) read.ub(); else read.s();
+                read.i();
+            }
+        }
+    }
+
+    /** Runtime-local mutable empty module used when a team has no core in the current world. */
+    public static ItemModule emptyForContext(){
+        return RuntimeContexts.requireCurrent().localState(contextEmptyKey, ItemModule::new);
+    }
 
     /** Total number of samples of flow rate that are taken. */
     public static int flowWindowSize = 12;
@@ -20,11 +58,10 @@ public class ItemModule extends BlockModule{
     /** Visual refresh rate of the value, in ticks. Doesn't affect values, just reduces high-frequency flickering. */
     public static float flowVisualRefreshInterval = 15f;
 
-    private static WindowedMean[] cacheFlow;
-    private static float[] cacheSums;
-    private static float[] displayFlow;
-    private static final Bits cacheBits = new Bits();
-    private static final Interval flowTimer = new Interval(2);
+    private float[] flowSums;
+    private float[] displayFlow;
+    private final Bits flowBits = new Bits();
+    private final Interval flowTimer = new Interval(2);
 
     protected int[] items = new int[content.items().size];
     protected int total;
@@ -50,35 +87,25 @@ public class ItemModule extends BlockModule{
             int len = content.items().size;
             if(items.length != len) items = Arrays.copyOf(items, len);
 
-            if(flow == null || flow.length != len || cacheSums == null || cacheFlow == null){
-                if(cacheFlow == null || cacheFlow.length != items.length){
-                    cacheFlow = new WindowedMean[items.length];
-                    for(int i = 0; i < items.length; i++){
-                        cacheFlow[i] = new WindowedMean(flowWindowSize);
-                    }
-                    cacheSums = new float[items.length];
-                    displayFlow = new float[items.length];
-                }else{
-                    for(int i = 0; i < items.length; i++){
-                        cacheFlow[i].reset();
-                    }
-                    Arrays.fill(cacheSums, 0);
-                    cacheBits.clear();
+            if(flow == null || flow.length != len || flowSums == null || displayFlow == null){
+                flow = new WindowedMean[len];
+                for(int i = 0; i < len; i++){
+                    flow[i] = new WindowedMean(flowWindowSize);
                 }
-
+                flowSums = new float[len];
+                displayFlow = new float[len];
+                flowBits.clear();
                 Arrays.fill(displayFlow, -1);
-
-                flow = cacheFlow;
             }
 
             boolean updateFlow = flowTimer.get(flowVisualRefreshInterval);
 
             for(int i = 0; i < items.length; i++){
-                flow[i].add(cacheSums[i]);
-                if(cacheSums[i] > 0){
-                    cacheBits.set(i);
+                flow[i].add(flowSums[i]);
+                if(flowSums[i] > 0){
+                    flowBits.set(i);
                 }
-                cacheSums[i] = 0;
+                flowSums[i] = 0;
 
                 if(updateFlow){
                     displayFlow[i] = flow[i].hasEnoughData() ? flow[i].mean() / flowPollInterval : -1;
@@ -101,7 +128,7 @@ public class ItemModule extends BlockModule{
     }
 
     public boolean hasFlowItem(Item item){
-        return flow != null && cacheBits.get(item.id);
+        return flow != null && flowBits.get(item.id);
     }
 
     public void each(ItemConsumer cons){
@@ -246,19 +273,19 @@ public class ItemModule extends BlockModule{
         items[item] += amount;
         total += amount;
         if(flow != null){
-            cacheSums[item] += amount;
+            flowSums[item] += amount;
         }
     }
 
     public void handleFlow(Item item, int amount){
         if(flow != null){
-            cacheSums[item.id] += amount;
+            flowSums[item.id] += amount;
         }
     }
 
     public void undoFlow(Item item){
         if(flow != null){
-            cacheSums[item.id] -= 1;
+            flowSums[item.id] -= 1;
         }
     }
 
@@ -292,9 +319,9 @@ public class ItemModule extends BlockModule{
 
     public void checkArrayCapacity(int size){
         if(items.length != size) items = Arrays.copyOf(items, size);
-        cacheFlow = null;
-        cacheSums = null;
+        flowSums = null;
         displayFlow = null;
+        flowBits.clear();
         flow = null;
     }
 

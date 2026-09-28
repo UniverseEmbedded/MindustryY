@@ -181,7 +181,7 @@ public class PowerNode extends PowerBlock{
     }
 
     protected void setupColor(float satisfaction){
-        Draw.color(Tmp.c1.set(laserColor1).lerp(laserColor2, (1f - satisfaction) * 0.86f + Mathf.absin(3f, 0.1f)).a(Renderer.laserOpacity * (useLod ? Lod.alpha2 : 1f)));
+        Draw.color(Tmp.c1().set(laserColor1).lerp(laserColor2, (1f - satisfaction) * 0.86f + Mathf.absin(3f, 0.1f)).a(Renderer.laserOpacity * (useLod ? Lod.alpha2 : 1f)));
     }
 
     public void drawLaser(float x1, float y1, float x2, float y2, int size1, int size2){
@@ -197,12 +197,12 @@ public class PowerNode extends PowerBlock{
     }
 
     protected boolean overlaps(float srcx, float srcy, Tile other, Block otherBlock, float range){
-        return Intersector.overlaps(Tmp.cr1.set(srcx, srcy, range), Tmp.r1.setCentered(other.worldx() + otherBlock.offset, other.worldy() + otherBlock.offset,
+        return Intersector.overlaps(Tmp.cr1().set(srcx, srcy, range), Tmp.r1().setCentered(other.worldx() + otherBlock.offset, other.worldy() + otherBlock.offset,
             otherBlock.size * tilesize, otherBlock.size * tilesize));
     }
 
     protected boolean overlaps(float srcx, float srcy, Tile other, float range){
-        return Intersector.overlaps(Tmp.cr1.set(srcx, srcy, range), other.getHitbox(Tmp.r1));
+        return Intersector.overlaps(Tmp.cr1().set(srcx, srcy, range), other.getHitbox(Tmp.r1()));
     }
 
     protected boolean overlaps(Building src, Building other, float range){
@@ -215,7 +215,7 @@ public class PowerNode extends PowerBlock{
 
     public boolean overlaps(@Nullable Tile src, @Nullable Tile other){
         if(src == null || other == null) return true;
-        return Intersector.overlaps(Tmp.cr1.set(src.worldx() + offset, src.worldy() + offset, laserRange * tilesize), Tmp.r1.setSize(size * tilesize).setCenter(other.worldx() + offset, other.worldy() + offset));
+        return Intersector.overlaps(Tmp.cr1().set(src.worldx() + offset, src.worldy() + offset, laserRange * tilesize), Tmp.r1().setSize(size * tilesize).setCenter(other.worldx() + offset, other.worldy() + offset));
     }
 
     protected void getPotentialLinks(Tile tile, Team team, Cons<Building> others){
@@ -457,7 +457,7 @@ public class PowerNode extends PowerBlock{
         @Override
         public void drawConfigure(){
 
-            Drawf.circles(x, y, tile.block().size * tilesize / 2f + 1f + Mathf.absin(Time.time, 4f, 1f));
+            Drawf.circles(x, y, tile.block().size * tilesize / 2f + 1f + Mathf.absin(Time.time(), 4f, 1f));
 
             if(drawRange){
                 Drawf.circles(x, y, laserRange * tilesize);

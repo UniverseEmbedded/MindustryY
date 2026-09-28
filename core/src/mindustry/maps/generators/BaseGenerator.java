@@ -46,8 +46,8 @@ public class BaseGenerator{
         //don't generate bases when there are no loaded schematics
         if(bases.cores.isEmpty()) return;
 
-        Mathf.rand.setSeed(sector.id);
-        Mathf.rand.nextDouble();
+        Mathf.rand().setSeed(sector.id);
+        Mathf.rand().nextDouble();
 
         float bracketRange = 0.17f;
         float baseChance = Mathf.lerp(0.7f, 2.1f, difficulty);
@@ -60,7 +60,7 @@ public class BaseGenerator{
 
         for(Tile tile : cores){
             tile.clearOverlay();
-            Schematics.placeLoadout(bases.cores.getFrac((difficulty + Mathf.rand.range(0.4f)) / 1.4f).schematic, tile.x, tile.y, team, false);
+            Schematics.placeLoadout(bases.cores.getFrac((difficulty + Mathf.rand().range(0.4f)) / 1.4f).schematic, tile.x, tile.y, team, false);
 
             //fill core with every type of item (even non-material)
             Building entity = tile.build;
@@ -74,14 +74,14 @@ public class BaseGenerator{
             pass(tile -> {
                 if(!tile.block().alwaysReplace) return;
 
-                if(((tile.overlay().asFloor().itemDrop != null || (tile.drop() != null && Mathf.rand.chance(nonResourceChance)))
-                || (tile.floor().liquidDrop != null && Mathf.rand.chance(nonResourceChance * 2))) && Mathf.rand.chance(resourceChance)){
+                if(((tile.overlay().asFloor().itemDrop != null || (tile.drop() != null && Mathf.rand().chance(nonResourceChance)))
+                || (tile.floor().liquidDrop != null && Mathf.rand().chance(nonResourceChance * 2))) && Mathf.rand().chance(resourceChance)){
                     Seq<BasePart> parts = bases.forResource(tile.drop() != null ? tile.drop() : tile.floor().liquidDrop);
                     if(!parts.isEmpty()){
-                        tryPlace(parts.getFrac(difficulty + Mathf.rand.range(bracketRange)), tile.x, tile.y, team, Mathf.rand);
+                        tryPlace(parts.getFrac(difficulty + Mathf.rand().range(bracketRange)), tile.x, tile.y, team, Mathf.rand());
                     }
-                }else if(Mathf.rand.chance(nonResourceChance)){
-                    tryPlace(bases.parts.getFrac(Mathf.rand.random(1f)), tile.x, tile.y, team, Mathf.rand);
+                }else if(Mathf.rand().chance(nonResourceChance)){
+                    tryPlace(bases.parts.getFrac(Mathf.rand().random(1f)), tile.x, tile.y, team, Mathf.rand());
                 }
             });
         }

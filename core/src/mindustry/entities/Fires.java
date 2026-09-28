@@ -15,7 +15,7 @@ public class Fires{
 
     /** Start a fire on the tile. If there already is a fire there, refreshes its lifetime. */
     public static void create(Tile tile){
-        if(net.client() || tile == null || !state.rules.fire || !state.rules.hasEnv(Env.oxygen)) return; //not clientside.
+        if(mindustry.Vars.game().net.client() || tile == null || !mindustry.Vars.game().state.rules.fire || !mindustry.Vars.game().state.rules.hasEnv(Env.oxygen)) return; //not clientside.
 
         Fire fire = get(tile);
 
@@ -34,18 +34,20 @@ public class Fires{
     }
 
     public static @Nullable Fire get(Tile tile){
-        return tile == null ? null : world.tiles.getFire(tile.array());
+        return tile == null ? null : mindustry.Vars.game().world.tiles.getFire(tile.array());
     }
 
     public static @Nullable Fire get(int x, int y){
+        var world = mindustry.Vars.game().world;
         return Structs.inBounds(x, y, world.width(), world.height()) ? world.tiles.getFire(world.packArray(x, y)) : null;
     }
 
     private static void set(Tile tile, Fire fire){
-        world.tiles.setFire(tile.array(), fire);
+        mindustry.Vars.game().world.tiles.setFire(tile.array(), fire);
     }
 
     public static boolean has(int x, int y){
+        var world = mindustry.Vars.game().world;
         if(!Structs.inBounds(x, y, world.width(), world.height())){
             return false;
         }
@@ -60,7 +62,7 @@ public class Fires{
         if(tile != null){
             Fire fire = get(tile);
             if(fire != null){
-                fire.time += intensity * Time.delta;
+                fire.time += intensity * Time.delta();
                 Fx.steam.at(fire);
                 if(fire.time >= fire.lifetime){
                     Events.fire(Trigger.fireExtinguish);

@@ -3388,7 +3388,7 @@ public class UnitTypes{
                     moveRot = 40f - i * 25f;
                     mirror = true;
                     progress = PartProgress.warmup.delay(i * 0.2f);
-                    heatProgress = p -> Mathf.absin(Time.time + i * 14f, 7f, 1f);
+                    heatProgress = p -> Mathf.absin(Time.time() + i * 14f, 7f, 1f);
 
                     heatColor = Pal.techBlue;
                 }});

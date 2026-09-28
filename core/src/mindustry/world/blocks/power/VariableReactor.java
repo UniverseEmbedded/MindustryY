@@ -86,7 +86,7 @@ public class VariableReactor extends PowerGenerator{
                 kill();
             }
 
-            totalProgress += productionEfficiency * Time.delta;
+            totalProgress += productionEfficiency * Time.delta();
 
             if(Mathf.chanceDelta(effectChance * warmup)){
                 effect.at(x, y, effectColor);
@@ -103,7 +103,7 @@ public class VariableReactor extends PowerGenerator{
             super.draw();
 
             if(instability > flashThreshold){
-                if(!state.isPaused()) flash += (1f + ((instability - flashThreshold) / (1f - flashThreshold)) * flashSpeed) * Time.delta;
+                if(!state.isPaused()) flash += (1f + ((instability - flashThreshold) / (1f - flashThreshold)) * flashSpeed) * Time.delta();
                 Draw.z(Layer.blockAdditive);
                 Draw.blend(Blending.additive);
                 Draw.color(flashColor1, flashColor2, Mathf.absin(flash, 8f, 1f));

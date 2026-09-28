@@ -142,7 +142,7 @@ public class Conveyor extends Block implements Autotiler{
 
         @Override
         public void draw(){
-            int frame = enabled && clogHeat <= 0.5f && !state.rules.editor ? (int)(((Time.time * speed * 8f * timeScale * efficiency)) % 4) : 0;
+            int frame = enabled && clogHeat <= 0.5f && !mindustry.Vars.game().state.rules.editor ? (int)(((Time.time() * speed * 8f * timeScale * efficiency)) % 4) : 0;
 
             //draw extra conveyors facing this one for non-square tiling purposes
             Draw.z(Layer.blockUnder);
@@ -164,12 +164,12 @@ public class Conveyor extends Block implements Autotiler{
 
             for(int i = 0; i < len; i++){
                 Item item = ids[i];
-                Tmp.v1.trns(rotation * 90, tilesize, 0);
-                Tmp.v2.trns(rotation * 90, -tilesize / 2f, xs[i] * tilesize / 2f);
+                Tmp.v1().trns(rotation * 90, tilesize, 0);
+                Tmp.v2().trns(rotation * 90, -tilesize / 2f, xs[i] * tilesize / 2f);
 
                 float
-                ix = (x + Tmp.v1.x * ys[i] + Tmp.v2.x),
-                iy = (y + Tmp.v1.y * ys[i] + Tmp.v2.y);
+                ix = (x + Tmp.v1().x * ys[i] + Tmp.v2().x),
+                iy = (y + Tmp.v1().y * ys[i] + Tmp.v2().y);
 
                 //keep draw position deterministic.
                 Draw.z(layer + (ix / wwidth + iy / wheight) * scaling);

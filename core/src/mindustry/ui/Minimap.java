@@ -35,7 +35,7 @@ public class Minimap extends Table{
                         scaledX = Mathf.lerp(region.u, region.u2, sx) * world.width() * tilesize,
                         scaledY = Mathf.lerp(1f - region.v2, 1f - region.v, sy) * world.height() * tilesize;
 
-                        control.input.panCamera(Tmp.v1.set(scaledX, scaledY));
+                        control.input.panCamera(Tmp.v1().set(scaledX, scaledY));
                     }
                 });
             }

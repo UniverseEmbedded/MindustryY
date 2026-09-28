@@ -38,8 +38,8 @@ abstract class FireComp implements Timedc, Posc, Syncc, Drawc{
 
     @Override
     public void update(){
-        animation += Time.delta / ticksPerFrame;
-        warmup += Time.delta;
+        animation += Time.delta() / ticksPerFrame;
+        warmup += Time.delta();
         animation %= frames;
 
         if(!headless){
@@ -48,7 +48,7 @@ abstract class FireComp implements Timedc, Posc, Syncc, Drawc{
 
         //faster updates -> disappears more quickly
         float speedMultiplier = 1f + Math.max(state.envAttrs.get(Attribute.water) * 10f, 0);
-        time = Mathf.clamp(time + Time.delta * speedMultiplier, 0, lifetime);
+        time = Mathf.clamp(time + Time.delta() * speedMultiplier, 0, lifetime);
 
         if(Vars.net.client()){
             return;
@@ -65,27 +65,27 @@ abstract class FireComp implements Timedc, Posc, Syncc, Drawc{
         float flammability = tile.getFlammability() + puddleFlammability;
 
         if(!damage && flammability <= 0){
-            time += Time.delta * 8;
+            time += Time.delta() * 8;
         }
 
         if(damage){
-            lifetime += Mathf.clamp(flammability / 8f, 0f, 0.6f) * Time.delta;
+            lifetime += Mathf.clamp(flammability / 8f, 0f, 0.6f) * Time.delta();
         }
 
-        if(flammability > 1f && (spreadTimer += Time.delta * Mathf.clamp(flammability / 5f, 0.3f, 2f)) >= spreadDelay){
+        if(flammability > 1f && (spreadTimer += Time.delta() * Mathf.clamp(flammability / 5f, 0.3f, 2f)) >= spreadDelay){
             spreadTimer = 0f;
             Point2 p = Geometry.d4[Mathf.random(3)];
             Tile other = world.tile(tile.x + p.x, tile.y + p.y);
             Fires.create(other);
         }
 
-        if(flammability > 0 && (fireballTimer += Time.delta * Mathf.clamp(flammability / 10f, 0f, 0.5f)) >= fireballDelay){
+        if(flammability > 0 && (fireballTimer += Time.delta() * Mathf.clamp(flammability / 10f, 0f, 0.5f)) >= fireballDelay){
             fireballTimer = 0f;
             Bullets.fireball.createNet(Team.derelict, x, y, Mathf.random(360f), -1f, 1, 1);
         }
 
         //apply damage to nearby units & building
-        if((damageTimer += Time.delta) >= damageDelay){
+        if((damageTimer += Time.delta()) >= damageDelay){
             damageTimer = 0f;
             Puddle p = Puddles.get(tile);
             puddleFlammability = p != null ? p.getFlammability() / 3f : 0;

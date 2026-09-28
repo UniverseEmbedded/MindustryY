@@ -199,7 +199,7 @@ public class CommandAI extends AIController{
     public void defaultBehavior(){
 
         if(!net.client() && unit instanceof Payloadc pay){
-            payloadPickupCooldown -= Time.delta;
+            payloadPickupCooldown -= Time.delta();
 
             //auto-drop everything
             if(command == UnitCommand.unloadPayloadCommand && pay.hasPayload()){
@@ -308,7 +308,7 @@ public class CommandAI extends AIController{
 
             if(unit.isGrounded() && !ramming){
                 if(timer.get(timerTarget3, avoidInterval)){
-                    Vec2 dstPos = Tmp.v1.trns(unit.rotation, unit.hitSize/2f);
+                    Vec2 dstPos = Tmp.v1().trns(unit.rotation, unit.hitSize/2f);
                     float max = unit.hitSize/2f;
                     float radius = Math.max(7f, max);
                     float margin = 4f;
@@ -325,7 +325,7 @@ public class CommandAI extends AIController{
                 float maxBlockTime = 60f * 5f;
 
                 if(blockingUnit){
-                    timeSpentBlocked += Time.delta;
+                    timeSpentBlocked += Time.delta();
 
                     if(timeSpentBlocked >= maxBlockTime*2f){
                         timeSpentBlocked = 0f;
@@ -489,7 +489,7 @@ public class CommandAI extends AIController{
 
             //make sure spot in formation is reachable
             if(group != null){
-                group.updateRaycast(groupIndex, next instanceof Vec2 position ? position : Tmp.v3.set(next));
+                group.updateRaycast(groupIndex, next instanceof Vec2 position ? position : Tmp.v3().set(next));
             }
         }else{
             if(group != null){
@@ -518,7 +518,7 @@ public class CommandAI extends AIController{
     @Override
     public void afterRead(Unit unit){
         if(readAttackTarget != -1){
-            attackTarget = Groups.unit.getByID(readAttackTarget);
+            attackTarget = Groups.current().unit.getByID(readAttackTarget);
             readAttackTarget = -1;
         }
     }

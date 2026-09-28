@@ -28,7 +28,7 @@ public class ShapePart extends DrawPart{
         Draw.z(Draw.z() + layerOffset);
 
         float prog = progress.getClamp(params, clampProgress),
-        baseRot = Time.time * rotateSpeed,
+        baseRot = Time.time() * rotateSpeed,
         rad = radiusTo < 0 ? radius : Mathf.lerp(radius, radiusTo, prog),
         str = strokeTo < 0 ? stroke : Mathf.lerp(stroke, strokeTo, prog);
 
@@ -39,11 +39,11 @@ public class ShapePart extends DrawPart{
             int i = params.sideOverride == -1 ? s : params.sideOverride;
 
             float sign = (i == 0 ? 1 : -1) * params.sideMultiplier;
-            Tmp.v1.set((x + moveX * prog) * sign, y + moveY * prog).rotate(params.rotation - 90);
+            Tmp.v1().set((x + moveX * prog) * sign, y + moveY * prog).rotate(params.rotation - 90);
 
             float
-            rx = params.x + Tmp.v1.x,
-            ry = params.y + Tmp.v1.y;
+            rx = params.x + Tmp.v1().x,
+            ry = params.y + Tmp.v1().y;
 
             if(color != null && colorTo != null){
                 Draw.color(color, colorTo, prog);

@@ -11,6 +11,9 @@ import arc.util.CommandHandler.*;
 import arc.util.io.*;
 import mindustry.*;
 import mindustry.annotations.Annotations.*;
+import mindustry.campaign.shared.*;
+import mindustry.campaign.shared.net.*;
+import mindustry.campaign.shared.runtime.*;
 import mindustry.content.*;
 import mindustry.core.GameState.*;
 import mindustry.entities.units.*;
@@ -25,6 +28,7 @@ import mindustry.mod.data.*;
 import mindustry.net.*;
 import mindustry.net.Administration.*;
 import mindustry.net.Packets.*;
+import mindustry.runtime.*;
 import mindustry.world.*;
 import mindustry.world.meta.*;
 
@@ -38,27 +42,27 @@ import static mindustry.Vars.*;
 public class NetServer implements ApplicationListener{
     /** note that snapshots are compressed, so the max snapshot size here is above the typical UDP safe limit */
     private static final int maxSnapshotSize = 800;
-    private static final Timekeeper
+    private final Timekeeper
         blockSyncTime = Timekeeper.ofSeconds(6f),
         healthSyncTime = Timekeeper.ofSeconds(0.5f),
         planPreviewSyncTime = Timekeeper.ofSeconds(0.5f);
 
-    private static final FloatBuffer fbuffer = FloatBuffer.allocate(20);
-    private static final Writes dataWrites = new Writes(null);
-    private static final IntSeq hiddenIds = new IntSeq();
-    private static final IntSeq healthSeq = new IntSeq(maxSnapshotSize / 4 + 1);
-    private static final Vec2 vector = new Vec2();
-    private static final ClientBuildPlans plansOut = new ClientBuildPlans();
+    private final FloatBuffer fbuffer = FloatBuffer.allocate(20);
+    private final Writes dataWrites = new Writes(null);
+    private final IntSeq hiddenIds = new IntSeq();
+    private final IntSeq healthSeq = new IntSeq(maxSnapshotSize / 4 + 1);
+    private final Vec2 vector = new Vec2();
+    private final ClientBuildPlans plansOut = new ClientBuildPlans();
     /** If a player goes away of their server-side coordinates by this distance, they get teleported back. */
     private static final float correctDist = tilesize * 14f;
 
-    public Administration admins = new Administration();
+    public Administration admins = new Administration(RuntimeContexts.isPrimary());
     public CommandHandler clientCommands = new CommandHandler("/");
     public TeamAssigner assigner = (player, players) -> {
-        if(state.rules.pvp){
+        if(mindustry.Vars.game().state.rules.pvp){
             //find team with minimum amount of players and auto-assign player to that.
-            TeamData re = state.teams.getActive().min(data -> {
-                if((state.rules.waveTeam == data.team && state.rules.waves) || !data.hasCore() || data.team == Team.derelict || !data.team.rules().protectCores) return Integer.MAX_VALUE;
+            TeamData re = mindustry.Vars.game().state.teams.getActive().min(data -> {
+                if((mindustry.Vars.game().state.rules.waveTeam == data.team && mindustry.Vars.game().state.rules.waves) || !data.hasCore() || data.team == Team.derelict || !data.team.rules().protectCores) return Integer.MAX_VALUE;
 
                 int count = 0;
                 for(Player other : players){
@@ -71,7 +75,7 @@ public class NetServer implements ApplicationListener{
             return re == null ? null : re.team;
         }
 
-        return state.rules.defaultTeam;
+        return mindustry.Vars.game().state.rules.defaultTeam;
     };
     /** Converts a message + NULLABLE player sender into a single string. Override for custom prefixes/suffixes. */
     public ChatFormatter chatFormatter = (player, message) -> player == null ? message : "[coral][[" + player.coloredName() + "[coral]]:[white] " + message;
@@ -86,7 +90,7 @@ public class NetServer implements ApplicationListener{
             int minDst = 0;
             Command closest = null;
 
-            for(Command command : netServer.clientCommands.getCommandList()){
+            for(Command command : mindustry.Vars.game().netServer.clientCommands.getCommandList()){
                 int dst = Strings.levenshtein(command.text, response.runCommand);
                 if(dst < 3 && (closest == null || dst < minDst)){
                     minDst = dst;
@@ -136,8 +140,9 @@ public class NetServer implements ApplicationListener{
     public long snapshotSyncTime;
 
     public NetServer(){
+        SharedCampaignNet sharedNetwork = SharedCampaignNet.install(mindustry.Vars.game());
 
-        net.handleServer(Connect.class, (con, connect) -> {
+        mindustry.Vars.game().net.handleServer(Connect.class, (con, connect) -> {
             Events.fire(new ConnectionEvent(con));
 
             if(admins.isIPBanned(connect.addressTCP) || admins.isSubnetBanned(connect.addressTCP)){
@@ -149,14 +154,22 @@ public class NetServer implements ApplicationListener{
             }
         });
 
-        net.handleServer(Disconnect.class, (con, packet) -> {
+        mindustry.Vars.game().net.handleServer(Disconnect.class, (con, packet) -> {
+            // The admission grant is the only source of the Shared Campaign identity for this connection;
+            // capture it before discardConnectAdmission wipes it, so the disconnect notice can still name
+            // the member's sector transition.
+            String memberId = resolveMemberId(con);
+            sharedNetwork.discardConnectAdmission(con);
             if(con.player != null){
-                onDisconnect(con.player, packet.reason);
+                onDisconnect(con.player, packet.reason, memberId);
             }
         });
 
-        net.handleServer(ConnectPacket.class, (con, packet) -> {
+        mindustry.Vars.game().net.handleServer(ConnectPacket.class, (con, packet) -> {
             if(con.kicked) return;
+
+            // Capture and strip the reserved Action credential before Steam UUID rewriting and ordinary Mod checks.
+            sharedNetwork.captureConnectAdmission(con, packet);
 
             if(con.address.startsWith("steam:")){
                 packet.uuid = con.address.substring("steam:".length());
@@ -202,7 +215,7 @@ public class NetServer implements ApplicationListener{
                 return;
             }
 
-            if(admins.getPlayerLimit() > 0 && Groups.player.size() >= admins.getPlayerLimit() && !netServer.admins.isAdmin(uuid, packet.usid)){
+            if(admins.getPlayerLimit() > 0 && Groups.current().player.size() >= admins.getPlayerLimit() && !mindustry.Vars.game().netServer.admins.isAdmin(uuid, packet.usid)){
                 con.kick(KickReason.playerLimit);
                 return;
             }
@@ -241,21 +254,21 @@ public class NetServer implements ApplicationListener{
                 return;
             }
 
-            boolean preventDuplicates = headless && netServer.admins.isStrict();
+            boolean preventDuplicates = mindustry.Vars.runtimeHeadless() && mindustry.Vars.game().netServer.admins.isStrict();
 
             if(preventDuplicates){
-                if(Groups.player.contains(p -> Strings.stripColors(p.name).trim().equalsIgnoreCase(Strings.stripColors(packet.name).trim()))){
+                if(Groups.current().player.contains(p -> Strings.stripColors(p.name).trim().equalsIgnoreCase(Strings.stripColors(packet.name).trim()))){
                     con.kick(KickReason.nameInUse);
                     return;
                 }
 
-                if(Groups.player.contains(player -> player.uuid().equals(packet.uuid) || player.usid().equals(packet.usid))){
+                if(Groups.current().player.contains(player -> player.uuid().equals(packet.uuid) || player.usid().equals(packet.usid))){
                     con.uuid = packet.uuid;
                     con.kick(KickReason.idInUse);
                     return;
                 }
 
-                for(var otherCon : net.getConnections()){
+                for(var otherCon : mindustry.Vars.game().net.getConnections()){
                     if(otherCon != con && uuid.equals(otherCon.uuid)){
                         con.uuid = packet.uuid;
                         con.kick(KickReason.idInUse);
@@ -288,6 +301,9 @@ public class NetServer implements ApplicationListener{
                 con.modclient = true;
             }
 
+            // Verify signed Action admission after ordinary identity/version/Mod checks but before Player creation/world data.
+            if(!sharedNetwork.validateActionAdmission(con, packet)) return;
+
             Player player = Player.create();
             player.admin = admins.isAdmin(uuid, packet.usid) || (steam && SteamAdmin.isAdmin(con.address));
             player.con = con;
@@ -297,6 +313,7 @@ public class NetServer implements ApplicationListener{
             player.name = packet.name;
             player.locale = packet.locale;
             player.color.set(packet.color).a(1f);
+            player.spectator(sharedNetwork.consumeSpectator(con));
 
             //save admin ID but don't overwrite it
             if(!player.admin && !info.admin){
@@ -328,7 +345,7 @@ public class NetServer implements ApplicationListener{
     }
 
     public void sendWorldAndAssets(Player player){
-        if(state.data.hasExternalAssets()){
+        if(mindustry.Vars.game().state.data.hasExternalAssets()){
             player.con.determiningAssets = true;
             player.con.receivingAssets = false;
             player.con.hasConnected = false;
@@ -370,11 +387,41 @@ public class NetServer implements ApplicationListener{
             player.sendMessage(result.toString());
         });
 
+        clientCommands.<Player>register("sector", "<target>", "Switch to another Shared Campaign sector using a vanilla reconnect.", (args, player) -> {
+            SharedActionAgent agent = SharedActionBootstrap.findAgent(mindustry.Vars.game());
+            if(agent == null || !agent.enabled()){
+                player.sendMessage("[scarlet]This server is not a Shared Campaign Action.");
+                return;
+            }
+            mindustry.runtime.GameContext owner = mindustry.runtime.RuntimeContexts.requireCurrent();
+            NetConnection sourceConnection = player.con;
+            player.sendMessage("[accent]Preparing Shared Campaign sector...");
+            agent.requestVanillaTransferAsync(player, args[0]).whenComplete((result, failure) -> {
+                try{
+                    mindustry.runtime.RuntimeContexts.post(owner, () -> {
+                        if(player.con != sourceConnection || sourceConnection == null || !sourceConnection.isConnected()) return;
+                        if(failure != null){
+                            player.sendMessage("[scarlet]Cannot switch sector:[] " + failure);
+                            return;
+                        }
+                        if(result.error() != null && !result.error().isBlank()){
+                            player.sendMessage("[scarlet]Cannot switch sector:[] " + result.error());
+                            return;
+                        }
+                        player.sendMessage("[accent]Switching Shared Campaign sector...");
+                        Call.connect(sourceConnection, result.host(), result.port());
+                    });
+                }catch(java.util.concurrent.RejectedExecutionException ignored){
+                    // The source Action shut down while the coordinator was preparing the destination.
+                }
+            });
+        });
+
         clientCommands.<Player>register("t", "<message...>", "Send a message only to your teammates.", (args, player) -> {
             String message = admins.filterMessage(player, args[0]);
             if(message != null){
                 String raw = "[#" + player.team().color.toString() + "]<T> " + chatFormatter.format(player, message);
-                Groups.player.each(p -> p.team() == player.team(), o -> o.sendMessage(raw, player, message));
+                Groups.current().player.each(p -> p.team() == player.team(), o -> o.sendMessage(raw, player, message));
             }
         });
 
@@ -385,7 +432,7 @@ public class NetServer implements ApplicationListener{
             }
 
             String raw = "[#" + Pal.adminChat.toString() + "]<A> " + chatFormatter.format(player, args[0]);
-            Groups.player.each(Player::admin, a -> a.sendMessage(raw, player, args[0]));
+            Groups.current().player.each(Player::admin, a -> a.sendMessage(raw, player, args[0]));
         });
 
         //cooldowns per player
@@ -397,7 +444,7 @@ public class NetServer implements ApplicationListener{
                 return;
             }
 
-            if(Groups.player.size() < 3){
+            if(Groups.current().player.size() < 3){
                 player.sendMessage("[scarlet]At least 3 players are needed to start a votekick.");
                 return;
             }
@@ -416,7 +463,7 @@ public class NetServer implements ApplicationListener{
                 StringBuilder builder = new StringBuilder();
                 builder.append("[orange]Players to kick: \n");
 
-                Groups.player.each(p -> !p.admin && p.con != null && p != player, p -> {
+                Groups.current().player.each(p -> !p.admin && p.con != null && p != player, p -> {
                     builder.append("[lightgray] ").append(p.name).append("[accent] (#").append(p.id()).append(")\n");
                 });
                 player.sendMessage(builder.toString());
@@ -426,9 +473,9 @@ public class NetServer implements ApplicationListener{
                 Player found;
                 if(args[0].length() > 1 && args[0].startsWith("#") && Strings.canParseInt(args[0].substring(1))){
                     int id = Strings.parseInt(args[0].substring(1));
-                    found = Groups.player.find(p -> p.id() == id);
+                    found = Groups.current().player.find(p -> p.id() == id);
                 }else{
-                    found = Groups.player.find(p -> p.name.equalsIgnoreCase(args[0]));
+                    found = Groups.current().player.find(p -> p.name.equalsIgnoreCase(args[0]));
                 }
 
                 if(found != null){
@@ -518,17 +565,17 @@ public class NetServer implements ApplicationListener{
 
                 player.getInfo().lastSyncTime = Time.millis();
                 Call.worldDataBegin(player.con);
-                netServer.sendWorldData(player);
+                mindustry.Vars.game().netServer.sendWorldData(player);
             }
         });
     }
 
     public int votesRequired(){
-        return 2 + (Groups.player.size() > 4 ? 1 : 0);
+        return 2 + (Groups.current().player.size() > 4 ? 1 : 0);
     }
 
     public Team assignTeam(Player current){
-        return assigner.assign(current, Groups.player);
+        return assigner.assign(current, Groups.current().player);
     }
 
     public Team assignTeam(Player current, Iterable<Player> players){
@@ -536,7 +583,7 @@ public class NetServer implements ApplicationListener{
     }
 
     public void sendAssetRequirements(Player player){
-        var assets = state.data.getAllExternalAssets();
+        var assets = mindustry.Vars.game().state.data.getAllExternalAssets();
         mainExecutor.submit(() -> {
             var stream = new ByteArrayOutputStream();
             NetworkIO.writeRequiredAssets(new FastDeflaterOutputStream(stream), assets);
@@ -607,6 +654,10 @@ public class NetServer implements ApplicationListener{
     }
 
     public static void onDisconnect(Player player, String reason){
+        onDisconnect(player, reason, null);
+    }
+
+    private static void onDisconnect(Player player, String reason, String memberId){
         //singleplayer multiplayer weirdness
         if(player.con == null){
             player.remove();
@@ -616,7 +667,7 @@ public class NetServer implements ApplicationListener{
         if(!player.con.hasDisconnected){
             if(player.con.hasConnected){
                 Events.fire(new PlayerLeave(player));
-                if(Config.showConnectMessages.bool()) Call.sendMessage("[accent]" + player.name + "[accent] has disconnected.");
+                if(Config.showConnectMessages.bool()) Call.sendMessage("[accent]" + player.name + "[accent] has disconnected." + sectorNotice("←", false, memberId == null ? resolveMemberId(player.con) : memberId));
                 Call.playerDisconnect(player.id());
             }
 
@@ -632,6 +683,95 @@ public class NetServer implements ApplicationListener{
 
         player.remove();
         player.con.hasDisconnected = true;
+    }
+
+    /** Identity bound to a connection's signed action admission grant; empty for vanilla/non-shared connections. */
+    private static String resolveMemberId(NetConnection con){
+        SharedCampaignNet network = mindustry.Vars.game() == null ? null : SharedCampaignNet.find(mindustry.Vars.game());
+        if(network == null) return "";
+        return network.authenticatedMemberId(con);
+    }
+
+    /**
+     * Chat suffix naming the sector this server hosts, so connect/disconnect notices say which sector the
+     * player entered or left. Blank outside campaign contexts (descriptor for shared-action processes,
+     * {@code rules.sector} for a vanilla hosted campaign game).
+     *
+     * <p>Shared Actions append one of three white i18n forms after the vanilla notice: {@code from A to B}
+     * when the member's recorded join crossed sectors, otherwise {@code enter X} / {@code exit X}. The
+     * transition is resolved from the member's latest {@code member-sector-join} campaign event, so both
+     * sides of a hot-switch describe the same move; stale/absent events degrade to enter/exit.
+     */
+    private static String sectorNotice(String direction, boolean connecting, String memberId){
+        String planet = null, sector = null;
+        SharedCampaignRuntimeState sharedRuntime = mindustry.Vars.game() == null ? null : SharedCampaignRuntimeState.find(mindustry.Vars.game());
+        ActionRuntimeConfig runtime = sharedRuntime == null ? null : sharedRuntime.actionRuntime();
+        boolean sharedAction = runtime != null && runtime.enabled() && runtime.descriptor() != null;
+        if(sharedAction){
+            planet = runtime.descriptor().planetName();
+            sector = runtime.descriptor().sectorName();
+        }else if(mindustry.Vars.game() != null && mindustry.Vars.game().state != null && mindustry.Vars.game().state.hasSector()){
+            mindustry.type.Sector current = mindustry.Vars.game().state.getSector();
+            if(current != null){
+                planet = current.planet == null ? null : current.planet.name;
+                sector = current.name();
+            }
+        }
+        if(planet == null || sector == null || planet.isBlank() || sector.isBlank()) return "";
+
+        if(!sharedAction){
+            // Vanilla hosted campaign: no member transitions exist; keep the historical gray arrow suffix.
+            return " [gray]" + direction + " " + planet + "/" + sector + "[]";
+        }
+
+        SharedCampaignService service = SharedCampaignService.find(mindustry.Vars.game());
+        SharedCampaignState campaign = service == null ? null : service.strategicState();
+        String ownKey = SharedCampaignProgress.sectorKey(planet, sector);
+        String ownDisplay = sectorDisplayName(campaign, planet, sector);
+        String[] transition = latestSectorJoin(campaign, memberId);
+        if(transition != null){
+            boolean crossed = connecting
+                ? !transition[0].isEmpty() && !transition[0].equals(ownKey) && transition[1].equals(ownKey)
+                : transition[0].equals(ownKey) && !transition[1].isEmpty() && !transition[1].equals(ownKey);
+            if(crossed){
+                return " [white]from " + sectorDisplayName(campaign, transition[0]) + " to " + sectorDisplayName(campaign, transition[1]) + ".[]";
+            }
+        }
+        return connecting ? " [white]enter " + ownDisplay + ".[]" : " [white]exit " + ownDisplay + ".[]";
+    }
+
+    /**
+     * Latest {@code member-sector-join} payload of {@code memberId} as {@code [fromKey, toKey]} sector keys,
+     * or null when no campaign state/event exists (vanilla, lagging snapshot, never joined).
+     */
+    private static String[] latestSectorJoin(SharedCampaignState campaign, String memberId){
+        if(campaign == null || memberId == null || memberId.isBlank()) return null;
+        for(int i = campaign.recentEvents.size - 1; i >= 0; i--){
+            SharedCampaignState.CampaignEvent event = campaign.recentEvents.get(i);
+            if(!"member-sector-join".equals(event.type) || !memberId.equals(event.subjectId)) continue;
+            int split = event.payload.indexOf(" -> ");
+            if(split < 0) return null;
+            return new String[]{event.payload.substring(0, split), event.payload.substring(split + 4)};
+        }
+        return null;
+    }
+
+    /** i18n display name for a {@code planet/sector} key: shared custom name, then bundle-localized preset name. */
+    private static String sectorDisplayName(SharedCampaignState campaign, String sectorKey){
+        int slash = sectorKey.indexOf('/');
+        return slash <= 0 ? sectorKey : sectorDisplayName(campaign, sectorKey.substring(0, slash), sectorKey.substring(slash + 1));
+    }
+
+    private static String sectorDisplayName(SharedCampaignState campaign, String planetName, String sectorName){
+        mindustry.type.Sector sector = SharedCampaignProgress.findSector(planetName, sectorName);
+        if(sector == null) return sectorName;
+        if(campaign != null){
+            SharedCampaignState.SectorState saved = campaign.sectors.get(SharedCampaignProgress.sectorKey(planetName, sectorName));
+            if(saved != null && saved.displayName != null && !saved.displayName.isBlank()) return saved.displayName;
+        }
+        if(sector.preset != null && (sector.preset.requireUnlock || sector.preset.showHidden)) return sector.preset.localizedName;
+        if(sector.planet != null && sector.planet.sectors.size == 1) return sector.planet.localizedName;
+        return sector.name();
     }
 
     //these functions are for debugging only, and will be removed!
@@ -668,8 +808,9 @@ public class NetServer implements ApplicationListener{
 
     @Remote(targets = Loc.client)
     public static void serverPacketReliable(Player player, String type, String contents){
-        if(netServer.customPacketHandlers.containsKey(type)){
-            for(Cons2<Player, String> c : netServer.customPacketHandlers.get(type)){
+        if(player != null && player.spectator()) return;
+        if(mindustry.Vars.game().netServer.customPacketHandlers.containsKey(type)){
+            for(Cons2<Player, String> c : mindustry.Vars.game().netServer.customPacketHandlers.get(type)){
                 c.get(player, contents);
             }
         }
@@ -682,8 +823,9 @@ public class NetServer implements ApplicationListener{
 
     @Remote(targets = Loc.client)
     public static void serverBinaryPacketReliable(Player player, String type, byte[] contents){
-        if(netServer.customBinaryPacketHandlers.containsKey(type)){
-            for(var c : netServer.customBinaryPacketHandlers.get(type)){
+        if(player != null && player.spectator()) return;
+        if(mindustry.Vars.game().netServer.customBinaryPacketHandlers.containsKey(type)){
+            for(var c : mindustry.Vars.game().netServer.customBinaryPacketHandlers.get(type)){
                 c.get(player, contents);
             }
         }
@@ -696,7 +838,8 @@ public class NetServer implements ApplicationListener{
 
     @Remote(targets = Loc.client)
     public static void clientLogicDataReliable(Player player, String channel, Object value){
-        Seq<Cons2<Player, Object>> handlers = netServer.logicClientDataHandlers.get(channel);
+        if(player != null && player.spectator()) return;
+        Seq<Cons2<Player, Object>> handlers = mindustry.Vars.game().netServer.logicClientDataHandlers.get(channel);
         if(handlers != null){
             for(Cons2<Player, Object> handler : handlers){
                 handler.get(player, value);
@@ -715,32 +858,33 @@ public class NetServer implements ApplicationListener{
 
     public static void syncBuilding(Building build){
         if(build == null) return;
-        netServer.syncStream.reset();
-        netServer.dataStreamWrites.i(build.pos());
-        netServer.dataStreamWrites.s(build.block.id);
-        build.writeSync(netServer.dataStreamWrites);
+        mindustry.Vars.game().netServer.syncStream.reset();
+        mindustry.Vars.game().netServer.dataStreamWrites.i(build.pos());
+        mindustry.Vars.game().netServer.dataStreamWrites.s(build.block.id);
+        build.writeSync(mindustry.Vars.game().netServer.dataStreamWrites);
 
-        Call.blockSnapshot((short)1, netServer.syncStream.toByteArray());
-        netServer.syncStream.reset();
+        Call.blockSnapshot((short)1, mindustry.Vars.game().netServer.syncStream.toByteArray());
+        mindustry.Vars.game().netServer.syncStream.reset();
     }
 
     @Remote(targets = Loc.client, priority = PacketPriority.low, unreliable = true)
     public static void requestBlockSnapshot(Player player, int pos){
-        Building build = world.build(pos);
+        Building build = mindustry.Vars.game().world.build(pos);
         if(build != null && build.team == player.team()){
-            netServer.syncStream.reset();
-            netServer.dataStreamWrites.i(build.pos());
-            netServer.dataStreamWrites.s(build.block.id);
-            build.writeSync(netServer.dataStreamWrites);
+            mindustry.Vars.game().netServer.syncStream.reset();
+            mindustry.Vars.game().netServer.dataStreamWrites.i(build.pos());
+            mindustry.Vars.game().netServer.dataStreamWrites.s(build.block.id);
+            build.writeSync(mindustry.Vars.game().netServer.dataStreamWrites);
 
-            Call.blockSnapshot(player.con, (short)1, netServer.syncStream.toByteArray());
-            netServer.syncStream.reset();
+            Call.blockSnapshot(player.con, (short)1, mindustry.Vars.game().netServer.syncStream.toByteArray());
+            mindustry.Vars.game().netServer.syncStream.reset();
         }
     }
 
     //sent from the client to the server in batches with the same incrementing groupId
     @Remote(targets = Loc.client, unreliable = true, priority = PacketPriority.low)
     public static void clientPlanSnapshot(Player player, int groupId, @Nullable ClientBuildPlans plans){
+        if(player != null && player.spectator()) return;
         if(player == null) return;
         player.handlePreviewPlans(groupId, plans);
     }
@@ -768,6 +912,7 @@ public class NetServer implements ApplicationListener{
     ){
         NetConnection con = player.con;
         if(con == null || snapshotID < con.lastReceivedClientSnapshot) return;
+        NetServer server = mindustry.Vars.game().netServer;
 
         //validate coordinates just in case
         if(invalid(x)) x = 0f;
@@ -779,7 +924,7 @@ public class NetServer implements ApplicationListener{
         if(invalid(rotation)) rotation = 0f;
         if(invalid(baseRotation)) baseRotation = 0f;
 
-        boolean verifyPosition = netServer.admins.isStrict() && headless;
+        boolean verifyPosition = mindustry.Vars.game().netServer.admins.isStrict() && mindustry.Vars.runtimeHeadless();
 
         if(con.lastReceivedClientTime == 0) con.lastReceivedClientTime = Time.millis() - 16;
 
@@ -814,7 +959,7 @@ public class NetServer implements ApplicationListener{
             if(plans != null){
                 for(BuildPlan req : plans){
                     if(req == null) continue;
-                    Tile tile = world.tile(req.x, req.y);
+                    Tile tile = mindustry.Vars.game().world.tile(req.x, req.y);
                     if(tile == null || (!req.breaking && req.block == null)) continue;
                     //auto-skip done requests
                     if(req.breaking && tile.block() == Blocks.air){
@@ -823,7 +968,7 @@ public class NetServer implements ApplicationListener{
                         continue;
                     }else if(con.rejectedRequests.contains(r -> r.breaking == req.breaking && r.x == req.x && r.y == req.y)){ //check if request was recently rejected, and skip it if so
                         continue;
-                    }else if(!netServer.admins.allowAction(player, req.breaking ? ActionType.breakBlock : ActionType.placeBlock, tile, action -> { //make sure request is allowed by the server
+                    }else if(!mindustry.Vars.game().netServer.admins.allowAction(player, req.breaking ? ActionType.breakBlock : ActionType.placeBlock, tile, action -> { //make sure request is allowed by the server
                         action.block = req.block;
                         action.rotation = req.rotation;
                         action.config = req.config;
@@ -857,14 +1002,14 @@ public class NetServer implements ApplicationListener{
             if(!ignorePosition){
                 unit.vel.set(xVelocity, yVelocity).limit(maxSpeed);
 
-                vector.set(x, y).sub(unit);
-                vector.limit(maxMove);
+                server.vector.set(x, y).sub(unit);
+                server.vector.limit(maxMove);
 
                 float prevx = unit.x, prevy = unit.y;
                 if(!unit.isFlying()){
-                    unit.move(vector.x, vector.y);
+                    unit.move(server.vector.x, server.vector.y);
                 }else{
-                    unit.trns(vector.x, vector.y);
+                    unit.trns(server.vector.x, server.vector.y);
                 }
 
                 newx = unit.x;
@@ -880,19 +1025,19 @@ public class NetServer implements ApplicationListener{
             }
 
             //write sync data to the buffer
-            fbuffer.limit(20);
-            fbuffer.position(0);
+            server.fbuffer.limit(20);
+            server.fbuffer.position(0);
 
             //now, put the new position, rotation and baserotation into the buffer so it can be read
             //TODO this is terrible
-            if(unit instanceof Mechc) fbuffer.put(baseRotation); //base rotation is optional
-            fbuffer.put(rotation); //rotation is always there
-            fbuffer.put(newx);
-            fbuffer.put(newy);
-            fbuffer.flip();
+            if(unit instanceof Mechc) server.fbuffer.put(baseRotation); //base rotation is optional
+            server.fbuffer.put(rotation); //rotation is always there
+            server.fbuffer.put(newx);
+            server.fbuffer.put(newy);
+            server.fbuffer.flip();
 
             //read sync data so it can be used for interpolation for the server
-            unit.readSyncManual(fbuffer);
+            unit.readSyncManual(server.fbuffer);
         }else{
             player.x = x;
             player.y = y;
@@ -904,6 +1049,7 @@ public class NetServer implements ApplicationListener{
 
     @Remote(targets = Loc.client, called = Loc.server)
     public static void adminRequest(Player player, Player other, AdminAction action, Object params){
+        if(player != null && player.spectator()) return;
         if(!player.admin && !player.isLocal()){
             warn("ACCESS DENIED: Player @ / @ attempted to perform admin action '@' on '@' without proper security access.",
             player.plainName(), player.con == null ? "null" : player.con.address, action.name(), other == null ? null : other.plainName());
@@ -921,12 +1067,12 @@ public class NetServer implements ApplicationListener{
             case wave -> {
                 //no verification is done, so admins can hypothetically spam waves
                 //not a real issue, because server owners may want to do just that
-                logic.skipWave();
+                mindustry.Vars.game().logic.skipWave();
                 info("&lc@ &fi&lk[&lb@&fi&lk]&fb has skipped the wave.", player.plainName(), player.uuid());
             }
             case ban -> {
-                netServer.admins.banPlayerID(other.con.uuid);
-                netServer.admins.banPlayerIP(other.con.address);
+                mindustry.Vars.game().netServer.admins.banPlayerID(other.con.uuid);
+                mindustry.Vars.game().netServer.admins.banPlayerIP(other.con.address);
                 other.kick(KickReason.banned);
                 info("&lc@ &fi&lk[&lb@&fi&lk]&fb has banned @ &fi&lk[&lb@&fi&lk]&fb.", player.plainName(), player.uuid(), other.plainName(), other.uuid());
             }
@@ -935,7 +1081,7 @@ public class NetServer implements ApplicationListener{
                 info("&lc@ &fi&lk[&lb@&fi&lk]&fb has kicked @ &fi&lk[&lb@&fi&lk]&fb.", player.plainName(), player.uuid(), other.plainName(), other.uuid());
             }
             case trace -> {
-                PlayerInfo stats = netServer.admins.getInfo(other.uuid());
+                PlayerInfo stats = mindustry.Vars.game().netServer.admins.getInfo(other.uuid());
                 TraceInfo info = new TraceInfo(other.con.address, other.uuid(), other.locale, other.con.modclient, other.con.mobile, stats.timesJoined, stats.timesKicked, stats.ips.toArray(String.class), stats.names.toArray(String.class));
                 if(player.con != null){
                     Call.traceInfo(player.con, other, info);
@@ -956,7 +1102,7 @@ public class NetServer implements ApplicationListener{
         if(!player.con.hasBegunConnecting || player.con.determiningAssets || !player.con.receivingAssets || player.con.hasConnected) return;
 
         player.con.receivingAssets = false;
-        netServer.sendWorldData(player);
+        mindustry.Vars.game().netServer.sendWorldData(player);
     }
 
     @Remote(targets = Loc.client, priority = PacketPriority.high)
@@ -968,10 +1114,10 @@ public class NetServer implements ApplicationListener{
 
         if(ids.length == 0){  //no assets required, all cached
             player.con.receivingAssets = false;
-            netServer.sendWorldData(player);
+            mindustry.Vars.game().netServer.sendWorldData(player);
         }else{
             Seq<DataAsset> res = new Seq<>();
-            Seq<DataAsset> allAssets = state.data.getAllExternalAssets();
+            Seq<DataAsset> allAssets = mindustry.Vars.game().state.data.getAllExternalAssets();
             for(short id : ids){
                 if(id >= allAssets.size || id < 0) continue;
                 res.add(allAssets.get(id));
@@ -1006,7 +1152,7 @@ public class NetServer implements ApplicationListener{
         player.con.hasConnected = true;
 
         if(Config.showConnectMessages.bool()){
-            Call.sendMessage("[accent]" + player.name + "[accent] has connected.");
+            Call.sendMessage("[accent]" + player.name + "[accent] has connected." + sectorNotice("→", true, resolveMemberId(player.con)));
             String message = Strings.format("&lb@&fi&lk has connected. &fi&lk[&lb@&fi&lk]", player.plainName(), player.uuid());
             info(message);
         }
@@ -1026,11 +1172,11 @@ public class NetServer implements ApplicationListener{
     }
 
     public boolean isWaitingForPlayers(){
-        if(state.is(State.menu)) return false;
-        if(state.rules.pvp && !state.gameOver){
+        if(mindustry.Vars.game().state.is(State.menu)) return false;
+        if(mindustry.Vars.game().state.rules.pvp && !mindustry.Vars.game().state.gameOver){
             int used = 0;
-            for(TeamData t : state.teams.getActive()){
-                if(Groups.player.count(p -> p.team() == t.team) > 0){
+            for(TeamData t : mindustry.Vars.game().state.teams.getActive()){
+                if(Groups.current().player.count(p -> p.team() == t.team) > 0){
                     used++;
                 }
             }
@@ -1041,27 +1187,27 @@ public class NetServer implements ApplicationListener{
 
     @Override
     public void update(){
-        if(!headless && !closing && net.server() && state.isMenu()){
+        if(!mindustry.Vars.runtimeHeadless() && !closing && mindustry.Vars.game().net.server() && mindustry.Vars.game().state.isMenu()){
             closing = true;
             ui.loadfrag.show("@server.closing");
             Time.runTask(5f, () -> {
-                net.closeServer();
+                mindustry.Vars.game().net.closeServer();
                 ui.loadfrag.hide();
                 closing = false;
             });
         }
 
-        if(state.isGame() && net.server()){
-            if(state.rules.pvp && state.rules.pvpAutoPause){
-                boolean waiting = isWaitingForPlayers(), paused = state.isPaused();
+        if(mindustry.Vars.game().state.isGame() && mindustry.Vars.game().net.server()){
+            if(mindustry.Vars.game().state.rules.pvp && mindustry.Vars.game().state.rules.pvpAutoPause){
+                boolean waiting = isWaitingForPlayers(), paused = mindustry.Vars.game().state.isPaused();
                 if(waiting != paused){
                     if(waiting){
                         //is now waiting, enable pausing, flag it correctly
                         pvpAutoPaused = true;
-                        state.set(State.paused);
+                        mindustry.Vars.game().state.set(State.paused);
                     }else if(pvpAutoPaused){
                         //no longer waiting, stop pausing
-                        state.set(State.playing);
+                        mindustry.Vars.game().state.set(State.playing);
                         pvpAutoPaused = false;
                     }
                 }
@@ -1079,20 +1225,34 @@ public class NetServer implements ApplicationListener{
 
     /** Should only be used on the headless backend. */
     public void openServer(){
+        openServer(Config.port.num());
+    }
+
+    /** Opens this runtime's server on an explicit endpoint; embedded Sectors must not share process-global Config.port. */
+    public void openServer(int port){
+        if(port <= 0 || port > 65535) throw new IllegalArgumentException("Invalid server port: " + port);
         try{
-            net.host(Config.port.num());
-            info("Opened a server on port @.", Config.port.num());
+            mindustry.Vars.game().net.host(port);
+            // Shared Action: players dial the coordinator entry; this process only listens on the Action game port.
+            int entryPort = port;
+            SharedCampaignRuntimeState sharedRuntime = SharedCampaignRuntimeState.find(mindustry.Vars.game());
+            ActionRuntimeConfig actionRuntime = sharedRuntime == null ? null : sharedRuntime.actionRuntime();
+            if(actionRuntime != null && actionRuntime.enabled() && actionRuntime.descriptor() != null){
+                entryPort = actionRuntime.descriptor().coordinatorPort();
+            }
+            // Arc Log treats every '@' in the format string as a placeholder; build the label first.
+            info("Opened a server on @.", "entry@actual=" + mindustry.y.util.YPortLog.entryAtActual(entryPort, port));
         }catch(BindException e){
-            err("Unable to host: Port " + Config.port.num() + " already in use! Make sure no other servers are running on the same port in your network.");
-            state.set(State.menu);
+            err("Unable to host on port @; shared entry/actual port is already in use. Make sure no other servers are running on the same port in your network.", port);
+            mindustry.Vars.game().state.set(State.menu);
         }catch(IOException e){
             err(e);
-            state.set(State.menu);
+            mindustry.Vars.game().state.set(State.menu);
         }
     }
 
     public void kickAll(KickReason reason){
-        for(NetConnection con : net.getConnections()){
+        for(NetConnection con : mindustry.Vars.game().net.getConnections()){
             con.kick(reason);
         }
     }
@@ -1102,8 +1262,8 @@ public class NetServer implements ApplicationListener{
         syncStream.reset();
 
         short sent = 0;
-        for(var team : state.teams.present){
-            for(var build : indexer.getFlagged(team.team, BlockFlag.synced)){
+        for(var team : mindustry.Vars.game().state.teams.present){
+            for(var build : mindustry.Vars.game().indexer.getFlagged(team.team, BlockFlag.synced)){
                 sent++;
 
                 dataStream.writeInt(build.pos());
@@ -1128,13 +1288,13 @@ public class NetServer implements ApplicationListener{
     public void writeStateSnapshot() throws IOException{
         byte tps = (byte)Math.min(Core.graphics.getFramesPerSecond(), 255);
         syncStream.reset();
-        int activeTeams = (byte)state.teams.present.count(t -> t.cores.size > 0);
+        int activeTeams = (byte)mindustry.Vars.game().state.teams.present.count(t -> t.cores.size > 0);
 
         dataStream.writeByte(activeTeams);
         dataWrites.output = dataStream;
 
         //block data isn't important, just send the items for each team, they're synced across cores
-        for(TeamData data : state.teams.present){
+        for(TeamData data : mindustry.Vars.game().state.teams.present){
             if(data.cores.size > 0){
                 dataStream.writeByte(data.team.id);
                 data.cores.first().items.write(dataWrites);
@@ -1143,8 +1303,8 @@ public class NetServer implements ApplicationListener{
 
         dataStream.close();
 
-        Call.stateSnapshot(state.wavetime, state.wave, state.enemies, state.isPaused(), state.gameOver,
-        universe.seconds(), tps, GlobalVars.rand.seed0, GlobalVars.rand.seed1, syncStream.toByteArray());
+        Call.stateSnapshot(mindustry.Vars.game().state.wavetime, mindustry.Vars.game().state.wave, mindustry.Vars.game().state.enemies, mindustry.Vars.game().state.isPaused(), mindustry.Vars.game().state.gameOver,
+        mindustry.Vars.game().universe.seconds(), tps, mindustry.Vars.game().logicVars.rand.seed0, mindustry.Vars.game().logicVars.rand.seed1, syncStream.toByteArray());
     }
 
     /** Does not check isSyncHidden. Call this if no entities are hidden. */
@@ -1153,7 +1313,7 @@ public class NetServer implements ApplicationListener{
 
         int sent = 0;
 
-        for(Syncc entity : Groups.sync){
+        for(Syncc entity : Groups.current().sync){
             writeEntity(entity, dataStream);
 
             sent++;
@@ -1186,7 +1346,7 @@ public class NetServer implements ApplicationListener{
             tempConnections.add(player.con);
         }
 
-        for(Syncc entity : Groups.sync){
+        for(Syncc entity : Groups.current().sync){
             if(entity.isSyncHidden(team)){
                 hiddenIds.add(entity.id());
                 continue;
@@ -1212,7 +1372,7 @@ public class NetServer implements ApplicationListener{
         if(hiddenIds.size > 0){
             var packet = new HiddenSnapshotCallPacket();
             packet.ids = hiddenIds;
-            net.send(packet, tempConnections, false);
+            mindustry.Vars.game().net.send(packet, tempConnections, false);
         }
     }
 
@@ -1220,7 +1380,7 @@ public class NetServer implements ApplicationListener{
         var packet = new EntitySnapshotCallPacket();
         packet.amount = amount;
         packet.data = data;
-        net.send(packet, connections, false);
+        mindustry.Vars.game().net.send(packet, connections, false);
     }
 
     /** Writes a custom snapshot containing player-local entities; this is for entities other players don't see. */
@@ -1308,7 +1468,7 @@ public class NetServer implements ApplicationListener{
     void sync(){
         try{
             int interval = Config.snapshotInterval.num();
-            Groups.player.each(p -> !p.isLocal(), player -> {
+            Groups.current().player.each(p -> !p.isLocal(), player -> {
                 if(player.con == null || !player.con.isConnected()){
                     onDisconnect(player, "disappeared");
                 }
@@ -1334,7 +1494,7 @@ public class NetServer implements ApplicationListener{
                 }
 
                 //write custom player-specific entities (usually labels)
-                for(Player player : Groups.player){
+                for(Player player : Groups.current().player){
                     if(player.con != null && player.con.hasConnected && player.con.localEntities.size > 0){
                         writeCustomEntitySnapshot(player, player.con.localEntities);
                     }
@@ -1342,17 +1502,17 @@ public class NetServer implements ApplicationListener{
             }
 
 
-            if(Groups.player.size() > 0 && Core.settings.getBool("blocksync") && blockSyncTime.poll()){
+            if(Groups.current().player.size() > 0 && Core.settings.getBool("blocksync") && blockSyncTime.poll()){
                 writeBlockSnapshots();
             }
 
-            if(Groups.player.size() > 0 && buildHealthChanged.size > 0 && healthSyncTime.poll()){
+            if(Groups.current().player.size() > 0 && buildHealthChanged.size > 0 && healthSyncTime.poll()){
                 healthSeq.clear();
 
                 var iter = buildHealthChanged.iterator();
                 while(iter.hasNext){
                     int next = iter.next();
-                    var build = world.build(next);
+                    var build = mindustry.Vars.game().world.build(next);
 
                     //pack pos + health into update list
                     if(build != null){
@@ -1375,15 +1535,15 @@ public class NetServer implements ApplicationListener{
             }
 
             //TODO: this system is a big bandwidth waster, it would be nicer to have a diff system instead
-            if(Groups.player.size() > 0 && planPreviewSyncTime.poll()){
+            if(Groups.current().player.size() > 0 && planPreviewSyncTime.poll()){
 
-                if(!headless){ //update local player's plans so that clients see it
+                if(mindustry.Vars.runtimeVisualsEnabled()){ //update local player's plans so that clients see it
                     player.previewPlansCurrent.clear();
                     control.input.getSyncedPlans(player.previewPlansCurrent);
                     player.previewPlansCurrent.truncate(maxPlayerPreviewPlans);
                 }
 
-                Groups.player.each(player -> {
+                Groups.current().player.each(player -> {
                     int id = ++player.lastPreviewPlanGroupServer;
                     plansOut.clear();
 
@@ -1464,7 +1624,7 @@ public class NetServer implements ApplicationListener{
         boolean checkPass(){
             if(votes >= votesRequired()){
                 Call.sendMessage(Strings.format("[orange]Vote passed.[scarlet] @[orange] will be banned from the server for @ minutes.", target.name, (kickDuration / 60)));
-                Groups.player.each(p -> p.uuid().equals(target.uuid()), p -> p.kick(KickReason.vote, kickDuration * 1000));
+                Groups.current().player.each(p -> p.uuid().equals(target.uuid()), p -> p.kick(KickReason.vote, kickDuration * 1000));
                 currentlyKicking = null;
                 task.cancel();
                 return true;

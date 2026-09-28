@@ -70,7 +70,7 @@ public class MinimapRenderer{
 
     public void update(){
         //updates are batched to occur every 2 frames
-        if((updateCounter += Time.delta) >= updateInterval){
+        if((updateCounter += Time.delta()) >= updateInterval){
             updateCounter %= updateInterval;
 
             updates.each(pos -> {
@@ -127,7 +127,7 @@ public class MinimapRenderer{
             updateUnitArray();
         }else{
             units.clear();
-            Groups.unit.copy(units);
+            Groups.current().unit.copy(units);
         }
 
         float sz = baseSize * zoom;
@@ -138,16 +138,16 @@ public class MinimapRenderer{
 
         rect.set((dx - sz) * tilesize, (dy - sz) * tilesize, sz * 2 * tilesize, sz * 2 * tilesize);
 
-        Tmp.m2.set(Draw.trans());
+        Tmp.m2().set(Draw.trans());
 
         float scaleFactor;
-        var trans = Tmp.m1.idt();
+        var trans = Tmp.m1().idt();
         trans.translate(x, y);
         if(!fullView){
-            trans.scl(Tmp.v1.set(scaleFactor = w / rect.width, h / rect.height));
+            trans.scl(Tmp.v1().set(scaleFactor = w / rect.width, h / rect.height));
             trans.translate(-rect.x, -rect.y);
         }else{
-            trans.scl(Tmp.v1.set(scaleFactor = w / world.unitWidth(), h / world.unitHeight()));
+            trans.scl(Tmp.v1().set(scaleFactor = w / world.unitWidth(), h / world.unitHeight()));
         }
         trans.translate(tilesize / 2f, tilesize / 2f);
         Draw.trans(trans);
@@ -166,7 +166,7 @@ public class MinimapRenderer{
         }
 
         if(fullView){
-            for(Player player : Groups.player){
+            for(Player player : Groups.current().player){
                 if(!player.dead() && net.active()){
                     drawLabel(player.x, player.y, player.name, player.color, scaleFactor);
                 }
@@ -174,7 +174,7 @@ public class MinimapRenderer{
 
                     float rad = 12f;
 
-                    Draw.color(Tmp.c1.set(player.color).mul(Color.darkGray));
+                    Draw.color(Tmp.c1().set(player.color).mul(Color.darkGray));
                     Lines.stroke(Scl.scl(scaleFactor * 9f));
                     Lines.poly(player.pingX, player.pingY, 4, scaleFactor * rad, 0f);
 
@@ -214,22 +214,22 @@ public class MinimapRenderer{
             //crisp pixels
             dynamicTex.setFilter(TextureFilter.nearest);
 
-            Tmp.tr1.set(dynamicTex);
-            Tmp.tr1.set(0f, 1f, 1f, 0f);
+            Tmp.tr1().set(dynamicTex);
+            Tmp.tr1().set(0f, 1f, 1f, 0f);
 
             float wf = world.width() * tilesize;
             float hf = world.height() * tilesize;
 
             Draw.color(state.rules.dynamicColor, Float.isNaN(state.rules.dynamicColor.a) ? 0.5f : Math.max(0.5f, state.rules.dynamicColor.a));
-            Draw.rect(Tmp.tr1, wf / 2, hf / 2, wf, hf);
+            Draw.rect(Tmp.tr1(), wf / 2, hf / 2, wf, hf);
 
             if(state.rules.staticFog){
                 staticTex.setFilter(TextureFilter.nearest);
 
-                Tmp.tr1.texture = staticTex;
+                Tmp.tr1().texture = staticTex;
                 //must be black to fit with borders
                 Draw.color(0f, 0f, 0f, 1f);
-                Draw.rect(Tmp.tr1, wf / 2, hf / 2, wf, hf);
+                Draw.rect(Tmp.tr1(), wf / 2, hf / 2, wf, hf);
             }
 
             Draw.color();
@@ -242,7 +242,7 @@ public class MinimapRenderer{
 
             if(!mobile){
                 //draw bounds for camera - not drawn on mobile because you can't shift it by tapping anyway
-                Rect r = Core.camera.bounds(Tmp.r1);
+                Rect r = Core.camera.bounds(Tmp.r1());
                 Lines.stroke(Scl.scl(3f) * scaleFactor);
                 Draw.color(Pal.accent);
                 Lines.rect(r.x, r.y, r.width, r.height);
@@ -251,7 +251,7 @@ public class MinimapRenderer{
         }
 
         LongSeq indicators = control.indicators.list();
-        float fin = ((Time.globalTime / 30f) % 1f);
+        float fin = ((Time.globalTime() / 30f) % 1f);
         float rad = fin * 5f + tilesize - 2f;
         Lines.stroke(Scl.scl((1f - fin) * 4f + 0.5f));
 
@@ -289,7 +289,7 @@ public class MinimapRenderer{
         }
         Draw.reset();
 
-        Draw.trans(Tmp.m2);
+        Draw.trans(Tmp.m2());
     }
 
     public void drawSpawns(){
@@ -299,10 +299,10 @@ public class MinimapRenderer{
 
         Lines.stroke(Scl.scl(3f));
 
-        Draw.color(state.rules.waveTeam.color, Tmp.c2.set(state.rules.waveTeam.color).value(1.2f), Mathf.absin(Time.time, 16f, 1f));
+        Draw.color(state.rules.waveTeam.color, Tmp.c2().set(state.rules.waveTeam.color).value(1.2f), Mathf.absin(Time.time(), 16f, 1f));
 
         float rad = state.rules.dropZoneRadius;
-        float curve = Mathf.curve(Time.time % 240f, 120f, 240f);
+        float curve = Mathf.curve(Time.time() % 240f, 120f, 240f);
 
         for(Tile tile : spawner.getSpawns()){
             float tx = tile.worldx();
@@ -386,7 +386,7 @@ public class MinimapRenderer{
         int bc = real.minimapColor(tile);
         if(bc == 0 && tile.block() == Blocks.air && tile.overlay() == Blocks.air) bc = tile.floor().minimapColor(tile);
 
-        Color color = Tmp.c1.set(bc == 0 ? MapIO.colorFor(real, tile.floor(), tile.overlay(), tile.team()) : bc);
+        Color color = Tmp.c1().set(bc == 0 ? MapIO.colorFor(real, tile.floor(), tile.overlay(), tile.team()) : bc);
         color.mul(1f - Mathf.clamp(world.getDarkness(tile.x, tile.y) / 4f));
 
         if(real == Blocks.air && tile.y < world.height() - 1 && realBlock(world.tile(tile.x, tile.y + 1)).solid){

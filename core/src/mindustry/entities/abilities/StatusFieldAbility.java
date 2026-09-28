@@ -46,7 +46,7 @@ public class StatusFieldAbility extends Ability{
 
     @Override
     public void update(Unit unit){
-        timer += Time.delta;
+        timer += Time.delta();
 
         if(timer >= reload && (!onShoot || unit.isShooting)){
             Units.nearby(unit.team, unit.x, unit.y, range, other -> {

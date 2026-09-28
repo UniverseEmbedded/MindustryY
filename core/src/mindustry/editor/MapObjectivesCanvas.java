@@ -69,7 +69,7 @@ public class MapObjectivesCanvas extends WidgetGroup{
             public void tap(InputEvent event, float x, float y, int count, KeyCode button){
                 if(query == null) return;
 
-                Vec2 pos = localToDescendantCoordinates(tilemap, Tmp.v1.set(x, y));
+                Vec2 pos = localToDescendantCoordinates(tilemap, Tmp.v1().set(x, y));
                 queryX = Mathf.round((pos.x - objWidth * unitSize / 2f) / unitSize);
                 queryY = Mathf.floor((pos.y - unitSize) / unitSize);
 
@@ -196,7 +196,7 @@ public class MapObjectivesCanvas extends WidgetGroup{
 
             Connector conTarget = null;
             if(connecting != null){
-                Vec2 pos = connecting.localToAscendantCoordinates(this, Tmp.v1.set(connecting.pointX, connecting.pointY));
+                Vec2 pos = connecting.localToAscendantCoordinates(this, Tmp.v1().set(connecting.pointX, connecting.pointY));
                 if(hit(pos.x, pos.y, true) instanceof Connector con && connecting.canConnectTo(con)) conTarget = con;
             }
 
@@ -220,8 +220,8 @@ public class MapObjectivesCanvas extends WidgetGroup{
                     }
 
                     Vec2
-                        from = conFrom.localToAscendantCoordinates(this, Tmp.v1.set(conFrom.getWidth() / 2f, conFrom.getHeight() / 2f)).add(x, y),
-                        to = conTo.localToAscendantCoordinates(this, Tmp.v2.set(conTo.getWidth() / 2f, conTo.getHeight() / 2f)).add(x, y);
+                        from = conFrom.localToAscendantCoordinates(this, Tmp.v1().set(conFrom.getWidth() / 2f, conFrom.getHeight() / 2f)).add(x, y),
+                        to = conTo.localToAscendantCoordinates(this, Tmp.v2().set(conTo.getWidth() / 2f, conTo.getHeight() / 2f)).add(x, y);
 
                     drawCurve(false, from.x, from.y, to.x, to.y);
                 }
@@ -230,10 +230,10 @@ public class MapObjectivesCanvas extends WidgetGroup{
             if(connecting != null){
                 Vec2
                     mouse = (conTarget == null
-                        ? connecting.localToAscendantCoordinates(this, Tmp.v1.set(connecting.pointX, connecting.pointY))
-                        : conTarget.localToAscendantCoordinates(this, Tmp.v1.set(conTarget.getWidth() / 2f, conTarget.getHeight() / 2f))
+                        ? connecting.localToAscendantCoordinates(this, Tmp.v1().set(connecting.pointX, connecting.pointY))
+                        : conTarget.localToAscendantCoordinates(this, Tmp.v1().set(conTarget.getWidth() / 2f, conTarget.getHeight() / 2f))
                     ).add(x, y),
-                    anchor = connecting.localToAscendantCoordinates(this, Tmp.v2.set(connecting.getWidth() / 2f, connecting.getHeight() / 2f)).add(x, y);
+                    anchor = connecting.localToAscendantCoordinates(this, Tmp.v2().set(connecting.getWidth() / 2f, connecting.getHeight() / 2f)).add(x, y);
 
                 Vec2
                     from = connecting.findParent ? mouse : anchor,
@@ -262,7 +262,7 @@ public class MapObjectivesCanvas extends WidgetGroup{
                 Lines.curve(x1, y1, cx1, y1, cx2, y2, x2, y2, Math.max(4, (int) (Mathf.dst(x1, y1, x2, y2) / 4f)));
             }
 
-            float progress = (Time.time % (60 * 4)) / (60 * 4);
+            float progress = (Time.time() % (60 * 4)) / (60 * 4);
 
             float t2 = progress * progress;
             float t3 = progress * t2;
@@ -277,14 +277,14 @@ public class MapObjectivesCanvas extends WidgetGroup{
         }
 
         public boolean validPlace(int x, int y, @Nullable ObjectiveTile ignore){
-            Tmp.r1.set(x, y, objWidth, objHeight).grow(-0.001f);
+            Tmp.r1().set(x, y, objWidth, objHeight).grow(-0.001f);
 
-            if(!Tmp.r2.setCentered(0, 0, bounds * 2, bounds * 2).contains(Tmp.r1)){
+            if(!Tmp.r2().setCentered(0, 0, bounds * 2, bounds * 2).contains(Tmp.r1())){
                 return false;
             }
 
             for(var other : children){
-                if(other instanceof ObjectiveTile tile && tile != ignore && Tmp.r2.set(tile.obj.editorX, tile.obj.editorY, objWidth, objHeight).overlaps(Tmp.r1)){
+                if(other instanceof ObjectiveTile tile && tile != ignore && Tmp.r2().set(tile.obj.editorX, tile.obj.editorY, objWidth, objHeight).overlaps(Tmp.r1())){
                     return false;
                 }
             }
@@ -442,7 +442,7 @@ public class MapObjectivesCanvas extends WidgetGroup{
                     prevY = moving.obj.editorY;
 
                     // Convert to world pos first because the button gets dragged too.
-                    Vec2 pos = event.listenerActor.localToStageCoordinates(Tmp.v1.set(x, y));
+                    Vec2 pos = event.listenerActor.localToStageCoordinates(Tmp.v1().set(x, y));
                     lastX = pos.x;
                     lastY = pos.y;
                     return true;
@@ -450,7 +450,7 @@ public class MapObjectivesCanvas extends WidgetGroup{
 
                 @Override
                 public void touchDragged(InputEvent event, float x, float y, int pointer){
-                    Vec2 pos = event.listenerActor.localToStageCoordinates(Tmp.v1.set(x, y));
+                    Vec2 pos = event.listenerActor.localToStageCoordinates(Tmp.v1().set(x, y));
 
                     moving.moveBy(pos.x - lastX, pos.y - lastY);
                     lastX = pos.x;
@@ -510,7 +510,7 @@ public class MapObjectivesCanvas extends WidgetGroup{
                             if(conPointer != pointer || connecting != Connector.this) return;
                             conPointer = -1;
 
-                            Vec2 pos = Connector.this.localToAscendantCoordinates(ObjectiveTilemap.this, Tmp.v1.set(x, y));
+                            Vec2 pos = Connector.this.localToAscendantCoordinates(ObjectiveTilemap.this, Tmp.v1().set(x, y));
                             if(ObjectiveTilemap.this.hit(pos.x, pos.y, true) instanceof Connector con && con.canConnectTo(Connector.this)){
                                 if(findParent){
                                     if(!obj.parents.remove(con.tile().obj)) obj.parents.add(con.tile().obj);

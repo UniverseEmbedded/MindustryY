@@ -95,11 +95,11 @@ public class LExecutor{
     }
 
     boolean timeoutDone(Unit unit, float delay){
-        return Time.time >= unitTimeouts.get(unit.id) + delay;
+        return Time.time() >= unitTimeouts.get(unit.id) + delay;
     }
 
     void updateTimeout(Unit unit){
-        unitTimeouts.put(unit.id, Time.time);
+        unitTimeouts.put(unit.id, Time.time());
     }
 
     public boolean initialized(){
@@ -1251,7 +1251,7 @@ public class LExecutor{
                 //skip back to self.
                 exec.counter.numval --;
                 exec.yield = true;
-                curTime += Time.delta / 60f;
+                curTime += Time.delta() / 60f;
             }
         }
     }
@@ -1321,7 +1321,7 @@ public class LExecutor{
 
         @Override
         public void run(LExecutor exec){
-            var color = Tmp.c1.fromDouble(value.num());
+            var color = Tmp.c1().fromDouble(value.num());
             r.setnum(color.r);
             g.setnum(color.g);
             b.setnum(color.b);
@@ -1500,9 +1500,9 @@ public class LExecutor{
                     if(team != null){
                         paramTeam = team;
                         paramSeq = results;
-                        ((QuadTree<Bullet>)Groups.bullet.tree()).intersect(x, y, w, h, bulletCons);
+                        ((QuadTree<Bullet>)Groups.current().bullet.tree()).intersect(x, y, w, h, bulletCons);
                     }else{
-                        Groups.bullet.tree().intersect(x, y, w, h, results.as());
+                        Groups.current().bullet.tree().intersect(x, y, w, h, results.as());
                     }
                 }
                 case building -> {
@@ -1732,8 +1732,8 @@ public class LExecutor{
             if(type.obj() instanceof Weather weather){
                 if(state.bool()){
                     if(!weather.isActive()){ //Create is not already active
-                        Tmp.v1.setToRandomDirection();
-                        Call.createWeather(weather, 1f, WeatherState.fadeTime, Tmp.v1.x, Tmp.v1.y);
+                        Tmp.v1().setToRandomDirection();
+                        Call.createWeather(weather, 1f, WeatherState.fadeTime, Tmp.v1().x, Tmp.v1().y);
                     }else{
                         weather.instance().life(WeatherState.fadeTime);
                     }
@@ -1994,7 +1994,7 @@ public class LExecutor{
                 float rot = type.rotate ? rotation.numf() :
                     Math.min(rotation.numf(), 1000f);
 
-                type.effect.at(World.unconv(x.numf()), World.unconv(y.numf()), rot, Tmp.c1.fromDouble(col), data.obj());
+                type.effect.at(World.unconv(x.numf()), World.unconv(y.numf()), rot, Tmp.c1().fromDouble(col), data.obj());
             }
         }
     }
@@ -2188,9 +2188,9 @@ public class LExecutor{
                 float spread = tilesize * 2;
 
                 for(int i = 0; i < spawned; i++){
-                    Tmp.v1.rnd(spread);
+                    Tmp.v1().rnd(spread);
 
-                    spawner.spawnUnit(group, spawnX + Tmp.v1.x, spawnY + Tmp.v1.y);
+                    spawner.spawnUnit(group, spawnX + Tmp.v1().x, spawnY + Tmp.v1().y);
                 }
             }
         }

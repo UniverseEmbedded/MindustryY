@@ -188,7 +188,7 @@ public class ColoredFloor extends Floor{
     @Override
     public void drawPlanRegion(BuildPlan plan, Eachable<BuildPlan> list){
         if(plan.config instanceof Integer i){
-            Draw.tint(Tmp.c1.set(i | 0xff));
+            Draw.tint(Tmp.c1().set(i | 0xff));
         }
         drawDefaultPlanRegion(plan, list);
     }

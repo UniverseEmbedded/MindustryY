@@ -423,7 +423,7 @@ public class MobileInput extends InputHandler implements GestureListener{
                 plan.animScale = Mathf.lerpDelta(plan.animScale, 0.6f, 0.1f);
             }
 
-            Tmp.c1.set(Draw.getMixColor());
+            Tmp.c1().set(Draw.getMixColor());
 
             if(!plan.breaking && plan == lastPlaced && plan.block != null){
                 Draw.mixcol();
@@ -485,16 +485,16 @@ public class MobileInput extends InputHandler implements GestureListener{
 
     @Override
     protected int schemOriginX(){
-        Tmp.v1.setZero();
-        selectPlans.each(r -> Tmp.v1.add(r.drawx(), r.drawy()));
-        return World.toTile(Tmp.v1.scl(1f / selectPlans.size).x);
+        Tmp.v1().setZero();
+        selectPlans.each(r -> Tmp.v1().add(r.drawx(), r.drawy()));
+        return World.toTile(Tmp.v1().scl(1f / selectPlans.size).x);
     }
 
     @Override
     protected int schemOriginY(){
-        Tmp.v1.setZero();
-        selectPlans.each(r -> Tmp.v1.add(r.drawx(), r.drawy()));
-        return World.toTile(Tmp.v1.scl(1f / selectPlans.size).y);
+        Tmp.v1().setZero();
+        selectPlans.each(r -> Tmp.v1().add(r.drawx(), r.drawy()));
+        return World.toTile(Tmp.v1().scl(1f / selectPlans.size).y);
     }
 
     @Override
@@ -812,7 +812,7 @@ public class MobileInput extends InputHandler implements GestureListener{
         if(!Core.settings.getBool("keyboard") && !locked && !scene.hasKeyboard()){
             //move camera around
             float camSpeed = 6f;
-            Vec2 delta = Tmp.v1.setZero().add(Core.input.axis(Binding.moveX), Core.input.axis(Binding.moveY)).nor().scl(Time.delta * camSpeed);
+            Vec2 delta = Tmp.v1().setZero().add(Core.input.axis(Binding.moveX), Core.input.axis(Binding.moveY)).nor().scl(Time.delta() * camSpeed);
             Core.camera.position.add(delta);
             if(!delta.isZero()){
                 spectating = null;
@@ -1006,7 +1006,7 @@ public class MobileInput extends InputHandler implements GestureListener{
     //region movement
 
     protected void updateMovement(Unit unit){
-        Rect rect = Tmp.r3;
+        Rect rect = Tmp.r3();
 
         UnitType type = unit.type;
         if(type == null) return;
@@ -1045,7 +1045,7 @@ public class MobileInput extends InputHandler implements GestureListener{
             targetPos.set(payloadTarget);
             attractDst = 0f;
 
-            if(unit.within(payloadTarget, 3f * Time.delta)){
+            if(unit.within(payloadTarget, 3f * Time.delta())){
                 if(pay.hasPayload() && (payloadTarget instanceof Vec2 || (payloadTarget instanceof Building b && b.team == player.team() && b.acceptPayload(b, pay.payloads().peek())))){
                     //vec -> dropping something
                     tryDropPayload();
@@ -1104,7 +1104,7 @@ public class MobileInput extends InputHandler implements GestureListener{
                 //this may be a bad idea, aiming for a point far in front could work better, test it out
                 unit.aim(Core.input.mouseWorldX(), Core.input.mouseWorldY(), true);
             }else{
-                Vec2 intercept = player.unit().type.weapons.contains(w -> w.predictTarget) ? Predict.intercept(unit, target, type.weapons.first().bullet) : Tmp.v1.set(target);
+                Vec2 intercept = player.unit().type.weapons.contains(w -> w.predictTarget) ? Predict.intercept(unit, target, type.weapons.first().bullet) : Tmp.v1().set(target);
 
                 player.mouseX = intercept.x;
                 player.mouseY = intercept.y;

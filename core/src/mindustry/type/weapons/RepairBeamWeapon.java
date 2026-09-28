@@ -146,13 +146,13 @@ public class RepairBeamWeapon extends Weapon{
         heal.strength = Mathf.lerpDelta(heal.strength, Mathf.num(autoTarget ? mount.target != null : canShoot), 0.2f);
 
         //create heal effect periodically
-        if(canShoot && mount.target instanceof Building b && b.damaged() && (heal.effectTimer += Time.delta) >= reload){
+        if(canShoot && mount.target instanceof Building b && b.damaged() && (heal.effectTimer += Time.delta()) >= reload){
             healEffect.at(b.x, b.y, 0f, healColor, b.block);
             heal.effectTimer = 0f;
         }
 
         if(canShoot && mount.target instanceof Healthc u){
-            float baseAmount = repairSpeed * heal.strength * Time.delta + fractionRepairSpeed * heal.strength * Time.delta * u.maxHealth() / 100f;
+            float baseAmount = repairSpeed * heal.strength * Time.delta() + fractionRepairSpeed * heal.strength * Time.delta() * u.maxHealth() / 100f;
             u.heal((u instanceof Building b && b.wasRecentlyDamaged() ? recentDamageMultiplier : 1f) * baseAmount);
         }
     }

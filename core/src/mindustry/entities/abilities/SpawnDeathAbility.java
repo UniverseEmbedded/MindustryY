@@ -36,10 +36,10 @@ public class SpawnDeathAbility extends Ability{
         if(!Vars.net.client()){
             int spawned = amount + Mathf.random(randAmount);
             for(int i = 0; i < spawned; i++){
-                Tmp.v1.rnd(Mathf.random(spread));
-                var u = this.unit.spawn(unit.team, unit.x + Tmp.v1.x, unit.y + Tmp.v1.y);
+                Tmp.v1().rnd(Mathf.random(spread));
+                var u = this.unit.spawn(unit.team, unit.x + Tmp.v1().x, unit.y + Tmp.v1().y);
 
-                u.rotation = faceOutwards ? Tmp.v1.angle() : unit.rotation + Mathf.range(5f);
+                u.rotation = faceOutwards ? Tmp.v1().angle() : unit.rotation + Mathf.range(5f);
             }
         }
     }

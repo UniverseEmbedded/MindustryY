@@ -126,7 +126,7 @@ public class DrawTurret extends DrawBlock{
 
         if(liquid.found()){
             Liquid toDraw = liquidDraw == null ? build.liquids.current() : liquidDraw;
-            Drawf.liquid(liquid, build.x + build.recoilOffset.x, build.y + build.recoilOffset.y, build.liquids.get(toDraw) / block.liquidCapacity, toDraw.color.write(Tmp.c1).a(1f), build.drawrot());
+            Drawf.liquid(liquid, build.x + build.recoilOffset.x, build.y + build.recoilOffset.y, build.liquids.get(toDraw) / block.liquidCapacity, toDraw.color.write(Tmp.c1()).a(1f), build.drawrot());
         }
 
         if(top.found()){
@@ -137,7 +137,7 @@ public class DrawTurret extends DrawBlock{
     public void drawHeat(Turret block, TurretBuild build){
         if(build.heat <= 0.00001f || !heat.found()) return;
 
-        Drawf.additive(heat, block.heatColor.write(Tmp.c1).a(build.heat), build.x + build.recoilOffset.x, build.y + build.recoilOffset.y, build.drawrot(), heatLayer);
+        Drawf.additive(heat, block.heatColor.write(Tmp.c1()).a(build.heat), build.x + build.recoilOffset.x, build.y + build.recoilOffset.y, build.drawrot(), heatLayer);
     }
 
     /** Load any relevant texture regions. */

@@ -12,7 +12,7 @@ import static mindustry.Vars.*;
 
 public class AvoidanceProcess implements AsyncProcess{
     /** cached world size */
-    static int wwidth, wheight;
+    int wwidth, wheight;
 
     @Nullable int[] buffer1, buffer2;
     volatile boolean swap;
@@ -35,8 +35,8 @@ public class AvoidanceProcess implements AsyncProcess{
 
     @Override
     public void init(){
-        wwidth = Vars.world.width();
-        wheight = Vars.world.height();
+        wwidth = mindustry.Vars.game().world.width();
+        wheight = mindustry.Vars.game().world.height();
     }
 
     @Override
@@ -56,7 +56,7 @@ public class AvoidanceProcess implements AsyncProcess{
 
         avoidance = !swap ? buffer1 : buffer2;
 
-        for(var team : state.teams.present){
+        for(var team : mindustry.Vars.game().state.teams.present){
             //only do avoidance if it's relevant to the team
             if(team.team.isAI() && !team.team.rules().rtsAi){
                 for(var unit : team.units){

@@ -126,7 +126,7 @@ public class SolidPump extends Pump{
             if(efficiency > 0 && typeLiquid() < liquidCapacity - 0.001f){
                 float maxPump = Math.min(liquidCapacity - typeLiquid(), pumpAmount * delta() * fraction * efficiency);
                 liquids.add(result, maxPump);
-                lastPump = maxPump / Time.delta;
+                lastPump = maxPump / Time.delta();
                 warmup = Mathf.lerpDelta(warmup, 1f, 0.02f);
                 if(Mathf.chance(delta() * updateEffectChance))
                     updateEffect.at(x + Mathf.range(size * 2f), y + Mathf.range(size * 2f));

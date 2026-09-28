@@ -31,7 +31,7 @@ public class DrawBubbles extends DrawBlock{
         rand.setSeed(build.id);
         for(int i = 0; i < amount; i++){
             float x = rand.range(spread), y = rand.range(spread);
-            float life = 1f - ((Time.time / timeScl + rand.random(recurrence)) % recurrence);
+            float life = 1f - ((Time.time() / timeScl + rand.random(recurrence)) % recurrence);
 
             if(life > 0){
                 float rad = (1f - life) * radius;

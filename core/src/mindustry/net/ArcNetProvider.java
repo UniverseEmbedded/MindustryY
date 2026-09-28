@@ -13,6 +13,9 @@ import arc.util.Log.*;
 import arc.util.io.*;
 import mindustry.*;
 import mindustry.game.EventType.*;
+import mindustry.runtime.*;
+import mindustry.campaign.shared.net.*;
+import mindustry.campaign.shared.runtime.*;
 import mindustry.net.Administration.*;
 import mindustry.net.Net.*;
 import mindustry.net.Packets.*;
@@ -29,6 +32,7 @@ import static mindustry.Vars.*;
 public class ArcNetProvider implements NetProvider{
     public static final int clientReadBufferSize = 25_000;
 
+    private final GameContext owner = RuntimeContexts.requireCurrent();
     final Client client;
     final Prov<DatagramPacket> packetSupplier = () -> new DatagramPacket(new byte[512], 512);
 
@@ -36,36 +40,37 @@ public class ArcNetProvider implements NetProvider{
     final CopyOnWriteArrayList<ArcConnection> connections = new CopyOnWriteArrayList<>();
     Thread serverThread;
 
-    private static final LZ4SafeDecompressor decompressor = LZ4Factory.fastestInstance().safeDecompressor();
-    private static final LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
     private static final ThreadLocal<Seq<Connection>> writeConnections = Threads.local(Seq::new);
 
     private volatile int playerLimitCache, packetSpamLimit;
+    private volatile boolean tcpOnlyServer;
     private Ratekeeper clientUdpErrorRate = new Ratekeeper();
 
     public ArcNetProvider(){
         ArcNet.errorHandler = e -> {
+            var finalCause = Strings.getFinalCause(e);
+            // "connection is closed" is the routine EOF behind every remote close and carries no diagnostic value.
+            if(finalCause != null && "Connection is closed.".equals(finalCause.getMessage())) return;
             if(Log.level == LogLevel.debug){
-                var finalCause = Strings.getFinalCause(e);
-
-                //"connection is closed" is a pointless annoying error that should not be logged
-                if(!"Connection is closed.".equals(finalCause.getMessage())){
-                    Log.debug(Strings.getStackTrace(e));
-                }
+                Log.debug(Strings.getStackTrace(e));
+            }else{
+                // Send/serialize failures used to vanish at the default log level, so a server that dropped a
+                // client mid-join left no trace in any captured log. Keep the message, skip the stack.
+                Log.warn("Network error: @", finalCause == null ? String.valueOf(e) : finalCause.getMessage());
             }
         };
 
         //fetch this in the main thread to prevent threading issues
         Events.run(Trigger.update, () -> {
-            playerLimitCache = netServer.admins.getPlayerLimit();
+            playerLimitCache = owner.netServer.admins.getPlayerLimit();
             packetSpamLimit = Config.packetSpamLimit.num();
         });
 
-        client = new Client(16384, clientReadBufferSize, new PacketSerializer()){
+        client = new Client(16384, clientReadBufferSize, new PacketSerializer(owner)){
             @Override
             public void handleNetException(ArcNetException e){
                 //allow occasional UDP network errors
-                if(net.client() && e.getMessage() != null && e.getMessage().contains("UDP deserialization") && clientUdpErrorRate.allow(5000, 5)){
+                if(owner.net.client() && e.getMessage() != null && e.getMessage().contains("UDP deserialization") && clientUdpErrorRate.allow(5000, 5)){
                     Log.err("UDP network error", e);
                 }else{
                     super.handleNetException(e);
@@ -80,29 +85,29 @@ public class ArcNetProvider implements NetProvider{
                 c.addressTCP = connection.getRemoteAddressTCP().getAddress().getHostAddress();
                 if(connection.getRemoteAddressTCP() != null) c.addressTCP = connection.getRemoteAddressTCP().toString();
 
-                Core.app.post(() -> net.handleClientReceived(c));
+                postOwner(() -> owner.net.handleClientReceived(c));
             }
 
             @Override
             public void disconnected(Connection connection, DcReason reason){
                 if(connection.getLastProtocolError() != null){
-                    netClient.setQuiet();
+                    owner.netClient.setQuiet();
                 }
 
                 Disconnect c = new Disconnect();
                 c.reason = reason.toString();
-                Core.app.post(() -> net.handleClientReceived(c));
+                postOwner(() -> owner.net.handleClientReceived(c));
             }
 
             @Override
             public void received(Connection connection, Object object){
                 if(!(object instanceof Packet p)) return;
 
-                Core.app.post(() -> {
+                postOwner(() -> {
                     try{
-                        net.handleClientReceived(p);
+                        owner.net.handleClientReceived(p);
                     }catch(Throwable e){
-                        net.handleException(e);
+                        owner.net.handleException(e);
                     }
                 });
 
@@ -110,14 +115,21 @@ public class ArcNetProvider implements NetProvider{
         });
 
         //include extra 16kb headroom for when the write buffer is full
-        server = new Server(clientReadBufferSize + 16_000, 16384, new PacketSerializer());
+        server = new Server(clientReadBufferSize + 16_000, 16384, new PacketSerializer(owner));
         server.setMulticast(multicastGroup, multicastPort);
         server.setDiscoveryHandler((address, handler) -> {
-            ByteBuffer buffer = NetworkIO.writeServerData();
-            int length = buffer.position();
-            buffer.position(0);
-            buffer.limit(length);
-            handler.respond(buffer);
+            // ArcNet invokes discovery handlers from its own multicast thread. Server-data serialization touches
+            // Groups/rules and therefore must execute under this provider's authoritative runtime owner.
+            if(!owner.acceptingWork()) return;
+            try(RuntimeContexts.Scope ignored = RuntimeContexts.enter(owner)){
+                ByteBuffer buffer = NetworkIO.writeServerData();
+                int length = buffer.position();
+                buffer.position(0);
+                buffer.limit(length);
+                handler.respond(buffer);
+            }catch(java.util.concurrent.RejectedExecutionException ignored){
+                // The owner entered teardown between the acceptingWork check and binding. Discovery is optional.
+            }
         });
 
         server.addListener(new NetListener(){
@@ -127,7 +139,7 @@ public class ArcNetProvider implements NetProvider{
                 String ip = connection.getRemoteAddressTCP().getAddress().getHostAddress();
 
                 //kill connections above the limit to prevent spam
-                if((playerLimitCache > 0 && server.getConnections().length > playerLimitCache) || netServer.admins.isDosBlacklisted(ip)){
+                if((playerLimitCache > 0 && server.getConnections().length > playerLimitCache) || owner.netServer.admins.isDosBlacklisted(ip)){
                     Log.info("Closing connection @ - IP marked as a potential DOS attack.", ip);
 
                     connection.close(DcReason.closed);
@@ -143,7 +155,7 @@ public class ArcNetProvider implements NetProvider{
 
                 connection.setArbitraryData(kn);
                 connections.add(kn);
-                Core.app.post(() -> net.handleServerReceived(kn, c));
+                postOwner(() -> owner.net.handleServerReceived(kn, c));
             }
 
             @Override
@@ -153,8 +165,8 @@ public class ArcNetProvider implements NetProvider{
                 Disconnect c = new Disconnect();
                 c.reason = reason.toString();
 
-                Core.app.post(() -> {
-                    net.handleServerReceived(k, c);
+                postOwner(() -> {
+                    owner.net.handleServerReceived(k, c);
                     connections.remove(k);
                 });
             }
@@ -172,9 +184,9 @@ public class ArcNetProvider implements NetProvider{
 
                 if(!(object instanceof Packet pack)) return;
 
-                Core.app.post(() -> {
+                postOwner(() -> {
                     try{
-                        net.handleServerReceived(k, pack);
+                        owner.net.handleServerReceived(k, pack);
                     }catch(Throwable e){
                         long time = Time.millis();
                         //only kick due to errors if there are two within a short span of time
@@ -189,6 +201,19 @@ public class ArcNetProvider implements NetProvider{
                 });
             }
         });
+    }
+
+    /** Routes transport callbacks back into this provider's owning GameContext. */
+    private void postOwner(Runnable runnable){
+        // Transport shutdown may synchronously notify listeners after GameContext.dispose() has entered its closing
+        // phase. Such late notifications are intentionally not game work and must never abort socket cleanup merely
+        // because RuntimeContexts correctly rejects new callbacks for a closing owner.
+        if(!owner.acceptingWork()) return;
+        try{
+            RuntimeContexts.post(owner, runnable);
+        }catch(RejectedExecutionException ignored){
+            // The owner can cross into closing between the optimistic check and queue insertion.
+        }
     }
 
     @Override
@@ -215,27 +240,32 @@ public class ArcNetProvider implements NetProvider{
     public void connectClient(String ip, int port, Runnable success){
         clientUdpErrorRate.reset();
 
-        Threads.daemon(() -> {
+        Threads.daemon(RuntimeContexts.capture(owner, () -> {
             try{
-                //just in case
                 client.stop();
 
-                Threads.daemon("Net Client", () -> {
+                Threads.daemon("Net Client", RuntimeContexts.capture(owner, () -> {
                     try{
                         client.run();
                     }catch(Exception e){
-                        if(!(e instanceof ClosedSelectorException)) net.handleException(e);
+                        if(!(e instanceof ClosedSelectorException)) owner.net.handleException(e);
                     }
-                });
+                }));
 
-                client.connect(5000, ip, port, port);
+                SharedCampaignNet network = SharedCampaignNet.find(owner);
+                byte[] brokerPreface = network == null ? null : network.clientConnectionPreamble();
+                if(brokerPreface != null){
+                    client.connect(5000, InetAddress.getByName(ip), port, -1, brokerPreface);
+                }else{
+                    client.connect(5000, ip, port, port);
+                }
                 success.run();
             }catch(Exception e){
-                if(netClient.isConnecting()){
-                    net.handleException(e);
-                }
+                SharedCampaignNet network = SharedCampaignNet.find(owner);
+                if(network != null) network.clearPreparedJoin();
+                if(owner.netClient != null && owner.netClient.isConnecting()) owner.net.handleException(e);
             }
-        });
+        }));
     }
 
     @Override
@@ -246,15 +276,16 @@ public class ArcNetProvider implements NetProvider{
 
     @Override
     public void sendClient(Object object, boolean reliable){
+        // A same-TCP Shared Campaign switch deliberately detaches ArcNet for a short interval.
+        if(!client.isConnected()) return;
         try{
-            if(reliable){
+            if(reliable || client.getRemoteAddressUDP() == null){
                 client.sendTCP(object);
             }else{
                 client.sendUDP(object);
             }
-            //sending things can cause an under/overflow, catch it and disconnect instead of crashing
         }catch(BufferOverflowException | BufferUnderflowException e){
-            net.showError(e);
+            owner.net.showError(e);
         }
     }
 
@@ -262,19 +293,19 @@ public class ArcNetProvider implements NetProvider{
     public void pingHost(String address, int port, Cons<Host> valid, Cons<Exception> invalid){
         try{
             var host = pingHostImpl(address, port);
-            Core.app.post(() -> valid.get(host));
+            postOwner(() -> valid.get(host));
         }catch(IOException e){
             if(port == Vars.port){
                 for(var record : ArcDns.getSrvRecords("_mindustry._tcp." + address)){
                     try{
                         var host = pingHostImpl(record.target, record.port);
-                        Core.app.post(() -> valid.get(host));
+                        postOwner(() -> valid.get(host));
                         return;
                     }catch(IOException ignored){
                     }
                 }
             }
-            Core.app.post(() -> invalid.get(e));
+            postOwner(() -> invalid.get(e));
         }
     }
 
@@ -308,20 +339,39 @@ public class ArcNetProvider implements NetProvider{
                     }
                     ByteBuffer buffer = ByteBuffer.wrap(packet.getData());
                     Host host = NetworkIO.readServerData((int)Time.timeSinceMillis(time), packet.getAddress().getHostAddress(), buffer);
-                    Core.app.post(() -> callback.get(host));
+                    postOwner(() -> callback.get(host));
                     foundAddresses.add(packet.getAddress());
                 }catch(Exception e){
                     //don't crash when there's an error pinging a server or parsing data
                     e.printStackTrace();
                 }
             }
-        }, () -> Core.app.post(done));
+        }, () -> postOwner(done));
     }
 
     @Override
     public void dispose(){
         disconnectClient();
-        closeServer();
+
+        // GameContext disposal is a terminal lifecycle boundary, unlike an ordinary Net.closeServer() call.
+        // Do not enqueue the stop on Vars.mainExecutor here: in-process Action runtimes may be disposed from
+        // their scheduler worker after a crash, while the primary application thread is not pumping that executor.
+        // Leaving the stop queued keeps the sector listener bound and prevents the recovered/replacement Action
+        // from reclaiming its port. ArcNet Server.stop() closes the listening channels synchronously and is safe
+        // to invoke from outside the server update thread.
+        connections.clear();
+        tcpOnlyServer = false;
+        server.stop();
+
+        Thread thread = serverThread;
+        if(thread != null && thread != Thread.currentThread()){
+            try{
+                thread.join(2000L);
+            }catch(InterruptedException interrupted){
+                Thread.currentThread().interrupt();
+            }
+        }
+
         try{
             client.dispose();
         }catch(IOException ignored){
@@ -344,7 +394,7 @@ public class ArcNetProvider implements NetProvider{
             }
         }
 
-        if(reliable){
+        if(reliable || tcpOnlyServer){
             server.sendToAllTCP(object, cons);
         }else{
             server.sendToAllUDP(object, cons);
@@ -355,7 +405,7 @@ public class ArcNetProvider implements NetProvider{
 
     @Override
     public void sendAllServer(Object object, boolean reliable){
-        if(reliable){
+        if(reliable || tcpOnlyServer){
             server.sendToAllTCP(object);
         }else{
             server.sendToAllUDP(object);
@@ -369,7 +419,7 @@ public class ArcNetProvider implements NetProvider{
             return;
         }
 
-        if(reliable){
+        if(reliable || tcpOnlyServer){
             server.sendToAllExceptTCP(con.connection.getID(), object);
         }else{
             server.sendToAllExceptUDP(con.connection.getID(), object);
@@ -379,22 +429,66 @@ public class ArcNetProvider implements NetProvider{
     @Override
     public void hostServer(int port) throws IOException{
         connections.clear();
-        server.bind(port, port);
+        SharedCampaignRuntimeState shared = SharedCampaignRuntimeState.find(owner);
+        tcpOnlyServer = shared != null && shared.actionEnabled();
+        if(tcpOnlyServer){
+            // Shared Action traffic is application-level TCP-only so broker-injected connections do not depend on
+            // a UDP side channel. Still bind UDP on the loopback game port: an unmodified Mindustry/ArcNet client
+            // performs the normal TCP+UDP registration sequence before it can consume a vanilla Call.connect
+            // redirect. Keeping the UDP listener available makes the direct compatibility lane genuinely vanilla
+            // while all Action payloads continue to use TCP because tcpOnlyServer remains true.
+            InetSocketAddress loopback = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
+            server.bind(loopback, loopback);
+        }else{
+            server.bind(port, port);
+        }
 
-        serverThread = new Thread(() -> {
+        serverThread = new Thread(RuntimeContexts.capture(owner, () -> {
             try{
                 server.run();
             }catch(Throwable e){
                 if(!(e instanceof ClosedSelectorException)) Threads.throwAppException(e);
             }
-        }, "Net Server");
+        }), "Net Server");
         serverThread.setDaemon(true);
         serverThread.start();
     }
 
     @Override
+    public void injectExternalConnection(SocketChannel channel, ByteBuffer preRead){
+        server.injectExternalConnection(channel, preRead);
+    }
+
+    @Override
+    public SocketChannel detachClientChannel(){
+        return client.detachTcpChannel();
+    }
+
+    @Override
+    public void rebindClientChannel(SocketChannel channel, Runnable success, Cons<Throwable> failure){
+        clientUdpErrorRate.reset();
+        Threads.daemon(RuntimeContexts.capture(owner, () -> {
+            try{
+                Threads.daemon("Net Client", RuntimeContexts.capture(owner, () -> {
+                    try{ client.run(); }
+                    catch(Exception e){ if(!(e instanceof ClosedSelectorException)) owner.net.handleException(e); }
+                }));
+                client.connectDetached(5000, channel);
+                success.run();
+            }catch(Exception e){
+                try{ channel.close(); }catch(IOException ignored){}
+                SharedCampaignNet network = SharedCampaignNet.find(owner);
+                if(network != null) network.clearPreparedJoin();
+                if(failure != null) failure.get(e);
+                if(owner.netClient != null && owner.netClient.isConnecting()) owner.net.handleException(e);
+            }
+        }));
+    }
+
+    @Override
     public void closeServer(){
         connections.clear();
+        tcpOnlyServer = false;
         mainExecutor.submit(server::stop);
     }
 
@@ -420,7 +514,7 @@ public class ArcNetProvider implements NetProvider{
             //Blacklist UDP address
             var address = connection.getRemoteAddressUDP();
             if(address != null){
-                netServer.admins.blacklistDos(address.getAddress().getHostAddress());
+                owner.netServer.admins.blacklistDos(address.getAddress().getHostAddress());
             }
         }
 
@@ -454,7 +548,7 @@ public class ArcNetProvider implements NetProvider{
         public void send(Object object, boolean reliable){
             try{
                 if(connection.isConnected()){
-                    if(reliable){
+                    if(reliable || tcpOnlyServer || connection.getRemoteAddressUDP() == null){
                         connection.sendTCP(object);
                     }else{
                         connection.sendUDP(object);
@@ -477,6 +571,13 @@ public class ArcNetProvider implements NetProvider{
     }
 
     public static class PacketSerializer implements NetSerializer{
+        private final GameContext owner;
+        private final LZ4SafeDecompressor decompressor = LZ4Factory.fastestInstance().safeDecompressor();
+        private final LZ4Compressor compressor = LZ4Factory.fastestInstance().fastCompressor();
+
+        public PacketSerializer(){ this(RuntimeContexts.requireCurrent()); }
+        public PacketSerializer(GameContext owner){ this.owner = owner; }
+
         //for debugging total read/write speeds
         private static final boolean debug = false;
 
@@ -485,9 +586,9 @@ public class ArcNetProvider implements NetProvider{
         ThreadLocal<Writes> writes = Threads.local(() -> new Writes(new ByteBufferOutput(decompressBuffer.get())));
 
         //for debugging network write counts
-        static WindowedMean upload = new WindowedMean(5), download = new WindowedMean(5);
-        static long lastUpload, lastDownload, uploadAccum, downloadAccum;
-        static int lastPos;
+        final WindowedMean upload = new WindowedMean(5), download = new WindowedMean(5);
+        long lastUpload, lastDownload, uploadAccum, downloadAccum;
+        int lastPos;
 
         @Override
         public Object read(ByteBuffer byteBuffer){
@@ -510,7 +611,7 @@ public class ArcNetProvider implements NetProvider{
             }else{
                 //read length int, followed by compressed lz4 data
                 Packet packet = Net.newPacket(id);
-                if(!packet.allow(net.server())) throw new RuntimeException("Invalid packet type for endpoint: " + packet.getClass());
+                if(!packet.allow(owner.net.server())) throw new RuntimeException("Invalid packet type for endpoint: " + packet.getClass());
                 var buffer = decompressBuffer.get();
                 int length = byteBuffer.getShort() & 0xffff;
                 byte compression = byteBuffer.get();

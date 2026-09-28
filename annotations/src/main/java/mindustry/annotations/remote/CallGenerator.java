@@ -128,7 +128,7 @@ public class CallGenerator{
             boolean writePlayerSkipCheck = ent.where == Loc.both && i == 0;
 
             if(writePlayerSkipCheck){ //write begin check
-                builder.beginControlFlow("if(mindustry.Vars.net.server())");
+                builder.beginControlFlow("if(mindustry.Vars.game().net.server())");
             }
 
             if(BaseProcessor.isPrimitive(typeName)){ //check if it's a primitive, and if so write it
@@ -187,7 +187,7 @@ public class CallGenerator{
             boolean writePlayerSkipCheck = ent.where == Loc.both && i == 0;
 
             if(writePlayerSkipCheck){ //write begin check
-                builder.beginControlFlow("if(mindustry.Vars.net.client())");
+                builder.beginControlFlow("if(mindustry.Vars.game().net.client())");
             }
 
             //full type name of parameter
@@ -262,7 +262,7 @@ public class CallGenerator{
         if(!forwarded && ent.local != Loc.none){
             //add in local checks
             if(ent.local != Loc.both){
-                method.beginControlFlow("if(" + getCheckString(ent.local) + " || !mindustry.Vars.net.active())");
+                method.beginControlFlow("if(" + getCheckString(ent.local) + " || !mindustry.Vars.game().net.active())");
             }
 
             //concatenate parameters
@@ -313,7 +313,7 @@ public class CallGenerator{
             boolean writePlayerSkipCheck = ent.where == Loc.both && i == 0;
 
             if(writePlayerSkipCheck){ //write begin check
-                method.beginControlFlow("if(mindustry.Vars.net.server())");
+                method.beginControlFlow("if(mindustry.Vars.game().net.server())");
             }
 
             method.addStatement("packet.$L = $L", varName, varName);
@@ -327,12 +327,12 @@ public class CallGenerator{
 
         if(forwarded){ //forward packet
             if(!ent.local.isClient){ //if the client doesn't get it called locally, forward it back after validation
-                sendString = "mindustry.Vars.net.send(";
+                sendString = "mindustry.Vars.game().net.send(";
             }else{
-                sendString = "mindustry.Vars.net.sendExcept(exceptConnection, ";
+                sendString = "mindustry.Vars.game().net.sendExcept(exceptConnection, ";
             }
         }else if(toAll){ //send to all players / to server
-            sendString = "mindustry.Vars.net.send(";
+            sendString = "mindustry.Vars.game().net.send(";
         }else{ //send to specific client from server
             sendString = "playerConnection.send(";
         }
@@ -350,9 +350,9 @@ public class CallGenerator{
 
     private static String getCheckString(Loc loc){
         return
-            loc.isClient && loc.isServer ? "mindustry.Vars.net.server() || mindustry.Vars.net.client()" :
-            loc.isClient ? "mindustry.Vars.net.client()" :
-            loc.isServer ? "mindustry.Vars.net.server()" : "false";
+            loc.isClient && loc.isServer ? "mindustry.Vars.game().net.server() || mindustry.Vars.game().net.client()" :
+            loc.isClient ? "mindustry.Vars.game().net.client()" :
+            loc.isServer ? "mindustry.Vars.game().net.server()" : "false";
     }
 
     /** Generates handleServer / handleClient methods. */

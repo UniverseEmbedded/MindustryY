@@ -558,9 +558,9 @@ public class MapObjectivesDialog extends BaseDialog{
             Vec2 pos = screenToLocalCoordinates(Core.input.mouse());
             int pasteX = Mathf.round((pos.x - objWidth * canvas.unitSize / 2f) / canvas.unitSize);
             int pasteY = Mathf.floor((pos.y - canvas.unitSize) / canvas.unitSize);
-            Tmp.r1.set(pasteX, pasteY, 1, 1).grow(-0.001f);
+            Tmp.r1().set(pasteX, pasteY, 1, 1).grow(-0.001f);
             for(var obj : canvas.objectives){
-                if(Tmp.r2.set(obj.editorX - 2, obj.editorY - 1, objWidth, objHeight).overlaps(Tmp.r1)){
+                if(Tmp.r2().set(obj.editorX - 2, obj.editorY - 1, objWidth, objHeight).overlaps(Tmp.r1())){
                     Core.app.setClipboardText(JsonIO.json.toJson(obj, Object.class));
                     break;
                 }

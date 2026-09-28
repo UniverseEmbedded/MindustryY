@@ -33,7 +33,7 @@ abstract class TankComp implements Posc, Hitboxc, Unitc, ElevationMovec{
     public void update(){
         //dust
         if((walked || (net.client() && deltaLen() >= 0.01f)) && !headless && !inFogTo(player.team())){
-            treadEffectTime += Time.delta;
+            treadEffectTime += Time.delta();
             if(treadEffectTime >= 6f && type.treadRects.length > 0){
                 //first rect should always be at the back
                 var treadRect = type.treadRects[0];
@@ -42,10 +42,10 @@ abstract class TankComp implements Posc, Hitboxc, Unitc, ElevationMovec{
                 float yOffset = (-(treadRect.y + treadRect.height/2f)) / 4f;
 
                 for(int i : Mathf.signs){
-                    Tmp.v1.set(xOffset * i, yOffset - treadRect.height / 2f / 4f).rotate(rotation - 90);
+                    Tmp.v1().set(xOffset * i, yOffset - treadRect.height / 2f / 4f).rotate(rotation - 90);
 
                     //TODO could fin for a while
-                    Effect.floorDustAngle(type.treadEffect, Tmp.v1.x + x, Tmp.v1.y + y, rotation + 180f);
+                    Effect.floorDustAngle(type.treadEffect, Tmp.v1().x + x, Tmp.v1().y + y, rotation + 180f);
                 }
 
                 treadEffectTime = 0f;
@@ -89,7 +89,7 @@ abstract class TankComp implements Posc, Hitboxc, Unitc, ElevationMovec{
                     && Math.max(Math.abs(dx), Math.abs(dy)) <= r - 1){
 
                     if(t.build != null && t.build.team != team){
-                        t.build.damage(team, type.crushDamage * Time.delta * t.block().crushDamageMultiplier * state.rules.unitDamage(team)
+                        t.build.damage(team, type.crushDamage * Time.delta() * t.block().crushDamageMultiplier * state.rules.unitDamage(team)
                                 * ((speedMultiplier- 1) / 5 + 1));
                     }else if(t.block().unitMoveBreakable){
                         ConstructBlock.deconstructFinish(t, t.block(), self());

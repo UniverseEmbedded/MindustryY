@@ -136,7 +136,7 @@ public class LandingPad extends Block{
     public class LandingPadBuild extends Building{
         public @Nullable Item config;
         //priority collisions are possible, but should be extremely rare
-        public int priority = Mathf.rand.nextInt();
+        public int priority = Mathf.rand().nextInt();
         public float cooldown = 0f, landParticleTimer;
 
         public float arrivingTimer = 0f;
@@ -173,7 +173,7 @@ public class LandingPad extends Block{
                     if(importedPerFrame > 0f){
                         float framesBetweenArrival = itemCapacity / importedPerFrame;
 
-                        state.rules.sector.info.importCooldownTimers.increment(item, 0f, 1f / framesBetweenArrival * Time.delta);
+                        state.rules.sector.info.importCooldownTimers.increment(item, 0f, 1f / framesBetweenArrival * Time.delta());
                     }else{
                         //nothing is being imported, so reset the timer
                         state.rules.sector.info.importCooldownTimers.put(item, 0f);
@@ -228,7 +228,7 @@ public class LandingPad extends Block{
 
                 float rad = 0.15f + Interp.pow5Out.apply(Mathf.slope(fin));
 
-                Fill.light(cx, cy, 10, 25f * (rad + scale-1f), Tmp.c2.set(Pal.engine).a(alpha), Tmp.c1.set(Pal.engine).a(0f));
+                Fill.light(cx, cy, 10, 25f * (rad + scale-1f), Tmp.c2().set(Pal.engine).a(alpha), Tmp.c1().set(Pal.engine).a(0f));
 
                 Draw.alpha(alpha);
                 for(int i = 0; i < 4; i++){
@@ -246,12 +246,12 @@ public class LandingPad extends Block{
                 Drawf.shadow(cx, cy, size * tilesize, fin);
                 Draw.rect(podRegion, cx, cy, rw, rh, rotation);
 
-                Tmp.v1.trns(225f, Interp.pow3In.apply(fout) * 250f);
+                Tmp.v1().trns(225f, Interp.pow3In.apply(fout) * 250f);
 
                 Draw.z(Layer.flyingUnit + 1);
                 Draw.color(0, 0, 0, 0.22f * alpha);
 
-                Draw.rect(podRegion, cx + Tmp.v1.x, cy + Tmp.v1.y, rw, rh, rotation);
+                Draw.rect(podRegion, cx + Tmp.v1().x, cy + Tmp.v1().y, rw, rh, rotation);
 
             }else if(cooldown > 0f){
 
@@ -278,11 +278,11 @@ public class LandingPad extends Block{
                     float fin = arrivingTimer;
                     float tsize = Interp.pow5Out.apply(fin);
 
-                    landParticleTimer += tsize * Time.delta / 2f;
+                    landParticleTimer += tsize * Time.delta() / 2f;
                     if(landParticleTimer >= 1f){
                         tile.getLinkedTiles(t -> {
                             if(Mathf.chance(0.1f)){
-                                Fx.podLandDust.at(t.worldx(), t.worldy(), angleTo(t.worldx(), t.worldy()) + Mathf.range(30f), Tmp.c1.set(t.floor().mapColor).mul(1.5f + Mathf.range(0.15f)));
+                                Fx.podLandDust.at(t.worldx(), t.worldy(), angleTo(t.worldx(), t.worldy()) + Mathf.range(30f), Tmp.c1().set(t.floor().mapColor).mul(1.5f + Mathf.range(0.15f)));
                             }
                         });
 
@@ -290,9 +290,9 @@ public class LandingPad extends Block{
                     }
                 }
 
-                arrivingTimer += Time.delta / arrivalDuration;
+                arrivingTimer += Time.delta() / arrivalDuration;
 
-                float toRemove = Math.min(consumeLiquidAmount / arrivalDuration * Time.delta, consumeLiquidAmount - liquidRemoved);
+                float toRemove = Math.min(consumeLiquidAmount / arrivalDuration * Time.delta(), consumeLiquidAmount - liquidRemoved);
                 liquidRemoved += toRemove;
 
                 liquids.remove(consumeLiquid, toRemove);

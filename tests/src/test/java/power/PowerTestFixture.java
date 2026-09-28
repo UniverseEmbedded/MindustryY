@@ -24,6 +24,8 @@ public class PowerTestFixture{
 
     @BeforeAll
     static void initializeDependencies(){
+        // Runtime forks require an explicitly bound GameContext before any Groups/Content access.
+        mindustry.runtime.RuntimeContexts.bindPrimaryThread();
         headless = true;
         Core.files = new MockFiles();
         Groups.init();
@@ -34,6 +36,8 @@ public class PowerTestFixture{
             Vars.content = new ContentLoader();
         }
         Vars.state = new GameState();
+        // Runtime forks read Vars.game().state (the bound context's field), not the legacy static alone.
+        Vars.game().state = Vars.state;
         Vars.tree = new FileTree();
         if(make){
             content.createBaseContent();

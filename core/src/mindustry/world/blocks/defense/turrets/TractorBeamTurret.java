@@ -81,7 +81,7 @@ public class TractorBeamTurret extends BaseTurret{
         @Override
         public void updateTile(){
             if(activationTimer > 0){
-                activationTimer -= Time.delta;
+                activationTimer -= Time.delta();
                 return;
             }
 
@@ -98,7 +98,7 @@ public class TractorBeamTurret extends BaseTurret{
 
                 Liquid liquid = liquids.current();
 
-                float used = Math.min(Math.min(liquids.get(liquid), maxUsed * Time.delta), Math.max(0, (1f / coolantMultiplier) / liquid.heatCapacity));
+                float used = Math.min(Math.min(liquids.get(liquid), maxUsed * Time.delta()), Math.max(0, (1f / coolantMultiplier) / liquid.heatCapacity));
 
                 liquids.remove(liquid, used);
 
@@ -134,7 +134,7 @@ public class TractorBeamTurret extends BaseTurret{
                     }
 
                     any = true;
-                    target.impulseNet(Tmp.v1.set(this).sub(target).limit((force + (1f - target.dst(this) / range) * scaledForce) * edelta));
+                    target.impulseNet(Tmp.v1().set(this).sub(target).limit((force + (1f - target.dst(this) / range) * scaledForce) * edelta));
                 }
             }else{
                 strength = Mathf.lerpDelta(strength, 0, 0.1f);

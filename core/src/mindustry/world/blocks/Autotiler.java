@@ -58,7 +58,7 @@ public interface Autotiler{
 
     /** @return The top half of the input */
     default TextureRegion topHalf(TextureRegion input){
-        TextureRegion region = Tmp.tr1;
+        TextureRegion region = Tmp.tr1();
         region.set(input);
         region.setWidth(region.width / 2);
         return region;
@@ -66,7 +66,7 @@ public interface Autotiler{
 
     /** @return The bottom half of the input */
     default TextureRegion botHalf(TextureRegion input){
-        TextureRegion region = Tmp.tr1;
+        TextureRegion region = Tmp.tr1();
         region.set(input);
         int width = region.width;
         region.setWidth(width / 2);

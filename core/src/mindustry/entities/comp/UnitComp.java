@@ -94,13 +94,13 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
     }
 
     public void wobble(){
-        x += Mathf.sin(Time.time + (id % 10) * 12, 25f, 0.05f) * Time.delta * elevation;
-        y += Mathf.cos(Time.time + (id % 10) * 12, 25f, 0.05f) * Time.delta * elevation;
+        x += Mathf.sin(Time.time() + (id % 10) * 12, 25f, 0.05f) * Time.delta() * elevation;
+        y += Mathf.cos(Time.time() + (id % 10) * 12, 25f, 0.05f) * Time.delta() * elevation;
     }
 
     public void moveAt(Vec2 vector, float acceleration){
         Vec2 t = tmp1.set(vector); //target vector
-        tmp2.set(t).sub(vel).limit(acceleration * vector.len() * Time.delta); //delta vector
+        tmp2.set(t).sub(vel).limit(acceleration * vector.len() * Time.delta()); //delta vector
         vel.add(tmp2);
     }
 
@@ -146,10 +146,10 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
     }
 
     public void rotateMove(Vec2 vec){
-        moveAt(Tmp.v2.trns(rotation, vec.len()));
+        moveAt(Tmp.v2().trns(rotation, vec.len()));
 
         if(!vec.isZero()){
-            rotation = Angles.moveToward(rotation, vec.angle(), type.rotateSpeed * Time.delta * speedMultiplier);
+            rotation = Angles.moveToward(rotation, vec.angle(), type.rotateSpeed * Time.delta() * speedMultiplier);
         }
     }
 
@@ -488,7 +488,7 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
     }
 
     public void lookAt(float angle){
-        rotation = Angles.moveToward(rotation, angle, type.rotateSpeed * Time.delta * speedMultiplier());
+        rotation = Angles.moveToward(rotation, angle, type.rotateSpeed * Time.delta() * speedMultiplier());
     }
 
     public void lookAt(Position pos){
@@ -606,7 +606,7 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
             team.data().updateCount(type, -1);
         }
 
-        Vars.unitPhysics.add(self());
+        Vars.game().unitPhysics.add(self());
 
     }
 
@@ -642,7 +642,7 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
 
         if(floor != null && floor.isLiquid && floor.drownTime > 0 && canDrown()){
             lastDrownFloor = floor;
-            drownTime += Time.delta / (hitSize / 8f * type.drownTimeMultiplier * floor.drownTime);
+            drownTime += Time.delta() / (hitSize / 8f * type.drownTimeMultiplier * floor.drownTime);
             if(Mathf.chanceDelta(0.05f)){
                 floor.drownUpdateEffect.at(x, y, hitSize, floor.mapColor);
             }
@@ -652,7 +652,7 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
                 Events.fire(new UnitDrownEvent(self()));
             }
         }else{
-            drownTime -= Time.delta / 50f;
+            drownTime -= Time.delta() / 50f;
         }
 
         drownTime = Mathf.clamp(drownTime);
@@ -693,9 +693,9 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
                 if(y > top - tilesize) dy -= (y - (top - tilesize))/warpDst;
 
                 //cap velocity to prevent infinity when using timecontrol or similar mods
-                float maxMagnitude = 10f / Math.max(Time.delta, 1f);
+                float maxMagnitude = 10f / Math.max(Time.delta(), 1f);
 
-                velAddNet(Mathf.clamp(dx * Time.delta, -maxMagnitude, maxMagnitude), Mathf.clamp(dy * Time.delta, -maxMagnitude, maxMagnitude));
+                velAddNet(Mathf.clamp(dx * Time.delta(), -maxMagnitude, maxMagnitude), Mathf.clamp(dy * Time.delta(), -maxMagnitude, maxMagnitude));
                 float margin = tilesize * 1f;
                 x = Mathf.clamp(x, left - margin, right - tilesize + margin);
                 y = Mathf.clamp(y, bot - margin, top - tilesize + margin);
@@ -749,7 +749,7 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
         if(wasHealed && healTime <= -1f){
             healTime = 1f;
         }
-        healTime -= Time.delta / 20f;
+        healTime -= Time.delta() / 20f;
         wasHealed = false;
 
         //die on captured sectors immediately
@@ -793,7 +793,7 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
             float relativeSize = state.rules.dropZoneRadius + hitSize/2f + 1f;
             for(Tile spawn : spawner.getSpawns()){
                 if(within(spawn.worldx(), spawn.worldy(), relativeSize)){
-                    velAddNet(Tmp.v1.set(this).sub(spawn.worldx(), spawn.worldy()).setLength(0.1f + 1f - dst(spawn) / relativeSize).scl(0.45f * Time.delta));
+                    velAddNet(Tmp.v1().set(this).sub(spawn.worldx(), spawn.worldy()).setLength(0.1f + 1f - dst(spawn) / relativeSize).scl(0.45f * Time.delta()));
                 }
             }
         }
@@ -805,8 +805,8 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
 
             //standard fall smoke
             if(Mathf.chanceDelta(0.1)){
-                Tmp.v1.rnd(Mathf.range(hitSize));
-                type.fallEffect.at(x + Tmp.v1.x, y + Tmp.v1.y);
+                Tmp.v1().rnd(Mathf.range(hitSize));
+                type.fallEffect.at(x + Tmp.v1().x, y + Tmp.v1().y);
             }
 
             //thruster fall trail
@@ -821,7 +821,7 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
             }
 
             //move down
-            elevation -= type.fallSpeed * Time.delta;
+            elevation -= type.fallSpeed * Time.delta();
 
             if(isGrounded() || health <= -maxHealth * type.wreckHealthMultiplier){
                 Call.unitDestroy(id);
@@ -932,8 +932,8 @@ abstract class UnitComp implements Healthc, Physicsc, Hitboxc, Statusc, Teamc, I
             for(int i = 0; i < type.wreckRegions.length; i++){
                 if(type.wreckRegions[i].found()){
                     float range = type.hitSize /4f;
-                    Tmp.v1.rnd(range);
-                    Effect.decal(type.wreckRegions[i], x + Tmp.v1.x, y + Tmp.v1.y, rotation - 90);
+                    Tmp.v1().rnd(range);
+                    Effect.decal(type.wreckRegions[i], x + Tmp.v1().x, y + Tmp.v1().y, rotation - 90);
                 }
             }
         }

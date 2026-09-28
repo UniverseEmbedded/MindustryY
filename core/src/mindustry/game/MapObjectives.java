@@ -190,6 +190,8 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
         /** Temporary container to store references since this class is static. Will immediately be flattened. */
         private transient final Seq<MapObjective> children = new Seq<>(2);
 
+        /** Stable Shared Campaign identity; ignored by vanilla serialization. */
+        public transient @Nullable String stableId;
         /** For the objectives UI dialog. Do not modify directly! */
         public transient int editorX = -999, editorY = -999;
 
@@ -227,6 +229,13 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
         /** @return true if this objective is done (practically, has been removed from the executor). */
         public final boolean isCompleted(){
             return completed;
+        }
+
+        /** Restores durable completion without replaying completion logic/world scripts. */
+        public final void restoreCompleted(){
+            mindustry.Vars.game().state.rules.objectiveFlags.removeAll(flagsRemoved);
+            mindustry.Vars.game().state.rules.objectiveFlags.addAll(flagsAdded);
+            completed = true;
         }
 
         /** @return Whether this objective should run at all. */
@@ -305,7 +314,8 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
         @Override
         public boolean update(){
-            return content.unlocked();
+            var shared = mindustry.campaign.shared.SharedCampaignService.find(game());
+            return shared != null && shared.sharedModeActive() ? shared.sharedResearched(content.name) : content.unlocked();
         }
 
         @Override
@@ -336,7 +346,8 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
         @Override
         public boolean update(){
-            return content.unlocked();
+            var shared = mindustry.campaign.shared.SharedCampaignService.find(game());
+            return shared != null && shared.sharedModeActive() ? shared.sharedUnlocked(content.name) : content.unlocked();
         }
 
         @Override
@@ -367,9 +378,11 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
         public ItemObjective(){}
 
+        public int current(){ return mindustry.Vars.game().state.rules.defaultTeam.items().get(item); }
+
         @Override
         public boolean update(){
-            return state.rules.defaultTeam.items().has(item, amount);
+            return current() >= amount;
         }
 
         @Override
@@ -400,9 +413,11 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
         public CoreItemObjective(){}
 
+        public int current(){ return mindustry.Vars.game().state.stats.coreItemCount.get(item); }
+
         @Override
         public boolean update(){
-            return state.stats.coreItemCount.get(item) >= amount;
+            return current() >= amount;
         }
 
         @Override
@@ -433,9 +448,11 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
         public BuildCountObjective(){}
 
+        public int current(){ return mindustry.Vars.game().state.stats.placedBlockCount.get(block, 0); }
+
         @Override
         public boolean update(){
-            return state.stats.placedBlockCount.get(block, 0) >= count;
+            return current() >= count;
         }
 
         @Override
@@ -466,9 +483,11 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
         public UnitCountObjective(){}
 
+        public int current(){ return mindustry.Vars.game().state.rules.defaultTeam.data().countType(unit); }
+
         @Override
         public boolean update(){
-            return state.rules.defaultTeam.data().countType(unit) >= count;
+            return current() >= count;
         }
 
         @Override
@@ -497,9 +516,11 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
         public DestroyUnitsObjective(){}
 
+        public int current(){ return mindustry.Vars.game().state.stats.enemyUnitsDestroyed; }
+
         @Override
         public boolean update(){
-            return state.stats.enemyUnitsDestroyed >= count;
+            return current() >= count;
         }
 
         @Override
@@ -529,13 +550,15 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
         @Override
         public boolean update(){
-            return (countup += Time.delta) >= duration * state.rules.objectiveTimerMultiplier;
+            return (countup += Time.delta()) >= duration * state.rules.objectiveTimerMultiplier;
         }
 
         @Override
         public void reset(){
             countup = 0f;
         }
+
+        public float sharedCountup(){ return countup; }
 
         @Nullable
         @Override
@@ -988,7 +1011,7 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
         @Override
         public void draw(float scaleFactor){
             float rad = radius * tilesize * scaleFactor;
-            float fin = Interp.pow2Out.apply((Time.globalTime / 100f) % 1f);
+            float fin = Interp.pow2Out.apply((Time.globalTime() / 100f) % 1f);
 
             Draw.z(drawLayer);
             Lines.stroke(Scl.scl((1f - fin) * stroke + 0.1f), color);
@@ -1218,14 +1241,14 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
             if(!Double.isNaN(p1) && !Double.isNaN(p2)){
                 switch(type){
-                    case posi -> ((int)p1 == 0 ? pos : (int)p1 == 1 ? endPos : Tmp.v1).x = (float)p2 * tilesize;
-                    case colori -> ((int)p1 == 0 ? color1 : (int)p1 == 1 ? color2 : Tmp.c1).fromDouble(p2);
+                    case posi -> ((int)p1 == 0 ? pos : (int)p1 == 1 ? endPos : Tmp.v1()).x = (float)p2 * tilesize;
+                    case colori -> ((int)p1 == 0 ? color1 : (int)p1 == 1 ? color2 : Tmp.c1()).fromDouble(p2);
                 }
             }
 
             if(!Double.isNaN(p1) && !Double.isNaN(p3)){
                 switch(type){
-                    case posi -> ((int)p1 == 0 ? pos : (int)p1 == 1 ? endPos : Tmp.v1).y = (float)p3 * tilesize;
+                    case posi -> ((int)p1 == 0 ? pos : (int)p1 == 1 ? endPos : Tmp.v1()).y = (float)p3 * tilesize;
                 }
             }
         }
@@ -1328,7 +1351,7 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
             if(!Double.isNaN(p1)){
                 switch(type){
                     case color -> {
-                        float col = Tmp.c1.fromDouble(p1).toFloatBits();
+                        float col = Tmp.c1().fromDouble(p1).toFloatBits();
                         for(int i = 0; i < 4; i++) vertices[i * 6 + 2] = col;
                     }
                     case pos -> vertices[0] = (float)p1 * tilesize;
@@ -1358,7 +1381,7 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
             boolean firstUpdate = fetchedRegion == null;
 
             if(firstUpdate) fetchedRegion = new TextureRegion();
-            Tmp.tr1.set(fetchedRegion);
+            Tmp.tr1().set(fetchedRegion);
 
             lookupRegion(texture, fetchedRegion);
 
@@ -1371,7 +1394,7 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
                 }
             }else{
                 for(int i = 0; i < 4; i++){
-                    setUv(i, unmap(vertices[i * 6 + 3], Tmp.tr1.u, Tmp.tr1.u2), 1 - unmap(vertices[i * 6 + 4], Tmp.tr1.v, Tmp.tr1.v2));
+                    setUv(i, unmap(vertices[i * 6 + 3], Tmp.tr1().u, Tmp.tr1().u2), 1 - unmap(vertices[i * 6 + 4], Tmp.tr1().v, Tmp.tr1().v2));
                 }
             }
         }
@@ -1390,7 +1413,7 @@ public class MapObjectives implements Iterable<MapObjective>, Eachable<MapObject
 
         private void setColor(int i, double c){
             if(i >= 0 && i < 4){
-                vertices[i * 6 + 2] = Tmp.c1.fromDouble(c).toFloatBits();
+                vertices[i * 6 + 2] = Tmp.c1().fromDouble(c).toFloatBits();
             }
         }
 

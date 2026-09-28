@@ -63,7 +63,7 @@ public class PointDefenseTurret extends ReloadTurret{
 
             //retarget
             if(timer(timerTarget, retargetTime)){
-                target = Groups.bullet.intersect(x - range, y - range, range*2, range*2).min(b -> b.team != team && b.type().hittable, b -> b.dst2(this));
+                target = Groups.current().bullet.intersect(x - range, y - range, range*2, range*2).min(b -> b.team != team && b.type().hittable, b -> b.dst2(this));
             }
 
             //pooled bullets
@@ -90,12 +90,12 @@ public class PointDefenseTurret extends ReloadTurret{
                         target.remove();
                     }
 
-                    Tmp.v1.trns(rotation, shootLength);
+                    Tmp.v1().trns(rotation, shootLength);
 
-                    beamEffect.at(x + Tmp.v1.x, y + Tmp.v1.y, rotation, color, new Vec2().set(target));
-                    shootEffect.at(x + Tmp.v1.x, y + Tmp.v1.y, rotation, color);
+                    beamEffect.at(x + Tmp.v1().x, y + Tmp.v1().y, rotation, color, new Vec2().set(target));
+                    shootEffect.at(x + Tmp.v1().x, y + Tmp.v1().y, rotation, color);
                     hitEffect.at(target.x, target.y, color);
-                    shootSound.at(x + Tmp.v1.x, y + Tmp.v1.y, Mathf.random(0.9f, 1.1f));
+                    shootSound.at(x + Tmp.v1().x, y + Tmp.v1().y, Mathf.random(0.9f, 1.1f));
                     reloadCounter = 0;
                 }
             }

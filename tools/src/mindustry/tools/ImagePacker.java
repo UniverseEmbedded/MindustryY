@@ -16,6 +16,7 @@ import mindustry.content.*;
 import mindustry.core.*;
 import mindustry.ctype.*;
 import mindustry.logic.*;
+import mindustry.runtime.*;
 import mindustry.type.*;
 import mindustry.world.blocks.*;
 
@@ -25,6 +26,9 @@ public class ImagePacker{
     static ObjectMap<String, PackIndex> cache = new ObjectMap<>();
 
     public static void main(String[] args) throws Exception{
+        // Tooling constructs content/entities before Vars.init(); bind the explicit primary runtime first so
+        // strict multi-context ownership works in sprite packing as it does in launchers/tests.
+        RuntimeContexts.bindPrimaryThread();
         Vars.headless = true;
         //makes PNG loading slightly faster
         ArcNativesLoader.load();

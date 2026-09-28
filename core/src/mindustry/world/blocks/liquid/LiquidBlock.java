@@ -38,11 +38,11 @@ public class LiquidBlock extends Block{
 
     public static void drawTiledFrames(int size, float x, float y, float padLeft, float padRight, float padTop, float padBottom, Liquid liquid, float alpha){
         TextureRegion region = renderer.fluidFrames[liquid.gas ? 1 : 0][liquid.getAnimationFrame()];
-        TextureRegion toDraw = Tmp.tr1;
+        TextureRegion toDraw = Tmp.tr1();
 
         float leftBounds = size/2f * tilesize - padRight;
         float bottomBounds = size/2f * tilesize - padTop;
-        Color color = Tmp.c1.set(liquid.color).a(1f);
+        Color color = Tmp.c1().set(liquid.color).a(1f);
 
         for(int sx = 0; sx < size; sx++){
             for(int sy = 0; sy < size; sy++){

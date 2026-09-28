@@ -78,11 +78,11 @@ public class PayloadBlock extends Block{
             boolean legStep = payload instanceof UnitPayload u && u.unit.type.allowLegStep;
             float size = payload.size(), radius = size/2f, x = payload.x(), y = payload.y(), scl = Mathf.clamp(((progress - thresh) / (1f - thresh)) * 1.1f);
 
-            Groups.unit.intersect(x - size/2f, y - size/2f, size, size, u -> {
+            Groups.current().unit.intersect(x - size/2f, y - size/2f, size, size, u -> {
                 float dst = u.dst(payload);
                 float rs = radius + u.hitSize/2f;
                 if(u.isGrounded() && u.type.allowLegStep == legStep && dst < rs){
-                    u.vel.add(Tmp.v1.set(u.x - x, u.y - y).setLength(Math.min(rs - dst, 1f)).scl(scl));
+                    u.vel.add(Tmp.v1().set(u.x - x, u.y - y).setLength(Math.min(rs - dst, 1f)).scl(scl));
                 }
             });
         }
@@ -214,7 +214,7 @@ public class PayloadBlock extends Block{
 
             updatePayload();
 
-            Vec2 dest = Tmp.v1.trns(rotdeg(), size * tilesize/2f);
+            Vec2 dest = Tmp.v1().trns(rotdeg(), size * tilesize/2f);
 
             payRotation = Angles.moveToward(payRotation, rotdeg(), payloadRotateSpeed * delta());
             payVector.approach(dest, payloadSpeed * delta());

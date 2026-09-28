@@ -108,7 +108,7 @@ public class PayloadDeconstructor extends PayloadBlock{
 
                 Draw.reset();
 
-                overlayTime = Math.max(overlayTime - Time.delta/overlayDuration, 0f);
+                overlayTime = Math.max(overlayTime - Time.delta()/overlayDuration, 0f);
                 Draw.z(z);
             }
 

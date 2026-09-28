@@ -66,8 +66,8 @@ public class ColorPicker extends BaseDialog{
             t.stack(new Element(){
                 @Override
                 public void draw(){
-                    float first = Tmp.c1.set(current).saturation(0f).a(parentAlpha).toFloatBits();
-                    float second = Tmp.c1.set(current).saturation(1f).a(parentAlpha).toFloatBits();
+                    float first = Tmp.c1().set(current).saturation(0f).a(parentAlpha).toFloatBits();
+                    float second = Tmp.c1().set(current).saturation(1f).a(parentAlpha).toFloatBits();
 
                     Fill.quad(
                         x, y, first,
@@ -87,8 +87,8 @@ public class ColorPicker extends BaseDialog{
             t.stack(new Element(){
                 @Override
                 public void draw(){
-                    float first = Tmp.c1.set(current).value(0f).a(parentAlpha).toFloatBits();
-                    float second = Tmp.c1.fromHsv(h, s, 1f).a(parentAlpha).toFloatBits();
+                    float first = Tmp.c1().set(current).value(0f).a(parentAlpha).toFloatBits();
+                    float second = Tmp.c1().fromHsv(h, s, 1f).a(parentAlpha).toFloatBits();
 
                     Fill.quad(
                     x, y, first,
@@ -110,8 +110,8 @@ public class ColorPicker extends BaseDialog{
                 t.stack(new Image(Tex.alphaBgLine), new Element(){
                     @Override
                     public void draw(){
-                        float first = Tmp.c1.set(current).a(0f).toFloatBits();
-                        float second = Tmp.c1.set(current).a(parentAlpha).toFloatBits();
+                        float first = Tmp.c1().set(current).a(0f).toFloatBits();
+                        float second = Tmp.c1().set(current).a(parentAlpha).toFloatBits();
 
                         Fill.quad(
                         x, y, first,

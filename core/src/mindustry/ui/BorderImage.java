@@ -58,9 +58,9 @@ public class BorderImage extends Image{
             Draw.color(alphaColor, parentAlpha);
             Vec2 v = scaling.apply(imageWidth, imageHeight, width, height).scl(1f / width, 1f / height);
             TextureRegion region = ((TextureRegionDrawable)Tex.alphaBg).getRegion();
-            Tmp.tr1.set(region.texture);
-            Tmp.tr1.set(region.u, region.v, Mathf.lerp(region.u, region.u2, v.x), Mathf.lerp(region.v, region.v2, v.y));
-            Draw.rect(Tmp.tr1, x + imageX + imageWidth * scaleX/2f, y + imageY + imageHeight * scaleY/2f, imageWidth * scaleX, imageHeight * scaleY);
+            Tmp.tr1().set(region.texture);
+            Tmp.tr1().set(region.u, region.v, Mathf.lerp(region.u, region.u2, v.x), Mathf.lerp(region.v, region.v2, v.y));
+            Draw.rect(Tmp.tr1(), x + imageX + imageWidth * scaleX/2f, y + imageY + imageHeight * scaleY/2f, imageWidth * scaleX, imageHeight * scaleY);
         }
 
         super.draw();

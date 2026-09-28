@@ -211,7 +211,7 @@ public class Teams{
         }
 
         //TODO this is slow and dumb
-        for(Unit unit : Groups.unit){
+        for(Unit unit : Groups.current().unit){
             if(unit.type == null) continue;
             TeamData data = unit.team.data();
             data.tree().insert(unit);
@@ -235,7 +235,7 @@ public class Teams{
             count(unit);
         }
 
-        for(var player : Groups.player){
+        for(var player : Groups.current().player){
             player.team().data().players.add(player);
         }
 
@@ -476,8 +476,8 @@ public class Teams{
         /** @return approximate number of clustered ground units at a specific position */
         public int getClustered(float x, float y){
             //update based on ticks passed (no increment)
-            if(Time.time > lastClusterUpdateTimer + 10f){
-                lastClusterUpdateTimer = Time.time;
+            if(Time.time() > lastClusterUpdateTimer + 10f){
+                lastClusterUpdateTimer = Time.time();
                 clusteredCounts.clear();
                 units.each(u -> {
                     //clusters are for artillery, which can't hit flying units

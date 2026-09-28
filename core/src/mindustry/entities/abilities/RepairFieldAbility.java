@@ -85,8 +85,8 @@ public class RepairFieldAbility extends Ability{
 
     @Override
     public void update(Unit unit){
-        healTimer += Time.delta;
-        downTimer = smartHeal && healthChange >= healthMissing && healthMissing > 0f ? downTimer + Time.delta : 0f;
+        healTimer += Time.delta();
+        downTimer = smartHeal && healthChange >= healthMissing && healthMissing > 0f ? downTimer + Time.delta() : 0f;
 
         if(healTimer >= reload){
             targets.clear();

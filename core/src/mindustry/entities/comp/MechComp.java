@@ -25,7 +25,7 @@ abstract class MechComp implements Posc, Hitboxc, Unitc, Mechc, ElevationMovec{
         //trigger animation only when walking manually
         if(walked || net.client() || isRemote()){
             float len = deltaLen();
-            baseRotation = Angles.moveToward(baseRotation, deltaAngle(), type().baseRotateSpeed * Mathf.clamp(len / type().speed / Time.delta) * Time.delta);
+            baseRotation = Angles.moveToward(baseRotation, deltaAngle(), type().baseRotateSpeed * Mathf.clamp(len / type().speed / Time.delta()) * Time.delta());
             walkTime += len;
             walked = false;
         }
@@ -90,10 +90,10 @@ abstract class MechComp implements Posc, Hitboxc, Unitc, Mechc, ElevationMovec{
     @Replace
     public void rotateMove(Vec2 vec){
         //mechs use baseRotation to rotate, not rotation.
-        moveAt(Tmp.v2.trns(baseRotation, vec.len()));
+        moveAt(Tmp.v2().trns(baseRotation, vec.len()));
 
         if(!vec.isZero()){
-            baseRotation = Angles.moveToward(baseRotation, vec.angle(), type.rotateSpeed * Math.max(Time.delta, 1));
+            baseRotation = Angles.moveToward(baseRotation, vec.angle(), type.rotateSpeed * Math.max(Time.delta(), 1));
         }
     }
 

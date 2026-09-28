@@ -22,10 +22,12 @@ public class BaseShield extends Block{
 
     public @Nullable Color shieldColor;
 
-    protected static BaseShieldBuild paramBuild;
+    protected static final class ShieldScratch{ BaseShieldBuild paramBuild; }
+    protected static final ThreadLocal<ShieldScratch> shieldScratch = ThreadLocal.withInitial(ShieldScratch::new);
     //protected static Effect paramEffect;
     protected static final Cons<Bullet> bulletConsumer = bullet -> {
-        if(bullet.team != paramBuild.team && bullet.type.absorbable && bullet.within(paramBuild, paramBuild.radius())){
+        BaseShieldBuild paramBuild = shieldScratch.get().paramBuild;
+        if(paramBuild != null && bullet.team != paramBuild.team && bullet.type.absorbable && bullet.within(paramBuild, paramBuild.radius())){
             bullet.absorb();
             //paramEffect.at(bullet);
 
@@ -36,6 +38,8 @@ public class BaseShield extends Block{
     };
 
     protected static final Cons<Unit> unitConsumer = unit -> {
+        BaseShieldBuild paramBuild = shieldScratch.get().paramBuild;
+        if(paramBuild == null) return;
         //if this is positive, repel the unit; if it exceeds the unit radius * 2, it's inside the forcefield and must be killed
         float overlapDst = (unit.hitSize/2f + paramBuild.radius()) - unit.dst(paramBuild);
 
@@ -47,9 +51,9 @@ public class BaseShield extends Block{
                 //stop
                 unit.vel.setZero();
                 //get out
-                unit.move(Tmp.v1.set(unit).sub(paramBuild).setLength(overlapDst + 0.01f));
+                unit.move(Tmp.v1().set(unit).sub(paramBuild).setLength(overlapDst + 0.01f));
 
-                if(Mathf.chanceDelta(0.12f * Time.delta)){
+                if(Mathf.chanceDelta(0.12f * Time.delta())){
                     Fx.circleColorSpark.at(unit.x, unit.y, paramBuild.team.color);
                 }
             }
@@ -91,10 +95,13 @@ public class BaseShield extends Block{
             float rad = radius();
 
             if(rad > 1){
-                paramBuild = this;
-                //paramEffect = absorbEffect;
-                Groups.bullet.intersect(x - rad, y - rad, rad * 2f, rad * 2f, bulletConsumer);
-                Units.nearbyEnemies(team, x, y, rad + 10f, unitConsumer);
+                ShieldScratch scratch = shieldScratch.get();
+                scratch.paramBuild = this;
+                try{
+                    //paramEffect = absorbEffect;
+                    Groups.current().bullet.intersect(x - rad, y - rad, rad * 2f, rad * 2f, bulletConsumer);
+                    Units.nearbyEnemies(team, x, y, rad + 10f, unitConsumer);
+                }finally{ scratch.paramBuild = null; }
             }
         }
 

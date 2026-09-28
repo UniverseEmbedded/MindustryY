@@ -45,7 +45,7 @@ public abstract class WorldLabelComp implements Posc, Drawc, Syncc{
     @Override
     public void update(){
         if(duration >= 0){
-            duration -= Time.delta / 60f;
+            duration -= Time.delta() / 60f;
             if(duration <= 0){
                 hide();
                 if(expired != null) expired.run();

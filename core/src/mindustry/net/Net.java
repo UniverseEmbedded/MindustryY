@@ -7,6 +7,7 @@ import arc.net.Server.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.game.EventType.*;
+import mindustry.runtime.*;
 import mindustry.gen.*;
 import mindustry.net.Packets.*;
 import mindustry.net.Streamable.*;
@@ -42,6 +43,7 @@ public class Net{
         Threads.unboundedExecutor();
 
     private final NetProvider provider;
+    private final GameContext owner;
 
     static{
         registerPacket(StreamBegin::new);
@@ -82,22 +84,27 @@ public class Net{
 
     public Net(NetProvider provider){
         this.provider = provider;
+        this.owner = RuntimeContexts.requireCurrent();
+    }
+
+    private void postOwner(Runnable runnable){
+        RuntimeContexts.post(owner, runnable);
     }
 
     public void handleException(Throwable e){
         if(e instanceof ArcNetException){
-            Core.app.post(() -> showError(new IOException("mismatch", e)));
+            postOwner(() -> showError(new IOException("mismatch", e)));
         }else if(e instanceof ClosedChannelException){
-            Core.app.post(() -> showError(new IOException("alreadyconnected", e)));
+            postOwner(() -> showError(new IOException("alreadyconnected", e)));
         }else{
-            Core.app.post(() -> showError(e));
+            postOwner(() -> showError(e));
         }
     }
 
     /** Display a network error. Call on the graphics thread. */
     public void showError(Throwable e){
 
-        if(!headless){
+        if(!owner.headless){
 
             Throwable t = e;
             while(t.getCause() != null){
@@ -134,8 +141,8 @@ public class Net{
             }
             ui.loadfrag.hide();
 
-            if(client()){
-                netClient.disconnectQuietly();
+            if(client() && owner.netClient != null){
+                owner.netClient.disconnectQuietly();
             }
         }
 
@@ -171,14 +178,16 @@ public class Net{
         currentStream = null;
 
         try{
-            if(!active){
-                Events.fire(new ClientServerConnectEvent(ip, port));
-                provider.connectClient(ip, port, success);
-                active = true;
-                server = false;
-            }else{
-                throw new IOException("alreadyconnected");
+            if(active){
+                // Rejoin/hot-switch callers should already resetForConnect, but a leftover client/server
+                // flag must not turn a legitimate shared Action join into a permanent alreadyconnected error.
+                Log.warn("Net.connect while active (server=@); resetting previous session before @:@", server, ip, port);
+                resetForConnect();
             }
+            Events.fire(new ClientServerConnectEvent(ip, port));
+            provider.connectClient(ip, port, success);
+            active = true;
+            server = false;
         }catch(IOException e){
             showError(e);
         }
@@ -193,6 +202,22 @@ public class Net{
         server = true;
 
         Time.runTask(60f, platform::updateRPC);
+    }
+
+    /** Hands an externally accepted TCP channel to this host's provider. */
+    public void injectExternalConnection(SocketChannel channel, ByteBuffer preRead){
+        if(!server) throw new IllegalStateException("Cannot inject a connection: this Net is not hosting a server");
+        provider.injectExternalConnection(channel, preRead);
+    }
+
+    /** Detaches the live client TCP channel without closing it. */
+    public SocketChannel detachClientChannel(){
+        return provider.detachClientChannel();
+    }
+
+    /** Re-binds a detached client channel and reports completion after transport registration. */
+    public void rebindClientChannel(SocketChannel channel, Runnable success, Cons<Throwable> failure){
+        provider.rebindClientChannel(channel, success, failure);
     }
 
     /**
@@ -210,7 +235,13 @@ public class Net{
 
     public void reset(){
         closeServer();
-        netClient.disconnectNoReset();
+        if(owner.netClient != null) owner.netClient.disconnectNoReset();
+    }
+
+    /** Connection-init reset that preserves a one-shot Shared Campaign admission prepared for the next ConnectPacket. */
+    public void resetForConnect(){
+        closeServer();
+        if(owner.netClient != null) owner.netClient.disconnectNoResetPreservingSharedCampaignJoin();
     }
 
     public void disconnect(){
@@ -406,6 +437,16 @@ public class Net{
     }
 
     public void dispose(){
+        // The ping executor belongs to this Net/GameContext. Stop it before the provider so disposed contexts cannot
+        // leak ping threads or deliver late callbacks into a recycled sibling runtime.
+        pingExecutor.shutdownNow();
+        try{
+            if(!pingExecutor.awaitTermination(2L, TimeUnit.SECONDS)){
+                warn("Network ping executor did not terminate within shutdown grace period");
+            }
+        }catch(InterruptedException interrupted){
+            Thread.currentThread().interrupt();
+        }
         provider.dispose();
         server = false;
         active = false;
@@ -467,6 +508,21 @@ public class Net{
 
         /** Close the server connection. */
         void closeServer();
+
+        /** Injects an externally accepted TCP stream into a server provider. */
+        default void injectExternalConnection(SocketChannel channel, ByteBuffer preRead){
+            throw new UnsupportedOperationException("This network provider does not support external connection injection");
+        }
+
+        /** Detaches the live client TCP stream without closing it. */
+        default SocketChannel detachClientChannel(){
+            throw new UnsupportedOperationException("This network provider does not support client channel detach");
+        }
+
+        /** Re-binds a previously detached client TCP stream. */
+        default void rebindClientChannel(SocketChannel channel, Runnable success, Cons<Throwable> failure){
+            throw new UnsupportedOperationException("This network provider does not support client channel rebind");
+        }
 
         /** Close all connections. */
         default void dispose(){

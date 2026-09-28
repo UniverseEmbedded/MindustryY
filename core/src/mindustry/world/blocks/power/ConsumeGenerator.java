@@ -114,7 +114,7 @@ public class ConsumeGenerator extends PowerGenerator{
             warmup = Mathf.lerpDelta(warmup, valid ? 1f : 0f, warmupSpeed);
 
             productionEfficiency = efficiency * efficiencyMultiplier;
-            totalTime += warmup * Time.delta;
+            totalTime += warmup * Time.delta();
 
             //randomly produce the effect
             if(valid && Mathf.chanceDelta(effectChance)){

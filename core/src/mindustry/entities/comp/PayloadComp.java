@@ -169,7 +169,7 @@ abstract class PayloadComp implements Posc, Rotc, Hitboxc, Unitc{
             return on != null && Build.validPlace(tile.block, tile.team, tx, ty, tile.rotation, false);
         }else if(payload instanceof UnitPayload p){
             var u = p.unit;
-            return !(!u.canPass(World.toTile(x + Tmp.v1.x), World.toTile(y + Tmp.v1.y)) || Units.count(x, y, u.physicSize(), o -> o.isGrounded() && o.hitSize > 14f) > 1);
+            return !(!u.canPass(World.toTile(x + Tmp.v1().x), World.toTile(y + Tmp.v1().y)) || Units.count(x, y, u.physicSize(), o -> o.isGrounded() && o.hitSize > 14f) > 1);
         }
         return false;
     }
@@ -178,11 +178,11 @@ abstract class PayloadComp implements Posc, Rotc, Hitboxc, Unitc{
         Unit u = payload.unit;
 
         //add random offset to prevent unit stacking
-        Tmp.v1.rnd(Mathf.random(2f));
+        Tmp.v1().rnd(Mathf.random(2f));
 
         //can't drop ground units
         //allow stacking for small units for now - otherwise, unit transfer would get annoying
-        if(!u.canPass(World.toTile(x + Tmp.v1.x), World.toTile(y + Tmp.v1.y)) || Units.count(x, y, u.physicSize(), o -> o.isGrounded() && o.hitSize > 14f) > 1){
+        if(!u.canPass(World.toTile(x + Tmp.v1().x), World.toTile(y + Tmp.v1().y)) || Units.count(x, y, u.physicSize(), o -> o.isGrounded() && o.hitSize > 14f) > 1){
             return false;
         }
 
@@ -191,7 +191,7 @@ abstract class PayloadComp implements Posc, Rotc, Hitboxc, Unitc{
         //clients do not drop payloads
         if(Vars.net.client()) return true;
 
-        u.set(x + Tmp.v1.x, y + Tmp.v1.y);
+        u.set(x + Tmp.v1().x, y + Tmp.v1().y);
         u.rotation(rotation);
         //reset the ID to a new value to make sure it's synced
         u.id = EntityGroup.nextId();

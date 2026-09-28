@@ -95,6 +95,13 @@ public class PlacementFragment{
             }
         });
 
+        Events.on(mindustry.campaign.shared.api.SharedCampaignEvents.CampaignUnlocksChanged.class, event -> {
+            // Shared Campaign research changes effective unlock authority without firing a normal UnlockEvent.
+            // Snapshot events may arrive off the UI lane, so both the actor-lifecycle check and rebuild stay
+            // inside Core.app.post.
+            Core.app.post(() -> { if(toggler != null) rebuild(); });
+        });
+
         Events.on(ResetEvent.class, event -> {
             selectedBlocks.clear();
         });
@@ -143,7 +150,7 @@ public class PlacementFragment{
             Object tryConfig = build == null || !build.block.copyConfig ? null : build.config();
 
             for(BuildPlan req : player.unit().plans()){
-                if(!req.breaking && req.block.bounds(req.x, req.y, Tmp.r1).contains(Core.input.mouseWorld())){
+                if(!req.breaking && req.block.bounds(req.x, req.y, Tmp.r1()).contains(Core.input.mouseWorld())){
                     tryBlock = req.block;
                     tryConfig = req.config;
                     break;

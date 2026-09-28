@@ -60,10 +60,10 @@ public class ContinuousFlameBulletType extends ContinuousBulletType{
         float mult = b.fin(lengthInterp);
         float realLength = Damage.findLength(b, length * mult, laserAbsorb, pierceCap);
 
-        float sin = Mathf.sin(Time.time, oscScl, oscMag);
+        float sin = Mathf.sin(Time.time(), oscScl, oscMag);
 
         for(int i = 0; i < colors.length; i++){
-            Draw.color(colors[i].write(Tmp.c1).mul(0.9f).mul(1f + Mathf.absin(Time.time, 1f, 0.1f)));
+            Draw.color(colors[i].write(Tmp.c1()).mul(0.9f).mul(1f + Mathf.absin(Time.time(), 1f, 0.1f)));
             Drawf.flame(b.x, b.y, divisions, b.rotation(),
                 realLength * lengthWidthPans[i * 3] * (1f - sin),
                 width * lengthWidthPans[i * 3 + 1] * mult * (1f + sin),
@@ -75,7 +75,7 @@ public class ContinuousFlameBulletType extends ContinuousBulletType{
             color(flareColor);
             Draw.z(flareLayer);
 
-            float angle = Time.time * flareRotSpeed + (rotateFlare ? b.rotation() : 0f);
+            float angle = Time.time() * flareRotSpeed + (rotateFlare ? b.rotation() : 0f);
 
             for(int i = 0; i < 4; i++){
                 Drawf.tri(b.x, b.y, flareWidth, flareLength * (mult + sin), i*90 + 45 + angle);
@@ -87,8 +87,8 @@ public class ContinuousFlameBulletType extends ContinuousBulletType{
             }
         }
 
-        Tmp.v1.trns(b.rotation(), realLength * 1.1f);
-        Drawf.light(b.x, b.y, b.x + Tmp.v1.x, b.y + Tmp.v1.y, lightStroke, lightColor, lightOpacity);
+        Tmp.v1().trns(b.rotation(), realLength * 1.1f);
+        Drawf.light(b.x, b.y, b.x + Tmp.v1().x, b.y + Tmp.v1().y, lightStroke, lightColor, lightOpacity);
         Draw.reset();
     }
 

@@ -43,8 +43,8 @@ public class LiquidRegenAbility extends Ability{
                         if(tile != null){
                             Puddle puddle = Puddles.get(tile);
                             if(puddle != null && puddle.liquid == liquid){
-                                float fractionTaken = Math.min(puddle.amount, (slurpSpeed * Time.delta));
-                                puddle.amount -= Math.min(puddle.amount, slurpSpeed * Time.delta);
+                                float fractionTaken = Math.min(puddle.amount, (slurpSpeed * Time.delta()));
+                                puddle.amount -= Math.min(puddle.amount, slurpSpeed * Time.delta());
                                 unit.heal(fractionTaken * regenPerSlurp);
                                 healed = true;
                             }
@@ -54,8 +54,8 @@ public class LiquidRegenAbility extends Ability{
             }
 
             if(healed && Mathf.chanceDelta(slurpEffectChance)){
-                Tmp.v1.rnd(Mathf.random(unit.hitSize/2f));
-                slurpEffect.at(unit.x + Tmp.v1.x, unit.y + Tmp.v1.y, unit.rotation, unit);
+                Tmp.v1().rnd(Mathf.random(unit.hitSize/2f));
+                slurpEffect.at(unit.x + Tmp.v1().x, unit.y + Tmp.v1().y, unit.rotation, unit);
             }
         }
     }

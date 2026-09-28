@@ -132,7 +132,7 @@ public class Accelerator extends Block{
             statusLerp = Mathf.lerpDelta(statusLerp, power.status, 0.05f);
 
             if(!launching){
-                time += Time.delta * efficiency;
+                time += Time.delta() * efficiency;
             }else{
                 time = Mathf.slerpDelta(time, 0f, 0.4f);
             }
@@ -140,7 +140,7 @@ public class Accelerator extends Block{
             launchHeat = Mathf.lerpDelta(launchHeat, launching ? 1f : 0f, 0.1f);
 
             if(efficiency >= 0f){
-                progress += Time.delta * efficiency / buildDuration;
+                progress += Time.delta() * efficiency / buildDuration;
                 progress = Math.min(progress, 1f);
             }
         }
@@ -160,7 +160,7 @@ public class Accelerator extends Block{
 
             for(int l = 0; l < 4; l++){
                 float length = 7f + l * 5f;
-                Draw.color(Tmp.c1.set(Pal.darkMetal).lerp(team.color, statusLerp), Pal.darkMetal, Mathf.absin(Time.time + l*50f, 10f, 1f));
+                Draw.color(Tmp.c1().set(Pal.darkMetal).lerp(team.color, statusLerp), Pal.darkMetal, Mathf.absin(Time.time() + l*50f, 10f, 1f));
 
                 for(int i = 0; i < 4; i++){
                     float rot = i*90f + 45f;
@@ -173,7 +173,7 @@ public class Accelerator extends Block{
                     Draw.reset();
 
                     Draw.blend(Blending.additive);
-                    Fill.light(x, y, 15, launchBlock.size * tilesize * 1f, Tmp.c2.set(Pal.accent).a(launchTime / chargeDuration), Tmp.c1.set(Pal.accent).a(0f));
+                    Fill.light(x, y, 15, launchBlock.size * tilesize * 1f, Tmp.c2().set(Pal.accent).a(launchTime / chargeDuration), Tmp.c1().set(Pal.accent).a(0f));
                     Draw.blend();
 
                     Draw.rect(launchBlock.fullIcon, x, y);
@@ -379,7 +379,7 @@ public class Accelerator extends Block{
                                 float ox = Angles.trnsx(angle, radius), oy = Angles.trnsy(angle, radius);
                                 Tile t = world.tileWorld(x + ox, y + oy);
                                 if(t != null){
-                                    Fx.coreLandDust.at(t.worldx(), t.worldy(), angle + Mathf.range(30f), Tmp.c1.set(t.floor().mapColor).mul(1.7f + Mathf.range(0.15f)));
+                                    Fx.coreLandDust.at(t.worldx(), t.worldy(), angle + Mathf.range(30f), Tmp.c1().set(t.floor().mapColor).mul(1.7f + Mathf.range(0.15f)));
                                 }
                             }
                         }
@@ -399,7 +399,7 @@ public class Accelerator extends Block{
             float rawTime = launchDuration() - renderer.getLandTime();
             float shake = rawTime < chargeDuration ? Interp.pow10In.apply(Mathf.clamp(rawTime/chargeDuration)) : 0f;
 
-            Core.camera.position.set(x, y).add(Tmp.v1.setToRandomDirection().scl(shake * 2f));
+            Core.camera.position.set(x, y).add(Tmp.v1().setToRandomDirection().scl(shake * 2f));
 
             if(rawTime < chargeDuration){
                 float fin = rawTime / chargeDuration;
@@ -477,18 +477,18 @@ public class Accelerator extends Block{
                 float scaling = CoreBlock.cloudScaling;
                 float sscl = Math.max(1f + Mathf.clamp(fin + CoreBlock.cfinOffset) * CoreBlock.cfinScl, 0f) * cameraScl;
 
-                Tmp.tr1.set(clouds);
-                Tmp.tr1.set(
+                Tmp.tr1().set(clouds);
+                Tmp.tr1().set(
                 (Core.camera.position.x - Core.camera.width/2f * sscl) / scaling,
                 (Core.camera.position.y - Core.camera.height/2f * sscl) / scaling,
                 (Core.camera.position.x + Core.camera.width/2f * sscl) / scaling,
                 (Core.camera.position.y + Core.camera.height/2f * sscl) / scaling);
 
-                Tmp.tr1.scroll(10f * cloudSeed, 10f * cloudSeed);
+                Tmp.tr1().scroll(10f * cloudSeed, 10f * cloudSeed);
 
                 Draw.alpha(Mathf.sample(CoreBlock.cloudAlphas, fin + CoreBlock.calphaFinOffset) * CoreBlock.cloudAlpha);
                 Draw.mixcol(state.rules.cloudColor, state.rules.cloudColor.a);
-                Draw.rect(Tmp.tr1, Core.camera.position.x, Core.camera.position.y, Core.camera.width, Core.camera.height);
+                Draw.rect(Tmp.tr1(), Core.camera.position.x, Core.camera.position.y, Core.camera.width, Core.camera.height);
                 Draw.reset();
             }
         }
@@ -531,9 +531,9 @@ public class Accelerator extends Block{
             for(int i = 0; i < 4; i++){
                 float angle = i * 90f + 45f + rotate;
                 Lines.beginLine();
-                Lines.linePoint(Tmp.v1.trns(angle - ringHandleLen, rad * ringHandleTilt).add(x, y));
-                Lines.linePoint(Tmp.v2.trns(angle, rad).add(x, y));
-                Lines.linePoint(Tmp.v3.trns(angle + ringHandleLen, rad * ringHandleTilt).add(x, y));
+                Lines.linePoint(Tmp.v1().trns(angle - ringHandleLen, rad * ringHandleTilt).add(x, y));
+                Lines.linePoint(Tmp.v2().trns(angle, rad).add(x, y));
+                Lines.linePoint(Tmp.v3().trns(angle + ringHandleLen, rad * ringHandleTilt).add(x, y));
                 Lines.endLine(false);
 
             }
@@ -587,15 +587,15 @@ public class Accelerator extends Block{
             float offset = (launchBlock.size - 3) * 3f * scl;
 
             for(int i = 0; i < 4; i++){
-                Tmp.v1.trns(i * 90 + rotation, 1f);
+                Tmp.v1().trns(i * 90 + rotation, 1f);
 
-                Tmp.v1.setLength((launchBlock.size * tilesize/2f + 1f)*scl + strength*2f + offset);
+                Tmp.v1().setLength((launchBlock.size * tilesize/2f + 1f)*scl + strength*2f + offset);
                 Draw.color(team.color);
-                Fill.circle(Tmp.v1.x + x, Tmp.v1.y + y, 6f * strength);
+                Fill.circle(Tmp.v1().x + x, Tmp.v1().y + y, 6f * strength);
 
-                Tmp.v1.setLength((launchBlock.size * tilesize/2f + 1f)*scl + strength*0.5f + offset);
+                Tmp.v1().setLength((launchBlock.size * tilesize/2f + 1f)*scl + strength*0.5f + offset);
                 Draw.color(Color.white);
-                Fill.circle(Tmp.v1.x + x, Tmp.v1.y + y, 3.5f * strength);
+                Fill.circle(Tmp.v1().x + x, Tmp.v1().y + y, 3.5f * strength);
             }
 
             drawLandingThrusters(x, y, rotation, thrusterFrame);
@@ -625,17 +625,17 @@ public class Accelerator extends Block{
                 for(int i = 0; i < 4; i++){
                     var reg = i >= 2 ? core.thruster2 : core.thruster1;
                     float rot = (i * 90) + rotation % 90f;
-                    Tmp.v1.trns(rot, length * Draw.xscl);
+                    Tmp.v1().trns(rot, length * Draw.xscl);
 
                     //second pass applies extra layer of shading
                     if(j == 1){
-                        Tmp.v1.rotate(-90f);
+                        Tmp.v1().rotate(-90f);
                         Draw.alpha((rotation % 90f) / 90f * alpha);
                         rot -= 90f;
-                        Draw.rect(reg, x + Tmp.v1.x, y + Tmp.v1.y, rot);
+                        Draw.rect(reg, x + Tmp.v1().x, y + Tmp.v1().y, rot);
                     }else{
                         Draw.alpha(alpha);
-                        Draw.rect(reg, x + Tmp.v1.x, y + Tmp.v1.y, rot);
+                        Draw.rect(reg, x + Tmp.v1().x, y + Tmp.v1().y, rot);
                     }
                 }
             }

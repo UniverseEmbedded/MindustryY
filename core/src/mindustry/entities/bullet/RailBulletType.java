@@ -62,7 +62,7 @@ public class RailBulletType extends BulletType{
         Damage.collideLine(b, b.team, b.x, b.y, b.rotation(), length, false, false, pierceCap);
         float resultLen = b.fdata;
 
-        Vec2 nor = Tmp.v1.trns(b.rotation(), 1f).nor();
+        Vec2 nor = Tmp.v1().trns(b.rotation(), 1f).nor();
         if(pointEffect != Fx.none){
             for(float i = 0; i <= resultLen; i += pointEffectSpace){
                 pointEffect.at(b.x + nor.x * i, b.y + nor.y * i, b.rotation(), trailColor);

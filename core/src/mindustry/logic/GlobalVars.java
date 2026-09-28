@@ -25,10 +25,10 @@ public class GlobalVars{
     public static final ContentType[] lookableContent = {ContentType.block, ContentType.unit, ContentType.item, ContentType.liquid, ContentType.team};
     public static final ContentType[] writableLookableContent = {ContentType.block, ContentType.unit, ContentType.item, ContentType.liquid};
     /** Global random state. */
-    public static final Rand rand = new Rand();
+    public final Rand rand = new Rand();
 
     //non-constants that depend on state
-    private static LVar
+    private LVar
         varTime, varTick, varSecond, varMinute, varWave, varWaveTime, varMapW, varMapH, varWait, varServer,
         varClient, varClientLocale, varClientUnit, varClientName, varClientTeam, varClientMobile, varClientMusicPlaying, varClientCurrentMusic;
 
@@ -192,23 +192,23 @@ public class GlobalVars{
     public void update(){
         //set up time; note that @time is now only updated once every invocation and directly based off of @tick.
         //having time be based off of user system time was a very bad idea.
-        varTime.numval = state.tick / 60.0 * 1000.0;
-        varTick.numval = state.tick;
+        varTime.numval = mindustry.Vars.game().state.tick / 60.0 * 1000.0;
+        varTick.numval = mindustry.Vars.game().state.tick;
 
         //shorthands for seconds/minutes spent in save
-        varSecond.numval = state.tick / 60f;
-        varMinute.numval = state.tick / 60f / 60f;
+        varSecond.numval = mindustry.Vars.game().state.tick / 60f;
+        varMinute.numval = mindustry.Vars.game().state.tick / 60f / 60f;
 
         //wave state
-        varWave.numval = state.wave;
-        varWaveTime.numval = state.wavetime / 60f;
+        varWave.numval = mindustry.Vars.game().state.wave;
+        varWaveTime.numval = mindustry.Vars.game().state.wavetime / 60f;
 
-        varMapW.numval = world.width();
-        varMapH.numval = world.height();
+        varMapW.numval = mindustry.Vars.game().world.width();
+        varMapH.numval = mindustry.Vars.game().world.height();
 
         //network
-        varServer.numval = (net.server() || !net.active()) ? 1 : 0;
-        varClient.numval = net.client() ? 1 : 0;
+        varServer.numval = (mindustry.Vars.game().net.server() || !mindustry.Vars.game().net.active()) ? 1 : 0;
+        varClient.numval = mindustry.Vars.game().net.client() ? 1 : 0;
 
         //client
         if(player != null){
@@ -220,7 +220,7 @@ public class GlobalVars{
             varClientMusicPlaying.numval = control.sound.isPlaying() ? 1 : 0;
 
             var music = control.sound.getCurrent();
-            String dpName = music == null || music.file == null ? null : state.data.getAudioName(music.file);
+            String dpName = music == null || music.file == null ? null : mindustry.Vars.game().state.data.getAudioName(music.file);
             varClientCurrentMusic.objval = music == null || music.file == null ? null : (dpName == null ? music.file.nameWithoutExtension() : dpName);
         }
     }

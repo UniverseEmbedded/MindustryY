@@ -20,7 +20,30 @@ import java.io.*;
 
 @SuppressWarnings("unchecked")
 public class JsonIO{
-    public static final Json json = new Json(){
+    /**
+     * Ordered class-tag registrations replayed into each thread-owned Arc Json codec.
+     * Arc Json keeps a reverse class->tag mapping, so registration order is semantic: compatibility aliases are
+     * registered first and canonical tags last. A hash map loses that order and can make serializers emit a legacy
+     * lowercase alias; MapObjectives deliberately rejects those legacy aliases on read, which previously erased
+     * campaign objectives during network Rules round-trips.
+     */
+    private static final java.util.concurrent.CopyOnWriteArrayList<ClassTagRegistration> dynamicClassTags = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static final java.util.concurrent.atomic.AtomicLong configurationGeneration = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * Compatibility instance for external callers that still retain the historical field. MindustryY runtime code
+     * must use {@link #current()} or the static helper methods so concurrent GameContexts never share Arc Json's
+     * mutable writer/current-item state.
+     */
+    @Deprecated
+    public static final Json json = createJson();
+    private static final ThreadLocal<JsonHolder> localJson;
+
+    private record JsonHolder(Json value, long generation){}
+    private record ClassTagRegistration(String tag, Class<?> type){}
+
+    private static Json createJson(){
+        return new Json(){
         @Override
         public void writeValue(Object value, Class knownType, Class elementType){
             if(value instanceof MappableContent c){
@@ -39,23 +62,46 @@ public class JsonIO{
             if(object instanceof MappableContent c) return c.name;
             return super.convertToString(object);
         }
-    };
+        };
+    }
+
+    /** Returns a Json codec owned by the current thread. Arc Json mutates writer/parser state and is not thread-safe. */
+    public static Json current(){
+        JsonHolder holder = localJson.get();
+        long generation = configurationGeneration.get();
+        if(holder.generation != generation){
+            Json value = configuredJson();
+            holder = new JsonHolder(value, generation);
+            localJson.set(holder);
+        }
+        return holder.value;
+    }
+
+    private static Json configuredJson(){
+        Json value = createJson();
+        configure(value);
+        for(ClassTagRegistration registration : dynamicClassTags){
+            value.addClassTag(registration.tag, registration.type);
+        }
+        return value;
+    }
 
     public static void writeBytes(Object value, Class<?> elementType, DataOutputStream output){
+        Json json = current();
         json.setWriter(new UBJsonWriter(output));
         json.writeValue(value, value == null ? null : value.getClass(), elementType);
     }
 
     public static <T> T readBytes(Class<T> type, Class<?> elementType, DataInputStream input) throws IOException{
-        return json.readValue(type, elementType, new UBJsonReader().parseWihoutClosing(input));
+        return current().readValue(type, elementType, new UBJsonReader().parseWihoutClosing(input));
     }
 
     public static String write(Object object){
-        return json.toJson(object, object.getClass());
+        return current().toJson(object, object.getClass());
     }
 
     public static <T> T copy(T object, T dest){
-        json.copyFields(object, dest);
+        current().copyFields(object, dest);
         return dest;
     }
 
@@ -64,23 +110,30 @@ public class JsonIO{
     }
 
     public static <T> T read(Class<T> type, String string){
-        return json.fromJson(type, string.replace("io.anuke.", ""));
+        return current().fromJson(type, string.replace("io.anuke.", ""));
     }
 
     public static <T> T read(T base, String string){
-        json.readFields(base, new JsonReader().parse(string.replace("io.anuke.", "")));
+        current().readFields(base, new JsonReader().parse(string.replace("io.anuke.", "")));
         return base;
     }
 
     public static String print(String in){
-        return json.prettyPrint(in);
+        return current().prettyPrint(in);
     }
 
     public static void classTag(String tag, Class<?> type){
-        json.addClassTag(tag, type);
+        dynamicClassTags.add(new ClassTagRegistration(tag, type));
+        synchronized(json){ json.addClassTag(tag, type); }
+        configurationGeneration.incrementAndGet();
     }
 
     static{
+        configure(json);
+        localJson = ThreadLocal.withInitial(() -> new JsonHolder(configuredJson(), configurationGeneration.get()));
+    }
+
+    private static void configure(Json json){
         json.setElementType(Rules.class, "spawns", SpawnGroup.class);
         json.setElementType(Rules.class, "loadout", ItemStack.class);
 

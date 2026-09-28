@@ -13,6 +13,7 @@ import mindustry.core.*;
 import mindustry.game.EventType.*;
 import mindustry.game.*;
 import mindustry.gen.*;
+import mindustry.runtime.*;
 import mindustry.world.*;
 import mindustry.world.blocks.environment.*;
 import mindustry.world.blocks.storage.*;
@@ -30,7 +31,7 @@ public class Pathfinder implements Runnable{
     private static final int updateInterval = 1000 / updateFPS;
 
     /** cached world size */
-    static int wwidth, wheight;
+    int wwidth, wheight;
 
     static final int impassable = -1;
 
@@ -101,8 +102,8 @@ public class Pathfinder implements Runnable{
     Seq<Flowfield> threadList = new Seq<>(), mainList = new Seq<>();
     /** handles task scheduling on the update thread. */
     TaskQueue queue = new TaskQueue();
-    /** Current pathfinding thread */
-    @Nullable Thread thread;
+    /** Process-owned recurring path lane; path state itself remains Context-owned in this instance. */
+    @Nullable RuntimePathExecutor.Handle pathHandle;
     IntSeq tmpArray = new IntSeq();
 
     boolean needsRefresh;
@@ -118,26 +119,26 @@ public class Pathfinder implements Runnable{
             stop();
 
             //reset and update internal tile array
-            tiles = new int[world.width() * world.height()];
-            wwidth = world.width();
-            wheight = world.height();
+            tiles = new int[mindustry.Vars.game().world.width() * mindustry.Vars.game().world.height()];
+            wwidth = mindustry.Vars.game().world.width();
+            wheight = mindustry.Vars.game().world.height();
             threadList = new Seq<>();
             mainList = new Seq<>();
             clearCache();
 
             for(int i = 0; i < tiles.length; i++){
-                Tile tile = world.tiles.geti(i);
+                Tile tile = mindustry.Vars.game().world.tiles.geti(i);
                 tiles[i] = packTile(tile);
             }
 
             //don't bother setting up paths unless necessary
-            if(state.rules.waveTeam.needsFlowField() && !net.client()){
-                preloadPath(getField(state.rules.waveTeam, costGround, fieldCore));
+            if(mindustry.Vars.game().state.rules.waveTeam.needsFlowField() && !mindustry.Vars.game().net.client()){
+                preloadPath(getField(mindustry.Vars.game().state.rules.waveTeam, costGround, fieldCore));
                 Log.debug("Preloading ground enemy flowfield.");
 
                 //preload water on naval maps
-                if(spawner.getSpawns().contains(t -> t.floor().isLiquid)){
-                    preloadPath(getField(state.rules.waveTeam, costNaval, fieldCore));
+                if(mindustry.Vars.game().spawner.getSpawns().contains(t -> t.floor().isLiquid)){
+                    preloadPath(getField(mindustry.Vars.game().state.rules.waveTeam, costNaval, fieldCore));
                     Log.debug("Preloading naval enemy flowfield.");
                 }
 
@@ -149,14 +150,14 @@ public class Pathfinder implements Runnable{
         Events.on(ResetEvent.class, event -> stop());
 
         Events.on(TileChangeEvent.class, event -> {
-            if(state.isEditor()) return;
+            if(mindustry.Vars.game().state.isEditor()) return;
 
             updateTile(event.tile);
         });
 
         //remove nearSolid flag for tiles
         Events.on(TilePreChangeEvent.class, event -> {
-            if(state.isEditor()) return;
+            if(mindustry.Vars.game().state.isEditor()) return;
 
             Tile tile = event.tile;
 
@@ -261,7 +262,7 @@ public class Pathfinder implements Runnable{
 
         return PathTile.get(
         tile.build == null || !solid || tile.block() instanceof CoreBlock ? 0 : Math.min((int)(tile.build.health / 40), 80),
-        tid == 0 && tile.build != null && state.rules.coreCapture ? 255 : tid, //use teamid = 255 when core capture is enabled to mark out derelict structures
+        tid == 0 && tile.build != null && mindustry.Vars.game().state.rules.coreCapture ? 255 : tid, //use teamid = 255 when core capture is enabled to mark out derelict structures
         solid,
         tile.floor().isLiquid && tile.block() == Blocks.air,
         tile.legSolid(),
@@ -281,31 +282,29 @@ public class Pathfinder implements Runnable{
         return tiles[x + y * wwidth];
     }
 
-    /** Starts or restarts the pathfinding thread. */
+    /** Starts or restarts this Context's lane on the process-owned bounded path pool. */
     private void start(){
         stop();
-        if(net.client()) return;
-
-        thread = new Thread(this, "Pathfinder");
-        thread.setPriority(Thread.MIN_PRIORITY);
-        thread.setDaemon(true);
-        thread.start();
+        if(mindustry.Vars.game().net.client()) return;
+        GameContext owner=RuntimeContexts.requireCurrent();
+        if(owner==null)throw new IllegalStateException("Pathfinder requires a bound GameContext");
+        pathHandle=RuntimePathExecutor.shared().schedule(owner,"Pathfinder",updateInterval,this::runTurn);
     }
 
-    /** Stops the pathfinding thread. */
+    /** Stops only this Context's path lane; the process pool remains alive for sibling Sectors. */
     private void stop(){
-        if(thread != null){
-            thread.interrupt();
-            thread = null;
-        }
+        if(pathHandle != null){pathHandle.close();pathHandle=null;}
         queue.clear();
         needsRefresh = false;
     }
 
+    /** Releases the runtime-owned pathfinding thread. */
+    public void dispose(){ stop(); }
+
     /** Update a tile in the internal pathfinding grid.
      * Causes a complete pathfinding recalculation. Main thread only. */
     public void updateTile(Tile tile){
-        if(net.client()) return;
+        if(mindustry.Vars.game().net.client()) return;
 
         tile.getLinkedTiles(t -> {
             int pos = t.array();
@@ -314,46 +313,26 @@ public class Pathfinder implements Runnable{
             }
         });
 
-        controlPath.updateTile(tile);
+        mindustry.Vars.game().controlPath.updateTile(tile);
 
         //queue a refresh sometime in the future
         needsRefresh = true;
     }
 
-    /** Thread implementation. */
-    @Override
-    public void run(){
-        while(true){
-            if(net.client()) return;
-            try{
-
-                if(state.isPlaying()){
-                    queue.run();
-
-                    //each update time (not total!) no longer than maxUpdate
-                    for(Flowfield data : threadList){
-
-                        //if it's dirty and there is nothing to update, begin updating once more
-                        if(data.dirty && data.frontier.size == 0){
-                            updateTargets(data);
-                            data.dirty = false;
-                        }
-
-                        updateFrontier(data, maxUpdate);
-                    }
-                }
-
-                try{
-                    Thread.sleep(updateInterval);
-                }catch(InterruptedException e){
-                    //stop looping when interrupted externally
-                    return;
-                }
-            }catch(Throwable e){
-                e.printStackTrace();
+    /** One bounded pathfinding turn. The process-owned scheduler provides cadence and error containment. */
+    private void runTurn(){
+        if(mindustry.Vars.game().net.client())return;
+        if(mindustry.Vars.game().state.isPlaying()){
+            queue.run();
+            for(Flowfield data:threadList){
+                if(data.dirty&&data.frontier.size==0){updateTargets(data);data.dirty=false;}
+                updateFrontier(data,maxUpdate);
             }
         }
     }
+
+    /** Compatibility entry point: execute one Context-bound turn; production scheduling uses RuntimePathExecutor. */
+    @Override public void run(){runTurn();}
 
     public Flowfield getField(Team team, int costType, int fieldType){
         if(cache[team.id][costType][fieldType] == null){
@@ -412,14 +391,14 @@ public class Pathfinder implements Runnable{
         int value = values[apos];
 
         var points = diagonals ? Geometry.d8 : Geometry.d4;
-        int[] avoid = avoidanceId <= 0 ? null : avoidance.getAvoidance();
+        int[] avoid = avoidanceId <= 0 ? null : mindustry.Vars.game().avoidance.getAvoidance();
 
         Tile current = null;
         int tl = 0;
         for(Point2 point : points){
             int dx = tile.x + point.x * res, dy = tile.y + point.y * res;
 
-            Tile other = world.tile(dx, dy);
+            Tile other = mindustry.Vars.game().world.tile(dx, dy);
             if(other == null) continue;
 
             int packed = dx/res + dy/res * ww;
@@ -482,7 +461,7 @@ public class Pathfinder implements Runnable{
         threadList.add(path);
 
         //add to main thread's list of paths
-        Core.app.post(() -> mainList.add(path));
+        RuntimeContexts.post(() -> mainList.add(path));
 
         //fill with impassables by default
         Arrays.fill(path.weights, impassable);
@@ -554,14 +533,14 @@ public class Pathfinder implements Runnable{
 
         @Override
         protected void getPositions(IntSeq out){
-            if(state.rules.randomWaveAI && team == state.rules.waveTeam){
-                rand.setSeed(state.rules.waves ? state.wave : (int)(state.tick / (5400)) + hashCode());
+            if(mindustry.Vars.game().state.rules.randomWaveAI && team == mindustry.Vars.game().state.rules.waveTeam){
+                rand.setSeed(mindustry.Vars.game().state.rules.waves ? mindustry.Vars.game().state.wave : (int)(mindustry.Vars.game().state.tick / (5400)) + hashCode());
 
                 //maximum amount of different target flag types they will attack
                 int max = 1;
 
                 for(int attempt = 0; attempt < 5 && max > 0; attempt++){
-                    var targets = indexer.getEnemy(team, randomTargets[rand.random(randomTargets.length - 1)]);
+                    var targets = mindustry.Vars.game().indexer.getEnemy(team, randomTargets[rand.random(randomTargets.length - 1)]);
                     if(!targets.isEmpty()){
                         boolean any = false;
                         for(Building other : targets){
@@ -577,13 +556,13 @@ public class Pathfinder implements Runnable{
                 }
             }
 
-            for(Building other : indexer.getEnemy(team, BlockFlag.core)){
+            for(Building other : mindustry.Vars.game().indexer.getEnemy(team, BlockFlag.core)){
                 out.add(other.tile.array());
             }
 
             //spawn points are also enemies.
-            if(state.rules.waves && team == state.rules.defaultTeam){
-                for(Tile other : spawner.getSpawns()){
+            if(mindustry.Vars.game().state.rules.waves && team == mindustry.Vars.game().state.rules.defaultTeam){
+                for(Tile other : mindustry.Vars.game().spawner.getSpawns()){
                     out.add(other.array());
                 }
             }
@@ -600,7 +579,7 @@ public class Pathfinder implements Runnable{
 
         @Override
         public void getPositions(IntSeq out){
-            out.add(world.packArray(World.toTile(position.getX()), World.toTile(position.getY())));
+            out.add(mindustry.Vars.game().world.packArray(World.toTile(position.getX()), World.toTile(position.getY())));
         }
     }
 
@@ -648,8 +627,11 @@ public class Pathfinder implements Runnable{
 
         public Flowfield(int resolution){
             this.resolution = resolution;
-            this.width = Mathf.ceil((float)wwidth / resolution);
-            this.height = Mathf.ceil((float)wheight / resolution);
+            Pathfinder owner = mindustry.Vars.game().pathfinder;
+            int worldWidth = owner == null ? mindustry.Vars.game().world.width() : owner.wwidth;
+            int worldHeight = owner == null ? mindustry.Vars.game().world.height() : owner.wheight;
+            this.width = Mathf.ceil((float)worldWidth / resolution);
+            this.height = Mathf.ceil((float)worldHeight / resolution);
         }
 
         void setup(){
@@ -672,17 +654,17 @@ public class Pathfinder implements Runnable{
 
         /** @return the next tile to travel to for this flowfield. Main thread only. */
         public @Nullable Tile getNextTile(Tile from, boolean diagonals){
-            return pathfinder.getTargetTile(from, this, diagonals);
+            return mindustry.Vars.game().pathfinder.getTargetTile(from, this, diagonals);
         }
 
         /** @return the next tile to travel to for this flowfield. Main thread only. */
         public @Nullable Tile getNextTile(Tile from){
-            return pathfinder.getTargetTile(from, this);
+            return mindustry.Vars.game().pathfinder.getTargetTile(from, this);
         }
 
         /** @return the next tile to travel to for this flowfield. Main thread only. */
         public @Nullable Tile getNextTile(Tile from, int unitAvoidanceId){
-            return pathfinder.getTargetTile(from, this, true, unitAvoidanceId);
+            return mindustry.Vars.game().pathfinder.getTargetTile(from, this, true, unitAvoidanceId);
         }
 
         public boolean hasCompleteWeights(){
@@ -700,7 +682,7 @@ public class Pathfinder implements Runnable{
         }
 
         protected boolean passable(int pos){
-            int amount = cost.getCost(team.id, pathfinder.tiles[pos]);
+            int amount = cost.getCost(team.id, mindustry.Vars.game().pathfinder.tiles[pos]);
             //edge case: naval reports costs of 6000+ for non-liquids, even though they are not technically passable
             return amount != impassable && !(cost == costTypes.get(costNaval) && amount >= 6000);
         }

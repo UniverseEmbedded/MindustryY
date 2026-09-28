@@ -41,7 +41,7 @@ public class LongPowerNode extends PowerNode{
             super.draw();
 
             if(warmup > 0.001f){
-                Drawf.additive(glow, Tmp.c1.set(glowColor).mula(warmup).mula(1f - glowMag + Mathf.absin(glowScl, glowMag)), x, y);
+                Drawf.additive(glow, Tmp.c1().set(glowColor).mula(warmup).mula(1f - glowMag + Mathf.absin(glowScl, glowMag)), x, y);
             }
         }
     }

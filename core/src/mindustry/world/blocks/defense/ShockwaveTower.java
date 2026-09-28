@@ -72,7 +72,7 @@ public class ShockwaveTower extends Block{
         public void updateTile(){
             if(potentialEfficiency > 0 && (reloadCounter += edelta()) >= reload && timer(timerCheck, checkInterval)){
                 targets.clear();
-                Groups.bullet.intersect(x - range, y - range, range * 2, range * 2, b -> {
+                Groups.current().bullet.intersect(x - range, y - range, range * 2, range * 2, b -> {
                     if(b.team != team && b.type.hittable && b.within(x, y, range + 1f)){
                         targets.add(b);
                     }
@@ -101,7 +101,7 @@ public class ShockwaveTower extends Block{
                 }
             }
 
-            heat = Mathf.clamp(heat - Time.delta / reload * cooldownMultiplier);
+            heat = Mathf.clamp(heat - Time.delta() / reload * cooldownMultiplier);
         }
 
 
@@ -132,7 +132,7 @@ public class ShockwaveTower extends Block{
 
             Draw.z(Layer.effect);
             Draw.color(shapeColor, waveColor, Mathf.pow(heat, 2f));
-            Fill.poly(x, y, shapeSides, shapeRadius * potentialEfficiency, Time.time * shapeRotateSpeed);
+            Fill.poly(x, y, shapeSides, shapeRadius * potentialEfficiency, Time.time() * shapeRotateSpeed);
             Draw.color();
         }
 

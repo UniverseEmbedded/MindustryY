@@ -19,9 +19,9 @@ public class ShootSummon extends ShootPattern{
     @Override
     public void shoot(int totalShots, BulletHandler handler, @Nullable Runnable barrelIncrementer){
         for(int i = 0; i < shots; i++){
-            Tmp.v1.trns(Mathf.random(360f), Mathf.random(radius));
+            Tmp.v1().trns(Mathf.random(360f), Mathf.random(radius));
 
-            handler.shoot(x + Tmp.v1.x, y + Tmp.v1.y, Mathf.range(spread), firstShotDelay + shotDelay * i);
+            handler.shoot(x + Tmp.v1().x, y + Tmp.v1().y, Mathf.range(spread), firstShotDelay + shotDelay * i);
         }
     }
 }

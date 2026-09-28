@@ -68,7 +68,7 @@ public class UnitCargoUnloadPoint extends Block{
             if(dumpAccumulate()){
                 staleTimer = 0f;
                 stale = false;
-            }else if(items.total() >= itemCapacity && (staleTimer += Time.delta) >= staleTimeDuration){
+            }else if(items.total() >= itemCapacity && (staleTimer += Time.delta()) >= staleTimeDuration){
                 stale = true;
             }
         }

@@ -460,11 +460,11 @@ public class Turret extends ReloadTurret{
             if(!hasAmmo() || pos == null) return;
             BulletType bullet = peekAmmo();
 
-            var offset = Tmp.v1.setZero();
+            var offset = Tmp.v1().setZero();
 
             //when delay is accurate, assume unit has moved by chargeTime already
             if(accurateDelay && !moveWhileCharging && pos instanceof Hitboxc h){
-                offset.set(h.deltaX(), h.deltaY()).scl(shoot.firstShotDelay / Time.delta);
+                offset.set(h.deltaX(), h.deltaY()).scl(shoot.firstShotDelay / Time.delta());
             }
 
             if(predictTarget && bullet.speed >= 0.01f){
@@ -510,7 +510,7 @@ public class Turret extends ReloadTurret{
                 warmupHold = 1f;
             }
             if(warmupHold > 0f){
-                warmupHold -= Time.delta / warmupMaintainTime;
+                warmupHold -= Time.delta() / warmupMaintainTime;
                 warmupTarget = 1f;
             }
 
@@ -538,7 +538,7 @@ public class Turret extends ReloadTurret{
             recoilOffset.trns(rotation, -Mathf.pow(curRecoil, recoilPow) * recoil);
 
             if(logicControlTime > 0){
-                logicControlTime -= Time.delta;
+                logicControlTime -= Time.delta();
             }
 
             if(heatRequirement > 0){
@@ -561,7 +561,7 @@ public class Turret extends ReloadTurret{
             }
 
             if(activationTimer > 0){
-                activationTimer -= Time.delta;
+                activationTimer -= Time.delta();
                 return;
             }
 

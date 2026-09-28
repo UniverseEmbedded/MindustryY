@@ -6,10 +6,14 @@ import arc.util.*;
 import mindustry.gen.*;
 
 public class PowerGraph{
-    private static final Queue<Building> queue = new Queue<>();
-    private static final Seq<Building> outArray1 = new Seq<>();
-    private static final Seq<Building> outArray2 = new Seq<>();
-    private static final IntSet closedSet = new IntSet();
+    private static final ThreadLocal<Scratch> scratch = ThreadLocal.withInitial(Scratch::new);
+
+    private static final class Scratch{
+        final Queue<Building> queue = new Queue<>();
+        final Seq<Building> outArray1 = new Seq<>();
+        final Seq<Building> outArray2 = new Seq<>();
+        final IntSet closedSet = new IntSet();
+    }
 
     //do not modify any of these unless you know what you're doing!
     public final Seq<Building> producers = new Seq<>(false, 16, Building.class);
@@ -25,17 +29,16 @@ public class PowerGraph{
     private float energyDelta = 0f;
 
     private final int graphID;
-    private static int lastGraphID;
 
     public PowerGraph(){
         entity = PowerGraphUpdater.create();
         entity.graph = this;
-        graphID = lastGraphID++;
+        graphID = mindustry.Vars.game().nextPowerGraphId();
     }
 
     public PowerGraph(boolean noEntity){
         entity = null;
-        graphID = lastGraphID++;
+        graphID = mindustry.Vars.game().nextPowerGraphId();
     }
 
     public int getID(){
@@ -230,12 +233,12 @@ public class PowerGraph{
         lastPowerNeeded = powerNeeded;
         lastPowerProduced = powerProduced;
 
-        lastScaledPowerIn = (powerProduced + energyDelta) / Time.delta;
-        lastScaledPowerOut = powerNeeded / Time.delta;
+        lastScaledPowerIn = (powerProduced + energyDelta) / Time.delta();
+        lastScaledPowerOut = powerNeeded / Time.delta();
         lastCapacity = getTotalBatteryCapacity();
         lastPowerStored = getBatteryStored();
 
-        powerBalance.add((lastPowerProduced - lastPowerNeeded + energyDelta) / Time.delta);
+        powerBalance.add((lastPowerProduced - lastPowerNeeded + energyDelta) / Time.delta());
         energyDelta = 0f;
 
         if(!(consumers.size == 0 && producers.size == 0 && batteries.size == 0)){
@@ -314,18 +317,24 @@ public class PowerGraph{
     }
 
     public void reflow(Building tile){
-        queue.clear();
-        queue.addLast(tile);
-        closedSet.clear();
-        while(queue.size > 0){
-            Building child = queue.removeFirst();
-            add(child);
-            checkAdd();
-            for(Building next : child.getPowerConnections(outArray2)){
-                if(closedSet.add(next.pos())){
-                    queue.addLast(next);
+        Scratch local = scratch.get();
+        Queue<Building> queue = local.queue;
+        Seq<Building> outArray2 = local.outArray2;
+        IntSet closedSet = local.closedSet;
+        try{
+            queue.clear();
+            queue.addLast(tile);
+            closedSet.clear();
+            while(queue.size > 0){
+                Building child = queue.removeFirst();
+                add(child);
+                checkAdd();
+                for(Building next : child.getPowerConnections(outArray2)){
+                    if(closedSet.add(next.pos())) queue.addLast(next);
                 }
             }
+        }finally{
+            queue.clear(); outArray2.clear(); closedSet.clear();
         }
     }
 
@@ -340,40 +349,26 @@ public class PowerGraph{
     /** Note that this does not actually remove the building from the graph;
      * it creates *new* graphs that contain the correct buildings. Doing this invalidates the graph. */
     public void remove(Building tile){
-
-        //go through all the connections of this tile
-        for(Building other : tile.getPowerConnections(outArray1)){
-            //a graph has already been assigned to this tile from a previous call, skip it
-            if(other.power.graph != this) continue;
-
-            //create graph for this branch
-            PowerGraph graph = new PowerGraph();
-            graph.checkAdd();
-            graph.add(other);
-            //add to queue for BFS
-            queue.clear();
-            queue.addLast(other);
-            while(queue.size > 0){
-                //get child from queue
-                Building child = queue.removeFirst();
-                //add it to the new branch graph
-                graph.add(child);
-                //go through connections
-                for(Building next : child.getPowerConnections(outArray2)){
-                    //make sure it hasn't looped back, and that the new graph being assigned hasn't already been assigned
-                    //also skip closed tiles
-                    if(next != tile && next.power.graph != graph){
-                        graph.add(next);
-                        queue.addLast(next);
+        Scratch local = scratch.get();
+        Queue<Building> queue = local.queue;
+        Seq<Building> outArray1 = local.outArray1;
+        Seq<Building> outArray2 = local.outArray2;
+        try{
+            for(Building other : tile.getPowerConnections(outArray1)){
+                if(other.power.graph != this) continue;
+                PowerGraph graph = new PowerGraph();
+                graph.checkAdd(); graph.add(other);
+                queue.clear(); queue.addLast(other);
+                while(queue.size > 0){
+                    Building child = queue.removeFirst(); graph.add(child);
+                    for(Building next : child.getPowerConnections(outArray2)){
+                        if(next != tile && next.power.graph != graph){ graph.add(next); queue.addLast(next); }
                     }
                 }
+                graph.update();
             }
-            //update the graph once so direct consumers without any connected producer lose their power
-            graph.update();
-        }
-
-        //implied empty graph here
-        if(entity != null) entity.remove();
+            if(entity != null) entity.remove();
+        }finally{ queue.clear(); outArray1.clear(); outArray2.clear(); }
     }
 
     @Override

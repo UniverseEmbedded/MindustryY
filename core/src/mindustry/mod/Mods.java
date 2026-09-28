@@ -1158,7 +1158,9 @@ public class Mods implements Loadable{
                 !skipModLoading() &&
                 Core.settings.getBool("mod-" + baseName + "-enabled", true) &&
                 Version.isAtLeast(meta.minGameVersion) &&
-                (meta.getMinMajor() >= minJavaModGameVersion || headless || meta.legacyCompatible) &&
+                // Same headless bypass as isSupported(): strict Shared Action hosts must resolve Java-mod mains
+                // exactly like the graphical coordinator or class-mod content (and the fingerprint) diverges.
+                (meta.getMinMajor() >= minJavaModGameVersion || (headless && !Boolean.getBoolean("mindustryY.sharedCampaign.strictModSupport")) || meta.legacyCompatible) &&
                 !meta.isBlacklisted() &&
                 !skipModCode &&
                 initialize
@@ -1293,8 +1295,10 @@ public class Mods implements Loadable{
 
         /** @return whether this mod is supported by the game version */
         public boolean isSupported(){
-            //no unsupported mods on servers
-            if(headless) return true;
+            //no unsupported mods on servers; Shared Action authorities opt into the coordinator's strict
+            //resolution instead, or a graphical coordinator and a headless action host disagree about the
+            //enabled-mod set and every actionHello fails with a content fingerprint mismatch.
+            if(headless && !Boolean.getBoolean("mindustryY.sharedCampaign.strictModSupport")) return true;
 
             if(isOutdated() || isBlacklisted()) return false;
 

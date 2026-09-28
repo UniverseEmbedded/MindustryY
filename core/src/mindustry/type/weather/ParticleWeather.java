@@ -40,11 +40,11 @@ public class ParticleWeather extends Weather{
 
     @Override
     public void update(WeatherState state){
-        float speed = force * state.intensity * Time.delta;
+        float speed = force * state.intensity * Time.delta();
         if(speed > 0.001f){
             float windx = state.windVector.x * speed, windy = state.windVector.y * speed;
 
-            for(Unit unit : Groups.unit){
+            for(Unit unit : Groups.current().unit){
                 unit.impulse(windx, windy);
             }
         }
@@ -71,7 +71,7 @@ public class ParticleWeather extends Weather{
             }
 
             float sspeed = 1f, sscl = 1f, salpha = 1f, offset = 0f;
-            Color col = Tmp.c1.set(noiseColor);
+            Color col = Tmp.c1().set(noiseColor);
             for(int i = 0; i < noiseLayers; i++){
                 drawNoise(noise, noiseColor, noiseScale * sscl, state.opacity * salpha * opacityMultiplier, sspeed * (useWindVector ? 1f : baseSpeed), state.intensity, windx, windy, offset);
                 sspeed *= noiseLayerSpeedM;

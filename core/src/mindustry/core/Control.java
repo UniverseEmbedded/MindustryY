@@ -450,10 +450,10 @@ public class Control implements ApplicationListener, Loadable{
 
             boolean clearSave = sector.planet.clearSectorOnLose || sector.planet.campaignRules.clearSectorOnLose;
 
-            if(slot != null && !clearSectors && (!clearSave || sector.info.hasCore)){
+            if(slot != null && !clearSectors && (!clearSave || sector.info().hasCore)){
 
                 try{
-                    boolean hadNoCore = !sector.info.hasCore;
+                    boolean hadNoCore = !sector.info().hasCore;
                     reloader.begin();
                     //pass in a sector context to make absolutely sure the correct sector is written; it may differ from what's in the meta due to remapping.
                     slot.load(world.makeSectorContext(sector));
@@ -465,81 +465,21 @@ public class Control implements ApplicationListener, Loadable{
                     if(state.rules.defaultTeam.cores().isEmpty() || hadNoCore){
 
                         //don't carry over the spawn position and plans if the sector preset name or map size changed
-                        if(clearSave || sector.info.spawnPosition == 0 || !sector.info.sectorDataMatches(sector)){
+                        if(clearSave || sector.info().spawnPosition == 0 || !sector.info().sectorDataMatches(sector)){
                             playNewSector(origin, sector, reloader);
                         }else{
-                            int spawnPos = sector.info.spawnPosition;
-
-                            //set spawn for sector damage to use
-                            Tile spawn = world.tile(spawnPos);
-                            if(spawn == null){
+                            var lost = SectorLossReconstruction.capture(sector);
+                            if(lost == null){
                                 playNewSector(origin, sector, reloader);
                                 return;
                             }
-                            spawn.setBlock(sector.planet.defaultCore, state.rules.defaultTeam);
-
-                            //apply damage to simulate the sector being lost
-                            SectorDamage.apply(1f);
-
-                            //save the plans and buildings from the previous save; they will be used to re-populate the sector
-                            var previousPlans = state.rules.defaultTeam.data().plans.toArray(BlockPlan.class);
-                            var previousBuildings = state.rules.defaultTeam.data().buildings.<Building>toArray(Building.class);
-                            var previousDerelicts = Team.derelict.data().buildings.<Building>toArray(Building.class);
 
                             logic.reset();
 
-                            //now, load a fresh save; the old one was only used to grab previous building data
+                            //now, load a fresh save; the old one was only used to capture vanilla loss reconstruction state
                             playNewSector(origin, sector, reloader, new WorldParams(){{
-                                corePositionOverride = spawnPos;
-                            }}, () -> {
-                                var teamData = state.rules.defaultTeam.data();
-
-                                //all the derelicts from the new save have to be removed.
-                                for(var generatedDerelict : Team.derelict.data().buildings.<Building>toArray(Building.class)){
-                                    generatedDerelict.tile.remove();
-                                }
-
-                                //retain old derelicts from the previous save.
-                                for(var build : previousDerelicts){
-                                    Tile tile = world.tile(build.tileX(), build.tileY());
-                                    if(tile != null && tile.build == null && Build.validPlace(build.block, Team.derelict, build.tileX(), build.tileY(), build.rotation, false, false)){
-                                        tile.setBlock(build.block, Team.derelict, build.rotation, () -> build);
-                                    }
-                                }
-
-                                //all the derelict power graphs are invalid
-                                for(var build : previousBuildings){
-                                    if(build.power != null){
-                                        build.power.graph = new PowerGraph();
-                                        build.power.links.clear();
-                                    }
-                                }
-
-                                //copy over all buildings from the previous save, retaining config and health, and making them derelict
-                                for(var build : previousBuildings){
-                                    Tile tile = world.tile(build.tileX(), build.tileY());
-                                    if(tile != null && tile.build == null && Build.validPlace(build.block, state.rules.defaultTeam, build.tileX(), build.tileY(), build.rotation, false, false)){
-                                        build.addPlan(false, true);
-                                        tile.setBlock(build.block, state.rules.defaultTeam, build.rotation, () -> build);
-                                        build.changeTeam(Team.derelict);
-                                        build.dropped(); //TODO: call pickedUp too? this may screw up power networks in a major way as they refer to potentially deleted entities
-                                    }
-                                }
-
-                                for(var build : previousBuildings){
-                                    if(build.isValid()){
-                                        build.updateProximity();
-                                    }
-                                }
-
-                                //carry over all previous plans that don't already have the corresponding block at their position
-                                for(var plan : previousPlans){
-                                    var build = world.build(plan.x, plan.y);
-                                    if(!(build != null && build.block == plan.block && build.tileX() == plan.x && build.tileY() == plan.y && build.team != state.rules.waveTeam)){
-                                        teamData.plans.add(plan);
-                                    }
-                                }
-                            });
+                                corePositionOverride = lost.spawnPosition();
+                            }}, () -> SectorLossReconstruction.restore(lost));
 
                             Core.app.post(() -> {
                                 //blocks placed after WorldLoadEvent didn't queue an update, so fix that.
@@ -654,7 +594,7 @@ public class Control implements ApplicationListener, Loadable{
                     if(countdown[0] <= 0){
                         exit.run();
                     }
-                    return Core.bundle.format("uiscale.reset", (int)((countdown[0] -= Time.delta) / 60f));
+                    return Core.bundle.format("uiscale.reset", (int)((countdown[0] -= Time.delta()) / 60f));
                 }).pad(10f).expand().center();
 
                 dialog.buttons.defaults().size(200f, 60f);

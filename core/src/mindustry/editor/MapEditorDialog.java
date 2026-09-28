@@ -205,8 +205,8 @@ public class MapEditorDialog extends Dialog implements Disposable{
 
                         float deltaScl = 2f;
                         int steps = Mathf.ceil(seconds[0] * 60f / deltaScl);
-                        float oldDelta = Time.delta;
-                        Time.delta = deltaScl;
+                        float oldDelta = Time.delta();
+                        Time.setDelta(deltaScl);
 
                         Seq<Building> builds = new Seq<>();
                         Time.clear();
@@ -233,15 +233,15 @@ public class MapEditorDialog extends Dialog implements Disposable{
                             for(var build : builds){
                                 build.update();
                             }
-                            Groups.powerGraph.update();
-                            Groups.bullet.update(); //needed for mass drivers...
+                            Groups.current().powerGraph.update();
+                            Groups.current().bullet.update(); //needed for mass drivers...
                         }
 
                         //spawned units will cause havoc, so clear them
-                        Groups.unit.clear();
+                        Groups.current().unit.clear();
 
                         Time.clear();
-                        Time.delta = oldDelta;
+                        Time.setDelta(oldDelta);
                     });
 
                     dialog.hide();
@@ -344,13 +344,13 @@ public class MapEditorDialog extends Dialog implements Disposable{
             world.endMapLoad();
             player.clearUnit();
 
-            for(var unit : Groups.unit){
+            for(var unit : Groups.current().unit){
                 if(unit.spawnedByCore){
                     unit.remove();
                 }
             }
 
-            Groups.weather.clear();
+            Groups.current().weather.clear();
             logic.play();
 
             Point2 center = view.project(Core.graphics.getWidth()/2f, Core.graphics.getHeight()/2f);
@@ -407,7 +407,7 @@ public class MapEditorDialog extends Dialog implements Disposable{
         player.clearUnit();
 
         //remove player unit
-        Unit unit = Groups.unit.find(u -> u.spawnedByCore);
+        Unit unit = Groups.current().unit.find(u -> u.spawnedByCore);
         if(unit != null){
             unit.remove();
         }
@@ -599,7 +599,7 @@ public class MapEditorDialog extends Dialog implements Disposable{
                             }
 
                             table.update(() -> {
-                                Vec2 v = button.localToStageCoordinates(Tmp.v1.setZero());
+                                Vec2 v = button.localToStageCoordinates(Tmp.v1().setZero());
                                 table.setPosition(v.x, v.y, Align.topLeft);
                                 if(!isShown()){
                                     table.remove();

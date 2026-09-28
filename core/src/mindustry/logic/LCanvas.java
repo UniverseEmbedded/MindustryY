@@ -189,7 +189,7 @@ public class LCanvas extends Table{
             float dst = Math.min(y - this.y, Core.graphics.getHeight() - y);
             if(dst < Scl.scl(100f)){ //scroll margin
                 int sign = Mathf.sign(Core.graphics.getHeight()/2f - y);
-                pane.setScrollY(pane.getScrollY() + sign * Scl.scl(15f) * Time.delta);
+                pane.setScrollY(pane.getScrollY() + sign * Scl.scl(15f) * Time.delta());
             }
         }
     }
@@ -466,7 +466,7 @@ public class LCanvas extends Table{
                             return false;
                         }
 
-                        Vec2 v = localToParentCoordinates(Tmp.v1.set(x, y));
+                        Vec2 v = localToParentCoordinates(Tmp.v1().set(x, y));
                         lastx = v.x;
                         lasty = v.y;
                         dragging = StatementElem.this;
@@ -478,7 +478,7 @@ public class LCanvas extends Table{
 
                     @Override
                     public void touchDragged(InputEvent event, float x, float y, int pointer){
-                        Vec2 v = localToParentCoordinates(Tmp.v1.set(x, y));
+                        Vec2 v = localToParentCoordinates(Tmp.v1().set(x, y));
 
                         translation.add(v.x - lastx, v.y - lasty);
                         lastx = v.x;
@@ -586,7 +586,7 @@ public class LCanvas extends Table{
 
                 @Override
                 public void touchUp(InputEvent event, float x, float y, int pointer, KeyCode code){
-                    localToStageCoordinates(Tmp.v1.set(x, y));
+                    localToStageCoordinates(Tmp.v1().set(x, y));
                     StatementElem elem = canvas.hovered;
 
                     if(elem != null && !isDescendantOf(elem)){
@@ -656,7 +656,7 @@ public class LCanvas extends Table{
             //MDTX(WayZer, 2024/8/6) Support Cull
             invertedHeight = false;
             Group desc = canvas.statements.jumps.parent;
-            Vec2 t = Tmp.v1.set(button.getWidth() / 2f, button.getHeight() / 2f);
+            Vec2 t = Tmp.v1().set(button.getWidth() / 2f, button.getHeight() / 2f);
             button.localToAscendantCoordinates(desc, t);
             setPosition(t.x, t.y);
             Element hover = button.to.get() == null && button.selecting ? canvas.hovered : button.to.get();
@@ -678,7 +678,7 @@ public class LCanvas extends Table{
         @Override
         public void draw(){
             if(height == 0) return;
-            Vec2 t = Tmp.v1.set(width, !invertedHeight ? height : 0), r = Tmp.v2.set(0, !invertedHeight ? 0 : height);
+            Vec2 t = Tmp.v1().set(width, !invertedHeight ? height : 0), r = Tmp.v2().set(0, !invertedHeight ? 0 : height);
 
             Group desc = canvas.pane;
             localToAscendantCoordinates(desc, r);
@@ -700,16 +700,16 @@ public class LCanvas extends Table{
             uiHeight = Mathf.lerp(
                 Scl.scl(Core.graphics.isPortrait() ? 20f : 40f) + Scl.scl(Core.graphics.isPortrait() ? 8f : 10f) * (float) predHeight,
                 uiHeight,
-                dynamicJumpHeights ? Mathf.pow(0.9f, Time.delta) : 0
+                dynamicJumpHeights ? Mathf.pow(0.9f, Time.delta()) : 0
            );
 
             //trapezoidal jumps
             float dy = (y2 == y ? 0f : y2 > y ? 1f : -1f) * uiHeight * 0.5f;
             //there's absolutely a better way to detect invalid trapezoids, but this probably isn't *that* slow and I don't care to fix it right now
-            if(Intersector.intersectSegments(x, y, x + uiHeight, y + dy, x2, y2, x + uiHeight, y2 - dy, Tmp.v3)){
+            if(Intersector.intersectSegments(x, y, x + uiHeight, y + dy, x2, y2, x + uiHeight, y2 - dy, Tmp.v3())){
                 Lines.beginLine();
                 Lines.linePoint(x, y);
-                Lines.linePoint(Tmp.v3.x, Tmp.v3.y);
+                Lines.linePoint(Tmp.v3().x, Tmp.v3().y);
                 Lines.linePoint(x2, y2);
                 Lines.endLine();
             }else{

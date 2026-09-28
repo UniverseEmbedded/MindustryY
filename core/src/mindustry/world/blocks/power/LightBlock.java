@@ -78,7 +78,7 @@ public class LightBlock extends Block{
         @Override
         public void control(LAccess type, double p1, double p2, double p3, double p4){
             if(type == LAccess.color){
-                color = Tmp.c1.fromDouble(p1).rgba8888();
+                color = Tmp.c1().fromDouble(p1).rgba8888();
 
                 if(!headless) renderer.minimap.update(tile);
             }
@@ -88,14 +88,14 @@ public class LightBlock extends Block{
 
         @Override
         public double sense(LAccess sensor){
-            if(sensor == LAccess.color) return Tmp.c1.set(color).toDoubleBits();
+            if(sensor == LAccess.color) return Tmp.c1().set(color).toDoubleBits();
             return super.sense(sensor);
         }
 
         @Override
         public void draw(){
             super.draw();
-            Draw.color(Tmp.c1.set(color).a(0.6f));
+            Draw.color(Tmp.c1().set(color).a(0.6f));
             Draw.rect(topRegion, x, y);
             Draw.color();
         }
@@ -108,7 +108,7 @@ public class LightBlock extends Block{
         @Override
         public void buildConfiguration(Table table){
             table.button(Icon.pencil, Styles.cleari, () -> {
-                ui.picker.show(Tmp.c1.set(color).a(0.5f), false, res -> configure(res.rgba()));
+                ui.picker.show(Tmp.c1().set(color).a(0.5f), false, res -> configure(res.rgba()));
                 deselect();
             }).size(40f);
         }
@@ -125,7 +125,7 @@ public class LightBlock extends Block{
 
         @Override
         public void drawLight(){
-            Drawf.light(x, y, lightRadius * Math.min(smoothTime, 2f), Tmp.c1.set(color), brightness * efficiency);
+            Drawf.light(x, y, lightRadius * Math.min(smoothTime, 2f), Tmp.c1().set(color), brightness * efficiency);
         }
 
         @Override

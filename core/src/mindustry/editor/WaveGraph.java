@@ -313,7 +313,7 @@ public class WaveGraph extends Table{
             for(UnitType type : used){
                 t.button(b -> {
                     Color tcolor = color(type).cpy();
-                    b.image().size(32f).update(i -> i.setColor(b.isChecked() ? Tmp.c1.set(tcolor).mul(0.5f) : tcolor)).get().act(1);
+                    b.image().size(32f).update(i -> i.setColor(b.isChecked() ? Tmp.c1().set(tcolor).mul(0.5f) : tcolor)).get().act(1);
                     b.image(type.uiIcon).size(32f).scaling(Scaling.fit).padRight(20).update(i -> i.setColor(b.isChecked() ? Color.gray : Color.white)).get().act(1);
                     b.margin(0f);
                 }, Styles.fullTogglet, () -> {
@@ -336,7 +336,7 @@ public class WaveGraph extends Table{
     }
 
     Color color(UnitType type){
-        return Tmp.c1.fromHsv(type.id / (float)Vars.content.units().size * 360f, 0.7f, 1f);
+        return Tmp.c1().fromHsv(type.id / (float)Vars.content.units().size * 360f, 0.7f, 1f);
     }
 
     int nextStep(float value){

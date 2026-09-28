@@ -328,8 +328,8 @@ public abstract class LStatement{
                 return;
             }
 
-            b.localToStageCoordinates(Tmp.v1.set(b.getWidth()/2f, b.getHeight()/2f));
-            t.setPosition(Tmp.v1.x, Tmp.v1.y, Align.center);
+            b.localToStageCoordinates(Tmp.v1().set(b.getWidth()/2f, b.getHeight()/2f));
+            t.setPosition(Tmp.v1().x, Tmp.v1().y, Align.center);
             if(t.getWidth() > Core.scene.getWidth()) t.setWidth(Core.graphics.getWidth());
             if(t.getHeight() > Core.scene.getHeight()) t.setHeight(Core.graphics.getHeight());
             t.keepInStage();

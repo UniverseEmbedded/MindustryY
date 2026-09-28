@@ -9,6 +9,7 @@ import mindustry.*;
 import mindustry.async.PhysicsProcess.PhysicsWorld.*;
 import mindustry.core.*;
 import mindustry.gen.*;
+import mindustry.runtime.*;
 
 import java.util.concurrent.*;
 
@@ -50,7 +51,7 @@ public class PhysicsProcess implements AsyncProcess{
     @Override
     public void begin(){
         if(physics == null) return;
-        boolean local = !Vars.net.client();
+        boolean local = !mindustry.Vars.game().net.client();
 
         PerfCounter.unitPhysicsWait.begin();
 
@@ -104,9 +105,10 @@ public class PhysicsProcess implements AsyncProcess{
 
         //one task per world
         futures.clear();
+        GameContext owner = RuntimeContexts.requireCurrent();
         for(int i = 0; i < layers; i++){
             PhysicsWorld world = physics[i];
-            futures.add(Vars.mainExecutor.submit(world::update));
+            futures.add(Vars.mainExecutor.submit(RuntimeContexts.capture(owner, world::update)));
         }
     }
 
@@ -128,7 +130,7 @@ public class PhysicsProcess implements AsyncProcess{
     public void init(){
         reset();
 
-        Rect bounds = Vars.world.getQuadBounds(new Rect());
+        Rect bounds = mindustry.Vars.game().world.getQuadBounds(new Rect());
         physics = new PhysicsWorld[layers];
         for(int i = 0; i < layers; i++){
             physics[i] = new PhysicsWorld(bounds);
@@ -180,7 +182,7 @@ public class PhysicsProcess implements AsyncProcess{
             var bodyItems = bodies.items;
             int bodySize = bodies.size;
 
-            int iterations = Vars.net.client() || OS.isMobile ? mobileIterations : desktopIterations;
+            int iterations = Vars.game().net.client() || OS.isMobile ? mobileIterations : desktopIterations;
 
             for(int iter = 0; iter < iterations; iter++){
                 tree.fill(bodies);

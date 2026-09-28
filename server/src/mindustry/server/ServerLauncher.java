@@ -4,13 +4,16 @@ import arc.*;
 import arc.backend.headless.*;
 import arc.util.*;
 import mindustry.*;
+import mindustry.campaign.shared.runtime.*;
 import mindustry.core.*;
 import mindustry.ctype.*;
 import mindustry.game.EventType.*;
+import mindustry.game.*;
 import mindustry.mod.*;
 import mindustry.mod.Mods.*;
 import mindustry.net.Net;
 import mindustry.net.*;
+import mindustry.runtime.*;
 import mindustry.ui.*;
 
 import java.time.*;
@@ -23,10 +26,11 @@ public class ServerLauncher implements ApplicationListener{
     static String[] args;
 
     public static void main(String[] args){
+        RuntimeContexts.bindPrimaryThread();
         try{
             ServerLauncher.args = args;
             Vars.platform = new Platform(){};
-            Vars.net = new Net(platform.getNet());
+            Vars.net = Vars.game().net = new Net(platform.getNet());
 
             logger = (level1, text) -> {
                 String result = "[" + dateTime.format(LocalDateTime.now()) + "] " + format(tags[level1.ordinal()] + " " + text + "&fr");
@@ -40,12 +44,16 @@ public class ServerLauncher implements ApplicationListener{
 
     @Override
     public void init(){
+        // HeadlessApplication owns the application lane; bind it explicitly before any runtime-owned access.
+        RuntimeContexts.bindPrimaryThread();
         Core.settings.setDataDirectory(Core.files.local("config"));
         loadLocales = false;
         headless = true;
 
         Vars.loadSettings();
         Vars.init();
+        // Shared Action fresh-sector bootstrap needs the same schematic registry lifecycle as the desktop client.
+        schematics = new Schematics();
 
         UI.loadColors();
         Fonts.loadContentIconsHeadless();
@@ -54,6 +62,7 @@ public class ServerLauncher implements ApplicationListener{
         mods.loadScripts();
         content.createModContent();
         content.init();
+        schematics.load();
 
         if(mods.hasContentErrors()){
             err("Error occurred loading mod content:");
@@ -71,11 +80,27 @@ public class ServerLauncher implements ApplicationListener{
 
         bases.load();
 
-        Core.app.addListener(new ApplicationListener(){public void update(){ asyncCore.begin(); }});
-        Core.app.addListener(logic = new Logic());
-        Core.app.addListener(netServer = new NetServer());
+        Core.app.addListener(new ApplicationListener(){public void update(){ Vars.game().asyncCore.begin(); }});
+        Core.app.addListener(logic = Vars.game().logic = new Logic());
+        Core.app.addListener(netServer = Vars.game().netServer = new NetServer());
+
+        ActionRuntimeConfig actionRuntime = ActionRuntimeConfig.fromProcessBootstrap();
+        if(actionRuntime.enabled()){
+            SharedActionBootstrap.installCurrent(actionRuntime, Core.app::exit);
+            Core.app.addListener(new ApplicationListener(){
+                @Override public void update(){
+                    SharedCampaignRuntimeState state = SharedCampaignRuntimeState.find(Vars.game());
+                    if(state != null) state.tick();
+                }
+                @Override public void dispose(){
+                    SharedCampaignRuntimeState state = SharedCampaignRuntimeState.find(Vars.game());
+                    if(state != null) state.dispose();
+                }
+            });
+        }
+
         Core.app.addListener(new ServerControl(args));
-        Core.app.addListener(new ApplicationListener(){public void update(){ asyncCore.end(); }});
+        Core.app.addListener(new ApplicationListener(){public void update(){ Vars.game().asyncCore.end(); }});
 
         mods.eachClass(Mod::init);
 

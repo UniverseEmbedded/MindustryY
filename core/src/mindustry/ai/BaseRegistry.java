@@ -53,7 +53,7 @@ public class BaseRegistry{
                 Schematic schem = Schematics.read(Core.files.internal("baseparts/" + name));
 
                 BasePart part = new BasePart(schem);
-                Tmp.v1.setZero();
+                Tmp.v1().setZero();
                 int drills = 0;
 
                 for(Stile tile : schem.tiles){
@@ -76,7 +76,7 @@ public class BaseRegistry{
 
                     //calculate averages
                     if(tile.block instanceof Drill || tile.block instanceof Pump){
-                        Tmp.v1.add(tile.x*tilesize + tile.block.offset, tile.y*tilesize + tile.block.offset);
+                        Tmp.v1().add(tile.x*tilesize + tile.block.offset, tile.y*tilesize + tile.block.offset);
                         drills ++;
                     }
                 }
@@ -91,9 +91,9 @@ public class BaseRegistry{
                 }
 
                 if(drills > 0){
-                    Tmp.v1.scl(1f / drills).scl(1f / tilesize);
-                    part.centerX = (int)Tmp.v1.x;
-                    part.centerY = (int)Tmp.v1.y;
+                    Tmp.v1().scl(1f / drills).scl(1f / tilesize);
+                    part.centerX = (int)Tmp.v1().x;
+                    part.centerY = (int)Tmp.v1().y;
                 }else{
                     part.centerX = part.schematic.width/2;
                     part.centerY = part.schematic.height/2;

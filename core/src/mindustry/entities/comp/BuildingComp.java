@@ -54,8 +54,8 @@ import static mindustry.Vars.*;
 abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, QuadTreeObject, Displayable, Sized, Senseable, Controllable, Settable, AmbientSource{
     //region vars and initialization
     static final float timeToSleep = 60f * 1, recentDamageTime = 60f * 5f;
-    static final ObjectSet<Building> tmpTiles = new ObjectSet<>();
-    static final Seq<Building> tempBuilds = new Seq<>();
+    static final ThreadLocal<ObjectSet<Building>> tmpTiles = ThreadLocal.withInitial(ObjectSet::new);
+    static final ThreadLocal<Seq<Building>> tempBuilds = ThreadLocal.withInitial(Seq::new);
     static final BuildTeamChangeEvent teamChangeEvent = new BuildTeamChangeEvent();
     static final BuildDamageEvent bulletDamageEvent = new BuildDamageEvent();
     static int sleepingEntities = 0;
@@ -253,7 +253,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
             timeScaleDuration = read.f();
         }
         if((moduleBits & (1 << 5)) != 0){
-            lastDisabler = world.build(read.i());
+            lastDisabler = mindustry.Vars.game().world.build(read.i());
         }
 
         //unnecessary consume module read in version 2 and below
@@ -313,7 +313,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
     //region utility methods
 
     public boolean isDiscovered(Team viewer){
-        if(state.rules.limitMapArea && world.getDarkness(tile.x, tile.y) >= 3){
+        if(state.rules.limitMapArea && mindustry.Vars.game().world.getDarkness(tile.x, tile.y) >= 3){
             return false;
         }
 
@@ -375,7 +375,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
         Tile best = null;
         float mindst = 0f;
         for(var point : Edges.getEdges(block.size)){
-            Tile other = Vars.world.tile(tile.x + point.x, tile.y + point.y);
+            Tile other = mindustry.Vars.game().world.tile(tile.x + point.x, tile.y + point.y);
             if(other != null && !solid.get(other) && (best == null || to.dst2(other) < mindst)){
                 best = other;
                 mindst = other.dst2(to);
@@ -486,29 +486,29 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
         applyHealSuppression(amount, Pal.sapBullet);
     }
     public void applyHealSuppression(float amount, Color suppressColor){
-        healSuppressionTime = Math.max(healSuppressionTime, Time.time + amount);
+        healSuppressionTime = Math.max(healSuppressionTime, Time.time() + amount);
         this.suppressColor = suppressColor;
     }
 
     public boolean isHealSuppressed(){
-        return block.suppressable && Time.time <= healSuppressionTime;
+        return block.suppressable && Time.time() <= healSuppressionTime;
     }
 
     public void recentlyHealed(){
-        lastHealTime = Time.time;
+        lastHealTime = Time.time();
     }
 
     public boolean wasRecentlyHealed(float duration){
-        return lastHealTime + duration >= Time.time;
+        return lastHealTime + duration >= Time.time();
     }
 
     public boolean wasRecentlyDamaged(){
-        return lastDamageTime + recentDamageTime >= Time.time;
+        return lastDamageTime + recentDamageTime >= Time.time();
     }
 
     public void eachEdge(Cons<Tile> cons){
         for(var edge : block.getEdges()){
-            Tile other = world.tile(tile.x + edge.x, tile.y + edge.y);
+            Tile other = mindustry.Vars.game().world.tile(tile.x + edge.x, tile.y + edge.y);
             if(other != null){
                 cons.get(other);
             }
@@ -516,15 +516,16 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
     }
 
     public Building nearby(int dx, int dy){
-        return world.build(tile.x + dx, tile.y + dy);
+        Tile other = mindustry.Vars.game().world.tile(tile.x + dx, tile.y + dy);
+        return other == null ? null : other.build;
     }
 
     public Building nearby(int rotation){
         return switch(rotation){
-            case 0 -> world.build(tile.x + 1, tile.y);
-            case 1 -> world.build(tile.x, tile.y + 1);
-            case 2 -> world.build(tile.x - 1, tile.y);
-            case 3 -> world.build(tile.x, tile.y - 1);
+            case 0 -> nearby(1, 0);
+            case 1 -> nearby(0, 1);
+            case 2 -> nearby(-1, 0);
+            case 3 -> nearby(0, -1);
             default -> null;
         };
     }
@@ -615,9 +616,9 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
         return 0f;
     }
 
-    /** @return total time this block has been producing something; non-crafter blocks usually return Time.time. */
+    /** @return total time this block has been producing something; non-crafter blocks usually return Time.time(). */
     public float totalProgress(){
-        return Time.time;
+        return Time.time();
     }
 
     public float progress(){
@@ -653,7 +654,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
 
     /** Call when nothing is happening to the entity. This increments the internal sleep timer. */
     public void sleep(){
-        sleepTime += Time.delta;
+        sleepTime += Time.delta();
         if(!sleeping && sleepTime >= timeToSleep){
             remove();
             sleeping = true;
@@ -971,7 +972,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
                             Fx.fire.at(fx, fy);
                         }
                     }else if((liquid.temperature > 0.7f && other.temperature < 0.55f) || (other.temperature > 0.7f && liquid.temperature < 0.55f)){
-                        liquids.remove(liquid, Math.min(liquids.get(liquid), 0.7f * Time.delta));
+                        liquids.remove(liquid, Math.min(liquids.get(liquid), 0.7f * Time.delta()));
                         if(Mathf.chanceDelta(0.2f)){
                             Fx.steam.at(fx, fy);
                         }
@@ -1147,7 +1148,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
         }
     }
 
-    /** Called after this building is created in the world. May be called multiple times, or when adjacent buildings change. */
+    /** Called after this building is created in the mindustry.Vars.game().world. May be called multiple times, or when adjacent buildings change. */
     //TODO ??? this is just onProximityUpdate ?
     public void onProximityAdded(){
         if(power != null){
@@ -1161,7 +1162,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
     }
 
     public void updatePowerGraph(){
-        for(Building other : getPowerConnections(tempBuilds)){
+        for(Building other : getPowerConnections(tempBuilds.get())){
             if(other.power != null){
                 other.power.graph.addGraph(power.graph);
             }
@@ -1173,7 +1174,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
 
         power.graph.remove(self());
         for(int i = 0; i < power.links.size; i++){
-            Tile other = world.tile(power.links.get(i));
+            Tile other = mindustry.Vars.game().world.tile(power.links.get(i));
             if(other != null && other.build != null && other.build.power != null){
                 other.build.power.links.removeValue(pos());
             }
@@ -1199,7 +1200,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
         }
 
         for(int i = 0; i < power.links.size; i++){
-            Tile link = world.tile(power.links.get(i));
+            Tile link = mindustry.Vars.game().world.tile(power.links.get(i));
             if(link != null && link.build != null && link.build.power != null && link.build.team == team) out.add(link.build);
         }
         return out;
@@ -1469,7 +1470,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
 
         for(int i = 0; i < Mathf.clamp(amount / 5, 0, 30); i++){
             Time.run(i / 2f, () -> {
-                Tile other = world.tileWorld(x + Mathf.range(block.size * tilesize / 2), y + Mathf.range(block.size * tilesize / 2));
+                Tile other = mindustry.Vars.game().world.tileWorld(x + Mathf.range(block.size * tilesize / 2), y + Mathf.range(block.size * tilesize / 2));
                 if(other != null){
                     Puddles.deposit(other, liquid, splash);
                 }
@@ -1815,7 +1816,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
                 }
             }
             for(int i = 0; i < power.links.size; i++){
-                var other = world.build(power.links.items[i]);
+                var other = mindustry.Vars.game().world.build(power.links.items[i]);
 
                 //only reflow links that were connected to the old power graph; ones that have a new one were already covered.
                 if(other != null && other.team != team && other.power != null && other.power.graph == oldGraph){
@@ -1865,18 +1866,19 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
 
     public void removeFromProximity(){
         onProximityRemoved();
-        tmpTiles.clear();
+        ObjectSet<Building> scratchTiles = tmpTiles.get();
+        scratchTiles.clear();
 
         Point2[] nearby = Edges.getEdges(block.size);
         for(Point2 point : nearby){
-            Building other = world.build(tile.x + point.x, tile.y + point.y);
+            Building other = mindustry.Vars.game().world.build(tile.x + point.x, tile.y + point.y);
             //remove this tile from all nearby tile's proximities
             if(other != null){
-                tmpTiles.add(other);
+                scratchTiles.add(other);
             }
         }
 
-        for(Building other : tmpTiles){
+        for(Building other : scratchTiles){
             other.proximity.remove(self(), true);
             other.onProximityUpdate();
         }
@@ -1884,33 +1886,34 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
     }
 
     public void updateProximity(){
-        tmpTiles.clear();
+        ObjectSet<Building> scratchTiles = tmpTiles.get();
+        scratchTiles.clear();
         proximity.clear();
 
         Point2[] nearby = Edges.getEdges(block.size);
         for(Point2 point : nearby){
-            Building other = world.build(tile.x + point.x, tile.y + point.y);
+            Building other = mindustry.Vars.game().world.build(tile.x + point.x, tile.y + point.y);
 
             if(other == null || other.team != team) continue;
 
             other.proximity.addUnique(self());
 
-            tmpTiles.add(other);
+            scratchTiles.add(other);
         }
 
         //using a set to prevent duplicates
-        for(Building tile : tmpTiles){
+        for(Building tile : scratchTiles){
             proximity.add(tile);
         }
 
         onProximityAdded();
         onProximityUpdate();
 
-        for(Building other : tmpTiles){
+        for(Building other : scratchTiles){
             other.onProximityUpdate();
         }
 
-        if(!headless && block.drawCached) recache();
+        if(!mindustry.Vars.game().headless && block.drawCached) recache();
     }
 
     public void onNearbyBuildAdded(Building other){}
@@ -1927,7 +1930,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
 
     /** Scaled delta. */
     public float delta(){
-        return Time.delta * timeScale;
+        return Time.delta() * timeScale;
     }
 
     /** Efficiency * delta. */
@@ -2067,7 +2070,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
         if(dead()) return;
 
         float dm = state.rules.blockHealth(team);
-        lastDamageTime = Time.time;
+        lastDamageTime = Time.time();
 
         if(Mathf.zero(dm)){
             damage = health + 1;
@@ -2270,7 +2273,7 @@ abstract class BuildingComp implements Posc, Teamc, Healthc, Buildingc, Timerc, 
     public void update(){
 
         //TODO refactor to separate loop?
-        if((timeScaleDuration -= Time.delta) <= 0f){
+        if((timeScaleDuration -= Time.delta()) <= 0f){
             timeScale = 1f;
         }
 

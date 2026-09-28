@@ -33,7 +33,7 @@ public class MinimapFragment{
             ratio = renderer.minimap.getTexture() == null ? 1f : (float)renderer.minimap.getTexture().height / renderer.minimap.getTexture().width,
             size = baseSize * zoom * world.width();
 
-        return Tmp.r1.set(w/2f + panx*zoom - size/2f, h/2f + pany*zoom - size/2f * ratio, size, size * ratio);
+        return Tmp.r1().set(w/2f + panx*zoom - size/2f, h/2f + pany*zoom - size/2f * ratio, size, size * ratio);
     }
 
     public void build(Group parent){
@@ -158,7 +158,7 @@ public class MinimapFragment{
 
     public Vec2 convert(float relativeX, float relativeY){
         Rect r = getRectBounds();
-        return Tmp.v1.set(relativeX, relativeY).sub(r.x - scene.marginLeft, r.y - scene.marginBottom).scl(1f / r.width, 1f / r.height).scl(world.unitWidth(), world.unitHeight()).sub(tilesize/2f, tilesize/2f);
+        return Tmp.v1().set(relativeX, relativeY).sub(r.x - scene.marginLeft, r.y - scene.marginBottom).scl(1f / r.width, 1f / r.height).scl(world.unitWidth(), world.unitHeight()).sub(tilesize/2f, tilesize/2f);
     }
 
     public boolean shown(){

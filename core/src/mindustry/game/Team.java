@@ -41,16 +41,17 @@ public class Team implements Comparable<Team>, Senseable{
         neoplastic = new Team(6, "neoplastic", Color.valueOf("e05438")); //yes, it looks very similar to crux, you're not supposed to use this team for block regions anyway
 
     static{
-        Mathf.rand.setSeed(8);
+        //Team placeholder colors are bootstrap metadata. Keep their deterministic legacy sequence local so
+        //class initialization cannot perturb a GameContext-bound or process fallback RNG.
+        Rand teamRand = new Rand(8);
         //fix random seed shift caused by new team
         for(int i = 0; i < 3; i++){
-            Mathf.random();
+            teamRand.nextFloat();
         }
         //create the whole 256 placeholder teams
         for(int i = 7; i < all.length; i++){
-            new Team(i, "team#" + i, Color.HSVtoRGB(360f * Mathf.random(), 100f * Mathf.random(0.4f, 1f), 100f * Mathf.random(0.6f, 1f), 1f));
+            new Team(i, "team#" + i, Color.HSVtoRGB(360f * teamRand.nextFloat(), 100f * teamRand.random(0.4f, 1f), 100f * teamRand.random(0.6f, 1f), 1f));
         }
-        Mathf.rand.setSeed(new Rand().nextLong());
 
         neoplastic.ignoreUnitCap = true;
     }
@@ -81,16 +82,16 @@ public class Team implements Comparable<Team>, Senseable{
     /** @return the core items for this team, or an empty item module.
      * Never add to the resulting item module, as it is mutable. */
     public ItemModule items(){
-        return core() == null ? ItemModule.empty : core().items;
+        return core() == null ? ItemModule.emptyForContext() : core().items;
     }
 
     /** @return the team-specific rules. */
     public TeamRule rules(){
-        return state.rules.teams.get(this);
+        return mindustry.Vars.game().state.rules.teams.get(this);
     }
 
     public TeamData data(){
-        return state.teams.get(this);
+        return mindustry.Vars.game().state.teams.get(this);
     }
 
     @Nullable
@@ -100,7 +101,7 @@ public class Team implements Comparable<Team>, Senseable{
 
     /** @return whether this team has any buildings on this map; in waves mode, this is always true for the enemy team. */
     public boolean active(){
-        return state.teams.isActive(this);
+        return mindustry.Vars.game().state.teams.isActive(this);
     }
 
     /** @return whether this team has any active cores. Not the same as active()! */
@@ -110,7 +111,7 @@ public class Team implements Comparable<Team>, Senseable{
 
     /** @return whether this team is supposed to be AI-controlled. */
     public boolean isAI(){
-        return (state.rules.waves || state.rules.attackMode || state.isCampaign()) && this != state.rules.defaultTeam && !state.rules.pvp;
+        return (mindustry.Vars.game().state.rules.waves || mindustry.Vars.game().state.rules.attackMode || mindustry.Vars.game().state.isCampaign()) && this != mindustry.Vars.game().state.rules.defaultTeam && !mindustry.Vars.game().state.rules.pvp;
     }
 
     /** @return whether this team is solely comprised of AI (with no players possible). */
@@ -125,11 +126,11 @@ public class Team implements Comparable<Team>, Senseable{
 
     /** @return whether unit factories should be active, according to the game rule. */
     public boolean activateUnitFactories(){
-        return state.tick >= state.rules.unitActivationDelay(this);
+        return mindustry.Vars.game().state.tick >= mindustry.Vars.game().state.rules.unitActivationDelay(this);
     }
 
     public Seq<CoreBuild> cores(){
-        return state.teams.cores(this);
+        return mindustry.Vars.game().state.teams.cores(this);
     }
 
     public String localized(){

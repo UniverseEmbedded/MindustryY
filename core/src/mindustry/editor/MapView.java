@@ -180,8 +180,8 @@ public class MapView extends Element implements GestureListener{
         if(Core.scene.getKeyboardFocus() == null || !Core.scene.hasField() && !Core.input.keyDown(KeyCode.controlLeft)){
             float ax = Core.input.axis(Binding.moveX);
             float ay = Core.input.axis(Binding.moveY);
-            offsetx -= ax * 15 * Time.delta / zoom;
-            offsety -= ay * 15 * Time.delta / zoom;
+            offsetx -= ax * 15 * Time.delta() / zoom;
+            offsety -= ay * 15 * Time.delta() / zoom;
         }
 
         if(Core.input.keyTap(KeyCode.shiftLeft) || Core.input.keyTap(KeyCode.altLeft)){
@@ -213,9 +213,9 @@ public class MapView extends Element implements GestureListener{
         y = (y - getHeight() / 2 + sclheight / 2 - offsety * zoom) / sclheight * editor.height();
 
         if(editor.drawBlock.size % 2 == 0 && tool != EditorTool.eraser){
-            return Tmp.p1.set((int)(x - 0.5f), (int)(y - 0.5f));
+            return Tmp.p1().set((int)(x - 0.5f), (int)(y - 0.5f));
         }else{
-            return Tmp.p1.set((int)x, (int)y);
+            return Tmp.p1().set((int)x, (int)y);
         }
     }
 

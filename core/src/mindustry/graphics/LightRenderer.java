@@ -78,7 +78,7 @@ public class LightRenderer{
             float u2 = lmid.u2;
             float v2 = lmid.v;
 
-            Vec2 v1 = Tmp.v1.trnsExact(rot + 90f, stroke);
+            Vec2 v1 = Tmp.v1().trnsExact(rot + 90f, stroke);
             float lx1 = x - v1.x, ly1 = y - v1.y,
             lx2 = x + v1.x, ly2 = y + v1.y,
             lx3 = x2 + v1.x, ly3 = y2 + v1.y,
@@ -114,7 +114,7 @@ public class LightRenderer{
 
             Draw.vert(ledge.texture, vertices, 0, vertices.length);
 
-            Vec2 v3 = Tmp.v2.trnsExact(rot, stroke);
+            Vec2 v3 = Tmp.v2().trnsExact(rot, stroke);
 
             u = ledge.u;
             v = ledge.v2;

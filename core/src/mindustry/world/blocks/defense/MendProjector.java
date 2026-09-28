@@ -78,7 +78,7 @@ public class MendProjector extends Block{
 
         Drawf.dashCircle(x * tilesize + offset, y * tilesize + offset, range, baseColor);
 
-        indexer.eachBlock(player.team(), x * tilesize + offset, y * tilesize + offset, range, other -> true, other -> Drawf.selected(other, Tmp.c1.set(baseColor).a(Mathf.absin(4f, 1f))));
+        indexer.eachBlock(player.team(), x * tilesize + offset, y * tilesize + offset, range, other -> true, other -> Drawf.selected(other, Tmp.c1().set(baseColor).a(Mathf.absin(4f, 1f))));
     }
 
     public class MendBuild extends Building implements Ranged{
@@ -132,7 +132,7 @@ public class MendProjector extends Block{
         public void drawSelect(){
             float realRange = range + phaseHeat * phaseRangeBoost;
 
-            indexer.eachBlock(this, realRange, other -> true, other -> Drawf.selected(other, Tmp.c1.set(baseColor).a(Mathf.absin(4f, 1f))));
+            indexer.eachBlock(this, realRange, other -> true, other -> Drawf.selected(other, Tmp.c1().set(baseColor).a(Mathf.absin(4f, 1f))));
 
             Drawf.dashCircle(x, y, realRange, baseColor);
         }
@@ -144,12 +144,12 @@ public class MendProjector extends Block{
 
         @Override
         public void draw(){
-            float f = 1f - (Time.time / 100f) % 1f;
+            float f = 1f - (Time.time() / 100f) % 1f;
 
             if(!Lod.l2) return;
 
             Draw.color(baseColor, phaseColor, phaseHeat);
-            Draw.alpha(heat * Mathf.absin(Time.time, 50f / Mathf.PI2, 1f) * 0.5f * Lod.alpha2);
+            Draw.alpha(heat * Mathf.absin(Time.time(), 50f / Mathf.PI2, 1f) * 0.5f * Lod.alpha2);
             Draw.rect(topRegion, x, y);
             Draw.alpha(Lod.alpha2);
             Lines.stroke((2f * f + 0.2f) * heat);

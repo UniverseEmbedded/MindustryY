@@ -42,12 +42,12 @@ public class DrawFlame extends DrawBlock{
             Draw.alpha(build.warmup());
             Draw.rect(top, build.x, build.y);
 
-            Draw.alpha(((1f - g) + Mathf.absin(Time.time, 8f, g) + Mathf.random(r) - r) * build.warmup());
+            Draw.alpha(((1f - g) + Mathf.absin(Time.time(), 8f, g) + Mathf.random(r) - r) * build.warmup());
 
             Draw.tint(flameColor);
-            Fill.circle(build.x + flameX, build.y + flameY, flameRadius + Mathf.absin(Time.time, flameRadiusScl, flameRadiusMag) + cr);
+            Fill.circle(build.x + flameX, build.y + flameY, flameRadius + Mathf.absin(Time.time(), flameRadiusScl, flameRadiusMag) + cr);
             Draw.color(1f, 1f, 1f, build.warmup());
-            Fill.circle(build.x + flameX, build.y + flameY, flameRadiusIn + Mathf.absin(Time.time, flameRadiusScl, flameRadiusInMag) + cr);
+            Fill.circle(build.x + flameX, build.y + flameY, flameRadiusIn + Mathf.absin(Time.time(), flameRadiusScl, flameRadiusInMag) + cr);
 
             Draw.color();
         }

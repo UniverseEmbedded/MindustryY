@@ -38,13 +38,151 @@ tasks.register('run', JavaExec){
     }
 }
 
+// Launch two desktop clients from one Gradle invocation:
+//   client #1 -> default data directory (MINDUSTRY_DATA_DIR cleared)
+//   client #2 -> temp/client2, override with -PdataDir2=<path>
+// Optional: -Pargs='[...]' for both, -Pargs2='[...]' for client #2 only, -PjvmArgs='[...]' for both.
+tasks.register('runDual'){
+    group = 'application'
+    description = 'Launches two desktop clients: #1 uses the default data directory; #2 uses temp/client2 (override with -PdataDir2=...).'
+    dependsOn classes
+
+    if(!project.ext.hasSprites() && System.getenv("JITPACK") != "true"){
+        dependsOn ":tools:pack"
+    }
+
+    doLast{
+        def osName = System.getProperty("os.name").toLowerCase()
+        def javaExe = new File(System.getProperty("java.home"), "bin/java" + (osName.contains("windows") ? ".exe" : ""))
+        def classpath = sourceSets.main.runtimeClasspath.asPath
+        def baseJvmArgs = ["-XX:+ShowCodeDetailsInExceptionMessages"]
+        if(osName.contains("mac")){
+            baseJvmArgs << "-XstartOnFirstThread"
+        }
+        if(project.hasProperty("jvmArgs")){
+            baseJvmArgs.addAll((List<String>)Eval.me(project.getProperties()["jvmArgs"]))
+        }
+
+        def clientArgs = project.hasProperty("args") ? (List<String>)Eval.me(project.getProperties()["args"]) : []
+        def client2Args = project.hasProperty("args2") ? (List<String>)Eval.me(project.getProperties()["args2"]) : clientArgs
+        def main1 = clientArgs.contains("debug") ? "mindustry.debug.DebugLauncher" : project.mainClassName
+        def main2 = client2Args.contains("debug") ? "mindustry.debug.DebugLauncher" : project.mainClassName
+
+        def dataDir2 = project.hasProperty("dataDir2") ? file(project.getProperties()["dataDir2"]) : new File(rootDir, "temp/client2")
+        dataDir2.mkdirs()
+
+        def command1 = [javaExe.absolutePath] + baseJvmArgs + ["-cp", classpath, main1] + clientArgs
+        def command2 = [javaExe.absolutePath] + baseJvmArgs + ["-cp", classpath, main2] + client2Args
+
+        // assetsDir is "../core/assets" relative to the desktop project. ProcessBuilder resolves
+        // relative directories against the Gradle daemon CWD, not the project dir — use project.file().
+        def assetsDir = project.file(project.assetsDir)
+
+        def pb1 = new ProcessBuilder(command1)
+        pb1.directory(assetsDir)
+        pb1.environment().remove("MINDUSTRY_DATA_DIR")
+        pb1.inheritIO()
+
+        def pb2 = new ProcessBuilder(command2)
+        pb2.directory(assetsDir)
+        pb2.environment().put("MINDUSTRY_DATA_DIR", dataDir2.absolutePath)
+        pb2.inheritIO()
+
+        logger.lifecycle("runDual client #1: default data directory (MINDUSTRY_DATA_DIR cleared)")
+        logger.lifecycle("runDual client #2: MINDUSTRY_DATA_DIR=${dataDir2.absolutePath}")
+
+        def process1 = pb1.start()
+        def process2 = pb2.start()
+        def exit1 = process1.waitFor()
+        def exit2 = process2.waitFor()
+        logger.lifecycle("runDual client #1 exited with code ${exit1}")
+        logger.lifecycle("runDual client #2 exited with code ${exit2}")
+    }
+}
+
+// Launch multiple desktop clients from one Gradle invocation (default 4):
+//   client #1 -> default data directory (MINDUSTRY_DATA_DIR cleared)
+//   client #k -> temp/client<k>, override with -PdataDir<k>=<path>
+// Optional: -Pclients=<count>, -Pargs='[...]' for all, -Pargs<k>='[...]' per client, -PjvmArgs='[...]' for all.
+tasks.register('runMulti'){
+    group = 'application'
+    description = 'Launches multiple desktop clients (default 4; -Pclients=N). #1 uses the default data directory; #k uses temp/clientN (override with -PdataDirN=...).'
+    dependsOn classes
+
+    if(!project.ext.hasSprites() && System.getenv("JITPACK") != "true"){
+        dependsOn ":tools:pack"
+    }
+
+    doLast{
+        int clientCount = 4
+        if(project.hasProperty("clients")){
+            clientCount = project.getProperties()["clients"].toString().toInteger()
+        }
+        if(clientCount < 1) throw new GradleException("-Pclients must be >= 1")
+
+        def osName = System.getProperty("os.name").toLowerCase()
+        def javaExe = new File(System.getProperty("java.home"), "bin/java" + (osName.contains("windows") ? ".exe" : ""))
+        def classpath = sourceSets.main.runtimeClasspath.asPath
+        def baseJvmArgs = ["-XX:+ShowCodeDetailsInExceptionMessages"]
+        if(osName.contains("mac")){
+            baseJvmArgs << "-XstartOnFirstThread"
+        }
+        if(project.hasProperty("jvmArgs")){
+            baseJvmArgs.addAll((List<String>)Eval.me(project.getProperties()["jvmArgs"]))
+        }
+
+        def sharedArgs = project.hasProperty("args") ? (List<String>)Eval.me(project.getProperties()["args"]) : []
+        // assetsDir is "../core/assets" relative to the desktop project. ProcessBuilder resolves
+        // relative directories against the Gradle daemon CWD, not the project dir — use project.file().
+        def assetsDir = project.file(project.assetsDir)
+        def launched = []
+
+        (1..clientCount).each{ i ->
+            def clientArgs = sharedArgs
+            if(i > 1 && project.hasProperty("args${i}")){
+                clientArgs = (List<String>)Eval.me(project.getProperties()["args${i}"])
+            }
+            def mainClass = clientArgs.contains("debug") ? "mindustry.debug.DebugLauncher" : project.mainClassName
+
+            File dataDir = null
+            if(i > 1){
+                dataDir = project.hasProperty("dataDir${i}") ? file(project.getProperties()["dataDir${i}"]) : new File(rootDir, "temp/client${i}")
+                dataDir.mkdirs()
+            }
+
+            def command = [javaExe.absolutePath] + baseJvmArgs + ["-cp", classpath, mainClass] + clientArgs
+            def pb = new ProcessBuilder(command)
+            pb.directory(assetsDir)
+            if(dataDir == null){
+                pb.environment().remove("MINDUSTRY_DATA_DIR")
+                logger.lifecycle("runMulti client #${i}: default data directory (MINDUSTRY_DATA_DIR cleared)")
+            }else{
+                pb.environment().put("MINDUSTRY_DATA_DIR", dataDir.absolutePath)
+                logger.lifecycle("runMulti client #${i}: MINDUSTRY_DATA_DIR=${dataDir.absolutePath}")
+            }
+            pb.inheritIO()
+            launched << [index: i, process: pb.start()]
+        }
+
+        launched.each{ entry ->
+            logger.lifecycle("runMulti client #${entry.index} exited with code ${entry.process.waitFor()}")
+        }
+    }
+}
+
 tasks.register('dist', Jar){
     dependsOn configurations.runtimeClasspath
     dependsOn ":desktop:processResources"
+    // Shared Campaign JVM_PROCESS Actions use the real dedicated server entry point. Merge the server
+    // classes/runtime directly instead of consuming server:dist's archive output. This keeps the desktop artifact
+    // self-contained while avoiding an ambiguous server:dist -> tests project artifact dependency in Gradle 9+.
+    dependsOn ":server:classes"
 
     from files(sourceSets.main.output.classesDirs)
     from files(sourceSets.main.output.resourcesDir)
     from{ configurations.runtimeClasspath.collect{ it.isDirectory() ? it : zipTree(it) } }
+    from{ project(":server").sourceSets.main.output }
+    from{ project(":server").configurations.runtimeClasspath.collect{ it.isDirectory() ? it : zipTree(it) } }
     from files(project.assetsDir)
     exclude("config/**")
     exclude("**hs_err**.log")

@@ -26,7 +26,7 @@ public class HoverPart extends DrawPart{
 
 
         for(int c = 0; c < circles; c++){
-            float fin = ((Time.time / phase + (float)c / circles) % 1f);
+            float fin = ((Time.time() / phase + (float)c / circles) % 1f);
             Lines.stroke((1f-fin) * stroke + minStroke);
 
             for(int s = 0; s < len; s++){
@@ -34,11 +34,11 @@ public class HoverPart extends DrawPart{
                 int i = params.sideOverride == -1 ? s : params.sideOverride;
 
                 float sign = (i == 0 ? 1 : -1) * params.sideMultiplier;
-                Tmp.v1.set((x) * sign, y).rotate(params.rotation - 90);
+                Tmp.v1().set((x) * sign, y).rotate(params.rotation - 90);
 
                 float
-                rx = params.x + Tmp.v1.x,
-                ry = params.y + Tmp.v1.y;
+                rx = params.x + Tmp.v1().x,
+                ry = params.y + Tmp.v1().y;
 
                 Lines.poly(rx, ry, sides, radius * fin, params.rotation + rotation * sign);
             }

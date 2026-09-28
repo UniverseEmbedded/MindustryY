@@ -74,11 +74,11 @@ public class Drawf{
         //left side; half arc beginning at 90 degrees and ending at 270
         for(int i = 0; i < divisions; i++){
             float rot = 90f + 180f * i / (float)divisions;
-            Tmp.v1.trnsExact(rot, width);
+            Tmp.v1().trnsExact(rot, width);
 
             point(
-            (Tmp.v1.x + width) / width * len1, //convert to 0..1, then multiply by desired length
-            Tmp.v1.y, //Y axis remains unchanged
+            (Tmp.v1().x + width) / width * len1, //convert to 0..1, then multiply by desired length
+            Tmp.v1().y, //Y axis remains unchanged
             x, y,
             rotation
             );
@@ -87,11 +87,11 @@ public class Drawf{
         //right side; half arc beginning at -90 (270) and ending at 90
         for(int i = 0; i < divisions; i++){
             float rot = -90f + 180f * i / (float)divisions;
-            Tmp.v1.trnsExact(rot, width);
+            Tmp.v1().trnsExact(rot, width);
 
             point(
-            len1 + (Tmp.v1.x) / width * len2, //convert to 0..1, then multiply by desired length and offset relative to previous segment
-            Tmp.v1.y, //Y axis remains unchanged
+            len1 + (Tmp.v1().x) / width * len2, //convert to 0..1, then multiply by desired length and offset relative to previous segment
+            Tmp.v1().y, //Y axis remains unchanged
             x, y,
             rotation
             );
@@ -109,11 +109,11 @@ public class Drawf{
         //right side; half arc beginning at -90 (270) and ending at 90
         for(int i = 0; i <= divisions; i++){
             float rot = -90f + 180f * i / (float)divisions;
-            Tmp.v1.trnsExact(rot, width);
+            Tmp.v1().trnsExact(rot, width);
 
             point(
-            (Tmp.v1.x) / width * length, //convert to 0..1, then multiply by desired length and offset relative to previous segment
-            Tmp.v1.y, //Y axis remains unchanged
+            (Tmp.v1().x) / width * length, //convert to 0..1, then multiply by desired length and offset relative to previous segment
+            Tmp.v1().y, //Y axis remains unchanged
             x, y,
             rotation
             );
@@ -124,8 +124,8 @@ public class Drawf{
 
     private static void point(float x, float y, float baseX, float baseY, float rotation){
         //TODO test exact and non-exact
-        Tmp.v1.set(x, y).rotateRadExact(rotation * Mathf.degRad);
-        points.add(Tmp.v1.x + baseX, Tmp.v1.y + baseY);
+        Tmp.v1().set(x, y).rotateRadExact(rotation * Mathf.degRad);
+        points.add(Tmp.v1().x + baseX, Tmp.v1().y + baseY);
     }
 
     public static void buildBeam(float x, float y, float tx, float ty, float radius){
@@ -206,10 +206,10 @@ public class Drawf{
         if(start.within(dest, len1 + len2)){
             return;
         }
-        Tmp.v1.set(dest).sub(start).setLength(len1);
-        Tmp.v2.set(Tmp.v1).scl(-1f).setLength(len2);
+        Tmp.v1().set(dest).sub(start).setLength(len1);
+        Tmp.v2().set(Tmp.v1()).scl(-1f).setLength(len2);
 
-        Drawf.line(color, start.getX() + Tmp.v1.x, start.getY() + Tmp.v1.y, dest.getX() + Tmp.v2.x, dest.getY() + Tmp.v2.y);
+        Drawf.line(color, start.getX() + Tmp.v1().x, start.getY() + Tmp.v1().y, dest.getX() + Tmp.v2().x, dest.getY() + Tmp.v2().y);
     }
 
     public static void limitLine(Position start, Position dest, float len1, float len2){
@@ -279,12 +279,12 @@ public class Drawf{
     public static void target(float x, float y, float rad, float alpha, Color color){
         Lines.stroke(3f);
         Draw.color(Pal.gray, alpha);
-        Lines.poly(x, y, 4, rad, Time.time * 1.5f);
-        Lines.spikes(x, y, 3f/7f * rad, 6f/7f * rad, 4, Time.time * 1.5f);
+        Lines.poly(x, y, 4, rad, Time.time() * 1.5f);
+        Lines.spikes(x, y, 3f/7f * rad, 6f/7f * rad, 4, Time.time() * 1.5f);
         Lines.stroke(1f);
         Draw.color(color, alpha);
-        Lines.poly(x, y, 4, rad, Time.time * 1.5f);
-        Lines.spikes(x, y, 3f/7f * rad, 6f/7f * rad, 4, Time.time * 1.5f);
+        Lines.poly(x, y, 4, rad, Time.time() * 1.5f);
+        Lines.spikes(x, y, 3f/7f * rad, 6f/7f * rad, 4, Time.time() * 1.5f);
         Draw.reset();
     }
 
@@ -424,7 +424,7 @@ public class Drawf{
     }
 
     public static void square(float x, float y, float radius, float rotation, Color color){
-        square(x, y, radius, rotation, color, Pal.gray.write(Tmp.c3).a(color.a));
+        square(x, y, radius, rotation, color, Pal.gray.write(Tmp.c3()).a(color.a));
     }
 
     public static void square(float x, float y, float radius, float rotation, Color color, Color bgColor){
@@ -440,7 +440,7 @@ public class Drawf{
     }
 
     public static void cross(float x, float y, float radius, Color color){
-        Lines.stroke(3f, Pal.gray.write(Tmp.c3).a(color.a));
+        Lines.stroke(3f, Pal.gray.write(Tmp.c3()).a(color.a));
         Lines.lineAngleCenter(x, y, 45f, radius + 1f);
         Lines.lineAngleCenter(x, y, 135f, radius + 1f);
         Lines.stroke(1f, color);
@@ -488,8 +488,8 @@ public class Drawf{
     public static void arrow(float x, float y, float x2, float y2, float length, float radius, Color color){
         float angle = Angles.angle(x, y, x2, y2);
         float space = 2f;
-        Tmp.v1.set(x2, y2).sub(x, y).limit(length);
-        float vx = Tmp.v1.x + x, vy = Tmp.v1.y + y;
+        Tmp.v1().set(x2, y2).sub(x, y).limit(length);
+        float vx = Tmp.v1().x + x, vy = Tmp.v1().y + y;
 
         Draw.color(Pal.gray);
         Fill.poly(vx, vy, 3, radius + space, angle);

@@ -39,7 +39,7 @@ abstract class PuddleComp implements Posc, Puddlec, Drawc, Syncc{
     @Import float x, y;
     @Import boolean added;
 
-    transient float accepting, updateTime, lastRipple = Time.time + Mathf.random(40f), effectTime = Mathf.random(50f);
+    transient float accepting, updateTime, lastRipple = Time.time() + Mathf.random(40f), effectTime = Mathf.random(50f);
     float amount;
     Tile tile;
     Liquid liquid;
@@ -57,13 +57,13 @@ abstract class PuddleComp implements Posc, Puddlec, Drawc, Syncc{
 
         float addSpeed = accepting > 0 ? 3f : 0f;
 
-        amount -= Time.delta * (1f - liquid.viscosity) / (5f + addSpeed);
+        amount -= Time.delta() * (1f - liquid.viscosity) / (5f + addSpeed);
         amount += accepting;
         amount = Math.min(amount, maxLiquid);
         accepting = 0f;
 
         if(amount >= maxLiquid / 1.5f){
-            float deposited = Math.min((amount - maxLiquid / 1.5f) / 4f, 0.3f * Time.delta);
+            float deposited = Math.min((amount - maxLiquid / 1.5f) / 4f, 0.3f * Time.delta());
             int targets = 0;
             for(Point2 point : Geometry.d4){
                 Tile other = world.tile(tile.x + point.x, tile.y + point.y);
@@ -86,8 +86,8 @@ abstract class PuddleComp implements Posc, Puddlec, Drawc, Syncc{
 
         if(Puddles.get(tile) != self() && added){
             //force removal without pool free
-            Groups.all.remove(self());
-            Groups.draw.remove(self());
+            Groups.current().all.remove(self());
+            Groups.current().draw.remove(self());
             added = false;
             return;
         }
@@ -110,14 +110,14 @@ abstract class PuddleComp implements Posc, Puddlec, Drawc, Syncc{
         }
 
         if(!headless && liquid.particleEffect != Fx.none){
-            if((effectTime += Time.delta) >= liquid.particleSpacing){
+            if((effectTime += Time.delta()) >= liquid.particleSpacing){
                 float size = Mathf.clamp(amount / (maxLiquid / 1.5f)) * 4f;
                 liquid.particleEffect.at(x + Mathf.range(size), y + Mathf.range(size));
                 effectTime = 0f;
             }
         }
 
-        updateTime -= Time.delta;
+        updateTime -= Time.delta();
 
         liquid.update(self());
     }

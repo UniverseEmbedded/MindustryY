@@ -22,7 +22,7 @@ public class ItemBuffer{
 
     public void accept(Item item, short data){
         //if(!accepts()) return;
-        buffer[index++] = TimeItem.get(data, item.id, Time.time);
+        buffer[index++] = TimeItem.get(data, item.id, Time.time());
     }
 
     public void accept(Item item){
@@ -34,7 +34,7 @@ public class ItemBuffer{
             long l = buffer[0];
             float time = TimeItem.time(l);
 
-            if(Time.time >= time + speed || Time.time < time){
+            if(Time.time() >= time + speed || Time.time() < time){
                 return content.item(TimeItem.item(l));
             }
         }

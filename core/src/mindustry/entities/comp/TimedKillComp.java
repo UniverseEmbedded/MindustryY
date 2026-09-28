@@ -14,7 +14,7 @@ abstract class TimedKillComp implements Entityc, Healthc, Scaled{
     @MethodPriority(100)
     @Override
     public void update(){
-        time = Math.min(time + Time.delta, lifetime);
+        time = Math.min(time + Time.delta(), lifetime);
 
         if(time >= lifetime){
             kill();

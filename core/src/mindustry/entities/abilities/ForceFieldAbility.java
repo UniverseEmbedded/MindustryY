@@ -39,18 +39,18 @@ public class ForceFieldAbility extends Ability{
     protected float radiusScale, alpha;
     protected boolean wasBroken = true;
 
-    private static float realRad;
-    private static Unit paramUnit;
-    private static ForceFieldAbility paramField;
-    private static final Cons<Bullet> shieldConsumer = b -> {
-        if(b.team != paramUnit.team && b.type.absorbable && Intersector.isInRegularPolygon(paramField.sides, paramUnit.x, paramUnit.y, realRad, paramField.rotation, b.x(), b.y()) && paramUnit.shield > 0){
-            b.absorb();
-            Fx.absorb.at(b);
-            paramField.hitSound.at(b.x, b.y, 1f + Mathf.range(0.1f), paramField.hitSoundVolume);
-            paramUnit.shield -= b.type().shieldDamage(b);
-            paramField.alpha = 1f;
-        }
-    };
+    private final ThreadLocal<Scratch> scratch = ThreadLocal.withInitial(Scratch::new);
+
+    private static class Scratch{
+        float realRad; Unit unit; ForceFieldAbility field;
+        final Cons<Bullet> shieldConsumer = b -> {
+            if(unit != null && field != null && b.team != unit.team && b.type.absorbable && Intersector.isInRegularPolygon(field.sides, unit.x, unit.y, realRad, field.rotation, b.x(), b.y()) && unit.shield > 0){
+                b.absorb(); Fx.absorb.at(b);
+                field.hitSound.at(b.x, b.y, 1f + Mathf.range(0.1f), field.hitSoundVolume);
+                unit.shield -= b.type().shieldDamage(b); field.alpha = 1f;
+            }
+        };
+    }
 
     public ForceFieldAbility(float radius, float regen, float max, float cooldown){
         this.radius = radius;
@@ -71,7 +71,7 @@ public class ForceFieldAbility extends Ability{
     ForceFieldAbility(){}
 
     public float scaledMax(Unit unit){
-        return max * Vars.state.rules.unitHealth(unit.team);
+        return max * Vars.game().state.rules.unitHealth(unit.team);
     }
 
     @Override
@@ -98,18 +98,19 @@ public class ForceFieldAbility extends Ability{
         wasBroken = unit.shield <= 0f;
 
         if(unit.shield < scaledMax(unit)){
-            unit.shield += Time.delta * regen;
+            unit.shield += Time.delta() * regen;
         }
 
-        alpha = Math.max(alpha - Time.delta/10f, 0f);
+        alpha = Math.max(alpha - Time.delta()/10f, 0f);
 
         if(unit.shield > 0){
             radiusScale = Mathf.lerpDelta(radiusScale, 1f, 0.06f);
-            paramUnit = unit;
-            paramField = this;
+            Scratch state = scratch.get();
+            state.unit = unit; state.field = this;
             checkRadius(unit);
-
-            Groups.bullet.intersect(unit.x - realRad, unit.y - realRad, realRad * 2f, realRad * 2f, shieldConsumer);
+            try{
+                Groups.current().bullet.intersect(unit.x - state.realRad, unit.y - state.realRad, state.realRad * 2f, state.realRad * 2f, state.shieldConsumer);
+            }finally{ state.unit = null; state.field = null; }
         }else{
             radiusScale = 0f;
         }
@@ -127,6 +128,7 @@ public class ForceFieldAbility extends Ability{
 
     @Override
     public void draw(Unit unit){
+        Scratch state = scratch.get();
         checkRadius(unit);
 
         if(unit.shield > 0){
@@ -134,7 +136,7 @@ public class ForceFieldAbility extends Ability{
 
             if(Vars.renderer.animateShields){
                 Draw.z(Layer.shields + 0.001f * alpha);
-                Fill.poly(unit.x, unit.y, sides, realRad, rotation);
+                Fill.poly(unit.x, unit.y, sides, state.realRad, rotation);
             }else{
                 Draw.z(Layer.shields);
                 Lines.stroke(1.5f);
@@ -158,6 +160,6 @@ public class ForceFieldAbility extends Ability{
 
     public void checkRadius(Unit unit){
         //timer2 is used to store radius scale as an effect
-        realRad = radiusScale * radius;
+        scratch.get().realRad = radiusScale * radius;
     }
 }

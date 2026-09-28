@@ -82,7 +82,7 @@ abstract class ShieldComp implements Healthc, Posc{
 
     @Override
     public void update(){
-        shieldAlpha -= Time.delta / 15f;
+        shieldAlpha -= Time.delta() / 15f;
         if(shieldAlpha < 0) shieldAlpha = 0f;
     }
 }

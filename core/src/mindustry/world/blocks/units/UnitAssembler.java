@@ -92,7 +92,7 @@ public class UnitAssembler extends PayloadBlock{
         x += offset;
         y += offset;
 
-        Rect rect = getRect(Tmp.r1, x, y, rotation);
+        Rect rect = getRect(Tmp.r1(), x, y, rotation);
 
         Drawf.dashRect(valid ? Pal.accent : Pal.remove, rect);
     }
@@ -100,10 +100,10 @@ public class UnitAssembler extends PayloadBlock{
     @Override
     public boolean canPlaceOn(Tile tile, Team team, int rotation){
         //overlapping construction areas not allowed unless it s being replaced; grow by a tiny amount so edges can't overlap either.
-        Rect rect = getRect(Tmp.r1, tile.worldx() + offset, tile.worldy() + offset, rotation).grow(0.1f);
+        Rect rect = getRect(Tmp.r1(), tile.worldx() + offset, tile.worldy() + offset, rotation).grow(0.1f);
         return
-            !indexer.getFlagged(team, BlockFlag.unitAssembler).contains(b -> b != tile.build && b.block instanceof UnitAssembler assembler && assembler.getRect(Tmp.r2, b.x, b.y, b.rotation).overlaps(rect)) &&
-            !team.data().getBuildings(ConstructBlock.get(size)).contains(b -> b != tile.build && ((ConstructBuild)b).current instanceof UnitAssembler assembler && assembler.getRect(Tmp.r2, b.x, b.y, b.rotation).overlaps(rect));
+            !indexer.getFlagged(team, BlockFlag.unitAssembler).contains(b -> b != tile.build && b.block instanceof UnitAssembler assembler && assembler.getRect(Tmp.r2(), b.x, b.y, b.rotation).overlaps(rect)) &&
+            !team.data().getBuildings(ConstructBlock.get(size)).contains(b -> b != tile.build && ((ConstructBuild)b).current instanceof UnitAssembler assembler && assembler.getRect(Tmp.r2(), b.x, b.y, b.rotation).overlaps(rect));
     }
 
     @Override
@@ -336,7 +336,7 @@ public class UnitAssembler extends PayloadBlock{
         public Vec2 getUnitSpawn(){
             float len = tilesize * (areaSize + size)/2f;
             float unitX = x + Geometry.d4x(rotation) * len, unitY = y + Geometry.d4y(rotation) * len;
-            return Tmp.v4.set(unitX, unitY);
+            return Tmp.v4().set(unitX, unitY);
         }
 
         public boolean moduleFits(Block other, float ox, float oy, int rotation){
@@ -402,7 +402,7 @@ public class UnitAssembler extends PayloadBlock{
                 Drawf.selected(module, Pal.accent);
             }
 
-            Drawf.dashRect(Tmp.c1.set(Pal.accent).lerp(Pal.remove, invalidWarmup), getRect(Tmp.r1, x, y, rotation));
+            Drawf.dashRect(Tmp.c1().set(Pal.accent).lerp(Pal.remove, invalidWarmup), getRect(Tmp.r1(), x, y, rotation));
         }
 
         @Override
@@ -434,7 +434,7 @@ public class UnitAssembler extends PayloadBlock{
             if(!readUnits.isEmpty()){
                 units.clear();
                 readUnits.each(i -> {
-                    var unit = Groups.unit.getByID(i);
+                    var unit = Groups.current().unit.getByID(i);
                     if(unit != null){
                         units.add(unit);
                     }
@@ -454,7 +454,7 @@ public class UnitAssembler extends PayloadBlock{
             //read newly synced drones on client end
             if(units.size < dronesCreated && whenSyncedUnits.size > 0){
                 whenSyncedUnits.each(id -> {
-                    var unit = Groups.unit.getByID(id);
+                    var unit = Groups.current().unit.getByID(id);
                     if(unit != null){
                         units.addUnique(unit);
                     }
@@ -615,7 +615,7 @@ public class UnitAssembler extends PayloadBlock{
                 Draw.color(Pal.accent, warmup);
 
                 Shaders.blockbuild.region = plan.unit.fullIcon;
-                Shaders.blockbuild.time = Time.time;
+                Shaders.blockbuild.time = Time.time();
                 Shaders.blockbuild.alpha = warmup;
                 //margin due to units not taking up whole region
                 Shaders.blockbuild.progress = Mathf.clamp(progress + 0.05f);
@@ -631,7 +631,7 @@ public class UnitAssembler extends PayloadBlock{
             Draw.z(Layer.buildBeam);
 
             //draw unit silhouette
-            Draw.mixcol(Tmp.c1.set(Pal.accent).lerp(Pal.remove, invalidWarmup), 1f);
+            Draw.mixcol(Tmp.c1().set(Pal.accent).lerp(Pal.remove, invalidWarmup), 1f);
             Draw.alpha(Math.min(powerWarmup, sameTypeWarmup));
             Draw.rect(plan.unit.fullIcon, spawn.x, spawn.y, rotdeg() - 90f);
 
@@ -669,7 +669,7 @@ public class UnitAssembler extends PayloadBlock{
 
             if(invalidWarmup > 0){
                 //draw small square for area
-                Lines.stroke(2f, Tmp.c3.set(Pal.accent).lerp(Pal.remove, invalidWarmup).a(invalidWarmup));
+                Lines.stroke(2f, Tmp.c3().set(Pal.accent).lerp(Pal.remove, invalidWarmup).a(invalidWarmup));
                 Drawf.dashSquareBasic(spawn.x, spawn.y, outSize);
             }
 
@@ -679,7 +679,7 @@ public class UnitAssembler extends PayloadBlock{
         public boolean checkSolid(Vec2 v, boolean same){
             var output = unit();
             float hsize = output.hitSize * 1.4f;
-            return ((!output.flying && collisions.overlapsTile(Tmp.r1.setCentered(v.x, v.y, output.hitSize), EntityCollisions::solid)) ||
+            return ((!output.flying && collisions.overlapsTile(Tmp.r1().setCentered(v.x, v.y, output.hitSize), EntityCollisions::solid)) ||
                 Units.anyEntities(v.x - hsize/2f, v.y - hsize/2f, hsize, hsize, u -> (!same || u.type != output) && !u.spawnedByCore &&
                     ((u.type.allowLegStep && output.allowLegStep) || (output.flying && u.isFlying()) || (!output.flying && u.isGrounded()))));
         }

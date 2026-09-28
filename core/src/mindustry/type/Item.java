@@ -94,7 +94,7 @@ public class Item extends UnlockableContent implements Senseable{
             uiIcon = new TextureRegion(uiIcon);
 
             Events.run(Trigger.update, () -> {
-                int frame = (int)(Time.globalTime / frameTime) % regions.length;
+                int frame = (int)(Time.globalTime() / frameTime) % regions.length;
                 fullIcon.set(regions[frame]);
                 uiIcon.set(regions[frame]);
             });

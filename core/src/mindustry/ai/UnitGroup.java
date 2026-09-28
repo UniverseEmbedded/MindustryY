@@ -154,7 +154,7 @@ public class UnitGroup{
     }
 
     public void updateRaycast(int index, Vec2 dest){
-        updateRaycast(index, dest, Tmp.v1);
+        updateRaycast(index, dest, Tmp.v1());
     }
 
     private void updateRaycast(int index, Vec2 dest, Vec2 v1){

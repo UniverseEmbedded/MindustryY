@@ -196,7 +196,7 @@ public class EffectsDialog extends BaseDialog{
                 size = calculateSize(effect) + 1f;
             }
 
-            color.fromHsv((Time.globalTime * 2f) % 360f, 1f, 1f);
+            color.fromHsv((Time.globalTime() * 2f) % 360f, 1f, 1f);
 
             if(clipBegin(x, y, width, height)){
                 Draw.colorl(cl.isOver() && listener != null ? 0.4f : 0.5f);
@@ -206,13 +206,13 @@ public class EffectsDialog extends BaseDialog{
                 Draw.flush();
 
                 float scale = width / size;
-                Tmp.m1.set(Draw.trans());
+                Tmp.m1().set(Draw.trans());
                 Draw.trans().translate(x + width/2f, y + height/2f).scale(scale, scale);
                 Draw.flush();
                 this.lifetime = effect.effect.render(id, color, time, lifetime, rotation, 0f, 0f, data);
 
                 Draw.flush();
-                Draw.trans().set(Tmp.m1);
+                Draw.trans().set(Tmp.m1());
                 clipEnd();
             }
 
@@ -225,7 +225,7 @@ public class EffectsDialog extends BaseDialog{
         public void act(float delta){
             super.act(delta);
 
-            time += Time.delta;
+            time += Time.delta();
             if(time >= lifetime){
                 id ++;
             }

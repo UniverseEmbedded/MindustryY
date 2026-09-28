@@ -88,7 +88,7 @@ abstract class SegmentComp implements Posc, Rotc, Hitboxc, Unitc, Segmentc{
         if(isHead()){
             return !vel.isZero(0.01f);
         }else{
-            return deltaLen() / Time.delta >= 0.01f;
+            return deltaLen() / Time.delta() >= 0.01f;
         }
     }
 
@@ -122,7 +122,7 @@ abstract class SegmentComp implements Posc, Rotc, Hitboxc, Unitc, Segmentc{
 
     public void checkParent(){
         if(parentId != -1){
-            var parent = Groups.unit.getByID(parentId);
+            var parent = Groups.current().unit.getByID(parentId);
             if(parent instanceof Segmentc seg){
                 parentSegment = seg;
                 seg.childSegment(this);
@@ -143,11 +143,11 @@ abstract class SegmentComp implements Posc, Rotc, Hitboxc, Unitc, Segmentc{
 
         //TODO should depend on the head's speed.
         if(headDelta > 0.001f){
-            rotation = Mathf.slerpDelta(rotation, parent.rotation(), type.baseRotateSpeed * Mathf.clamp(headDelta / type().speed / Time.delta));
+            rotation = Mathf.slerpDelta(rotation, parent.rotation(), type.baseRotateSpeed * Mathf.clamp(headDelta / type().speed / Time.delta()));
         }
 
-        Vec2 moveVec = Tmp.v1.trns(rotation + 180f, type.segmentSpacing).add(parent).sub(x, y);
-        float prefSpeed = type.speed * Time.delta * 9999f;
+        Vec2 moveVec = Tmp.v1().trns(rotation + 180f, type.segmentSpacing).add(parent).sub(x, y);
+        float prefSpeed = type.speed * Time.delta() * 9999f;
         move(moveVec.limit(prefSpeed)); //TODO other segments are left behind
 
         if(childSegment != null){

@@ -46,7 +46,7 @@ public enum LogicOp{
     ceil("ceil", Math::ceil),
     round("round", Math::round),
     sqrt("sqrt", Math::sqrt),
-    rand("rand", d -> GlobalVars.rand.nextDouble() * d),
+    rand("rand", d -> mindustry.Vars.game().logicVars.rand.nextDouble() * d),
 
     sin("sin", d -> Math.sin(d * Mathf.doubleDegRad)),
     cos("cos", d -> Math.cos(d * Mathf.doubleDegRad)),

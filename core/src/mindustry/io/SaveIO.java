@@ -141,7 +141,7 @@ public class SaveIO{
     }
 
     public static void load(Fi file) throws SaveException{
-        load(file, world.context);
+        load(file, mindustry.Vars.game().world.context);
     }
 
     public static void load(Fi file, WorldContext context) throws SaveException{
@@ -162,7 +162,7 @@ public class SaveIO{
     /** Loads from a deflated (!) input stream. */
     public static void load(InputStream is, WorldContext context) throws SaveException{
         try(CounterInputStream counter = new CounterInputStream(is); DataInputStream stream = new DataInputStream(counter)){
-            logic.reset();
+            mindustry.Vars.game().logic.reset();
             readHeader(stream);
             int version = stream.readInt();
             SaveVersion ver = versions.get(version);
@@ -179,7 +179,7 @@ public class SaveIO{
         }catch(Throwable e){
             throw new SaveException(e);
         }finally{
-            world.setGenerating(false);
+            mindustry.Vars.game().world.setGenerating(false);
             content.setTemporaryMapper(null);
         }
     }

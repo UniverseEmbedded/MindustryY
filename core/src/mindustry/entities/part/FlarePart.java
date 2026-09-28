@@ -25,12 +25,12 @@ public class FlarePart extends DrawPart{
         int i = params.sideOverride == -1 ? 0 : params.sideOverride;
 
         float sign = (i == 0 ? 1 : -1) * params.sideMultiplier;
-        Tmp.v1.set(x * sign, y).rotate(params.rotation - 90);
+        Tmp.v1().set(x * sign, y).rotate(params.rotation - 90);
 
         float
-        rx = params.x + Tmp.v1.x,
-        ry = params.y + Tmp.v1.y,
-        rot = (followRotation ? params.rotation : 0f) + rotMove * prog + rotation + Time.time * spinSpeed,
+        rx = params.x + Tmp.v1().x,
+        ry = params.y + Tmp.v1().y,
+        rot = (followRotation ? params.rotation : 0f) + rotMove * prog + rotation + Time.time() * spinSpeed,
         rad = radiusTo < 0 ? radius : Mathf.lerp(radius, radiusTo, prog);
 
         Draw.color(color1);

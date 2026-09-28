@@ -66,7 +66,7 @@ public class Units{
 
     @Remote(called = Loc.server)
     public static void unitDeath(int uid){
-        Unit unit = Groups.unit.getByID(uid);
+        Unit unit = Groups.current().unit.getByID(uid);
 
         //if there's no unit don't add it later and get it stuck as a ghost
         if(netClient != null){
@@ -81,7 +81,7 @@ public class Units{
     //destroys immediately
     @Remote(called = Loc.server)
     public static void unitDestroy(int uid){
-        Unit unit = Groups.unit.getByID(uid);
+        Unit unit = Groups.current().unit.getByID(uid);
 
         //if there's no unit don't add it later and get it stuck as a ghost
         if(netClient != null){
@@ -341,7 +341,7 @@ public class Units{
         result = null;
         cdist = 0f;
 
-        for(Unit e : Groups.unit){
+        for(Unit e : Groups.current().unit){
             if(!predicate.get(e) || e.team() != team) continue;
 
             float dist = e.dst2(x, y);
@@ -417,7 +417,7 @@ public class Units{
     /** @return whether any units exist in this rectangle */
     public static int count(float x, float y, float width, float height, Boolf<Unit> filter){
         intResult = 0;
-        Groups.unit.intersect(x, y, width, height, v -> {
+        Groups.current().unit.intersect(x, y, width, height, v -> {
             if(filter.get(v)){
                 intResult ++;
             }
@@ -427,7 +427,7 @@ public class Units{
 
     /** @return whether any units exist in this rectangle */
     public static boolean any(float x, float y, float width, float height, Boolf<Unit> filter){
-        return Groups.unit.intersect(x, y, width, height, filter);
+        return Groups.current().unit.intersect(x, y, width, height, filter);
     }
 
     /** Iterates over all units in a rectangle. */
@@ -452,7 +452,7 @@ public class Units{
 
     /** Iterates over all units in a rectangle. */
     public static void nearby(float x, float y, float width, float height, Cons<Unit> cons){
-        Groups.unit.intersect(x, y, width, height, cons);
+        Groups.current().unit.intersect(x, y, width, height, cons);
     }
 
     /**
@@ -460,7 +460,7 @@ public class Units{
      * @return whether a unit was found.
      * */
     public static boolean nearbyCheck(float x, float y, float width, float height, Boolf<Unit> cons){
-        return Groups.unit.intersect(x, y, width, height, cons);
+        return Groups.current().unit.intersect(x, y, width, height, cons);
     }
 
     /** Iterates over all units in a rectangle. */

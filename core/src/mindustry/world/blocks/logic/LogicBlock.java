@@ -211,8 +211,8 @@ public class LogicBlock extends Block{
                     String name = stream.readUTF();
                     short x = stream.readShort(), y = stream.readShort();
 
-                    transformer.get(Tmp.p1.set(x, y));
-                    links.add(new LogicLink(Tmp.p1.x, Tmp.p1.y, name, true));
+                    transformer.get(Tmp.p1().set(x, y));
+                    links.add(new LogicLink(Tmp.p1().x, Tmp.p1().y, name, true));
                 }
 
                 return compress(bytes, links);
@@ -685,7 +685,7 @@ public class LogicBlock extends Block{
         public void drawSelect(){
             if(!accessible()) return;
 
-            Groups.unit.each(u -> u.controller() instanceof LogicAI ai && ai.controller == this, unit -> {
+            Groups.current().unit.each(u -> u.controller() instanceof LogicAI ai && ai.controller == this, unit -> {
                 Drawf.square(unit.x, unit.y, unit.hitSize, unit.rotation + 45);
             });
 

@@ -503,10 +503,10 @@ public class EntityProcess extends BaseProcessor{
                         for(GroupDefinition def : groups){
                             if(first.name().equals("add")){
                                 //remove/add from each group, assume imported
-                                mbuilder.addStatement("index__$L = Groups.$L.addIndex(this)", def.name, def.name);
+                                mbuilder.addStatement("index__$L = Groups.current().$L.addIndex(this)", def.name, def.name);
                             }else{
                                 //remove/add from each group, assume imported
-                                mbuilder.addStatement("Groups.$L.removeIndex(this, index__$L);", def.name, def.name);
+                                mbuilder.addStatement("Groups.current().$L.removeIndex(this, index__$L);", def.name, def.name);
 
                                 mbuilder.addStatement("index__$L = -1", def.name);
                             }
@@ -662,86 +662,80 @@ public class EntityProcess extends BaseProcessor{
 
             //generate groups
             TypeSpec.Builder groupsBuilder = TypeSpec.classBuilder("Groups").addModifiers(Modifier.PUBLIC);
-            MethodSpec.Builder groupInit = MethodSpec.methodBuilder("init").addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+            TypeSpec.Builder contextBuilder = TypeSpec.classBuilder("Context").addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+            MethodSpec.Builder contextInit = MethodSpec.methodBuilder("init").addModifiers(Modifier.PUBLIC);
             for(GroupDefinition group : groupDefs){
                 //class names for interface/group
-                ClassName itype =  group.baseType;
+                ClassName itype = group.baseType;
                 ClassName groupc = ClassName.bestGuess("mindustry.entities.EntityGroup");
 
-                //add field...
-                groupsBuilder.addField(ParameterizedTypeName.get(
-                    ClassName.bestGuess("mindustry.entities.EntityGroup"), itype), group.name, Modifier.PUBLIC, Modifier.STATIC);
-
-                groupInit.addStatement("$L = new $T<>($L.class, $L, $L, (e, pos) -> { if(e instanceof $L.IndexableEntity__$L ix) ix.setIndex__$L(pos); })", group.name, groupc, itype, group.spatial, group.mapping, packageName, group.name, group.name);
+                // Every live GameContext owns a complete independent set of entity groups.
+                contextBuilder.addField(ParameterizedTypeName.get(groupc, itype), group.name, Modifier.PUBLIC);
+                contextInit.addStatement("$L = new $T<>($L.class, $L, $L, (e, pos) -> { if(e instanceof $L.IndexableEntity__$L ix) ix.setIndex__$L(pos); })", group.name, groupc, itype, group.spatial, group.mapping, packageName, group.name, group.name);
             }
+            contextBuilder.addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC).addStatement("init()").build());
+            contextBuilder.addMethod(contextInit.build());
+            contextBuilder.addField(boolean.class, "isClearing", Modifier.PUBLIC);
+            contextBuilder.addField(FieldSpec.builder(ParameterizedTypeName.get(Seq.class, Poolable.class), "freeQueue", Modifier.PRIVATE).initializer("new Seq<>()").build());
 
-            //write the groups
-            groupsBuilder.addMethod(groupInit.build());
-
-            groupsBuilder.addField(boolean.class, "isClearing", Modifier.PUBLIC, Modifier.STATIC);
-
-            MethodSpec.Builder groupClear = MethodSpec.methodBuilder("clear").addModifiers(Modifier.PUBLIC, Modifier.STATIC);
-            groupClear.addStatement("isClearing = true");
+            MethodSpec.Builder contextClear = MethodSpec.methodBuilder("clear").addModifiers(Modifier.PUBLIC);
+            contextClear.addStatement("isClearing = true");
             for(GroupDefinition group : groupDefs){
-                groupClear.addStatement("$L.clear()", group.name);
+                contextClear.addStatement("$L.clear()", group.name);
             }
-            groupClear.addStatement("isClearing = false");
+            contextClear.addStatement("isClearing = false");
+            contextBuilder.addMethod(contextClear.build());
 
-            //write clear
-            groupsBuilder.addMethod(groupClear.build());
-
-            //add method for pool storage
-            groupsBuilder.addField(FieldSpec.builder(ParameterizedTypeName.get(Seq.class, Poolable.class), "freeQueue", Modifier.PRIVATE, Modifier.STATIC).initializer("new Seq<>()").build());
-
-            //method for freeing things
-            MethodSpec.Builder groupFreeQueue = MethodSpec.methodBuilder("queueFree")
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+            contextBuilder.addMethod(MethodSpec.methodBuilder("queueFree")
+                .addModifiers(Modifier.PUBLIC)
                 .addParameter(Poolable.class, "obj")
-                .addStatement("freeQueue.add(obj)");
+                .addStatement("freeQueue.add(obj)")
+                .build());
 
-            groupsBuilder.addMethod(groupFreeQueue.build());
-
-            //add method for resizing all necessary groups
-            MethodSpec.Builder groupResize = MethodSpec.methodBuilder("resize")
+            MethodSpec.Builder contextResize = MethodSpec.methodBuilder("resize")
                 .addParameter(TypeName.FLOAT, "x").addParameter(TypeName.FLOAT, "y").addParameter(TypeName.FLOAT, "w").addParameter(TypeName.FLOAT, "h")
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
-
-            MethodSpec.Builder groupUpdate = MethodSpec.methodBuilder("update")
-            .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
-
-            MethodSpec.Builder groupPoolUpdate = MethodSpec.methodBuilder("updatePooling")
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
-
-            //free everything pooled at the start of each updaet
-            groupPoolUpdate
+                .addModifiers(Modifier.PUBLIC);
+            MethodSpec.Builder contextUpdate = MethodSpec.methodBuilder("update").addModifiers(Modifier.PUBLIC);
+            MethodSpec.Builder contextPoolUpdate = MethodSpec.methodBuilder("updatePooling").addModifiers(Modifier.PUBLIC);
+            contextPoolUpdate
                 .addStatement("for($T p : freeQueue) $T.free(p)", Poolable.class, Pools.class)
                 .addStatement("freeQueue.clear()");
+            contextUpdate.addStatement("updatePooling()");
 
-            groupUpdate.addStatement("updatePooling()");
-
-            //method resize
             for(GroupDefinition group : groupDefs){
                 if(group.spatial){
-                    groupResize.addStatement("$L.resize(x, y, w, h)", group.name);
-                    groupUpdate.addStatement("$L.updatePhysics()", group.name);
+                    contextResize.addStatement("$L.resize(x, y, w, h)", group.name);
+                    contextUpdate.addStatement("$L.updatePhysics()", group.name);
                 }
             }
-
             for(GroupDefinition group : groupDefs){
-                if(group.updates){
-                    groupUpdate.addStatement("$L.update()", group.name);
-                }
+                if(group.updates) contextUpdate.addStatement("$L.update()", group.name);
             }
-
             for(GroupDefinition group : groupDefs){
-                if(group.collides){
-                    groupUpdate.addStatement("$L.collide()", group.name);
-                }
+                if(group.collides) contextUpdate.addStatement("$L.collide()", group.name);
             }
+            contextBuilder.addMethod(contextResize.build());
+            contextBuilder.addMethod(contextPoolUpdate.build());
+            contextBuilder.addMethod(contextUpdate.build());
+            groupsBuilder.addType(contextBuilder.build());
 
-            groupsBuilder.addMethod(groupResize.build());
-            groupsBuilder.addMethod(groupPoolUpdate.build());
-            groupsBuilder.addMethod(groupUpdate.build());
+            groupsBuilder.addMethod(MethodSpec.methodBuilder("current")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(ClassName.bestGuess("Context"))
+                .addStatement("mindustry.runtime.GameContext runtime = mindustry.runtime.RuntimeContexts.requireCurrent()")
+                .beginControlFlow("if(!(runtime.groups instanceof Context))")
+                .addStatement("runtime.groups = new Context()")
+                .endControlFlow()
+                .addStatement("return (Context)runtime.groups")
+                .build());
+            groupsBuilder.addMethod(MethodSpec.methodBuilder("init").addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("current().init()").build());
+            groupsBuilder.addMethod(MethodSpec.methodBuilder("clear").addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("current().clear()").build());
+            groupsBuilder.addMethod(MethodSpec.methodBuilder("queueFree").addModifiers(Modifier.PUBLIC, Modifier.STATIC).addParameter(Poolable.class, "obj").addStatement("current().queueFree(obj)").build());
+            groupsBuilder.addMethod(MethodSpec.methodBuilder("resize")
+                .addParameter(TypeName.FLOAT, "x").addParameter(TypeName.FLOAT, "y").addParameter(TypeName.FLOAT, "w").addParameter(TypeName.FLOAT, "h")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("current().resize(x, y, w, h)").build());
+            groupsBuilder.addMethod(MethodSpec.methodBuilder("updatePooling").addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("current().updatePooling()").build());
+            groupsBuilder.addMethod(MethodSpec.methodBuilder("update").addModifiers(Modifier.PUBLIC, Modifier.STATIC).addStatement("current().update()").build());
 
             write(groupsBuilder);
 

@@ -173,7 +173,7 @@ public class Pump extends LiquidBlock{
                 warmup = Mathf.approachDelta(warmup, 0f, warmupSpeed);
             }
 
-            totalProgress += warmup * Time.delta;
+            totalProgress += warmup * Time.delta();
 
             if(liquidDrop != null){
                 dumpLiquid(liquidDrop);

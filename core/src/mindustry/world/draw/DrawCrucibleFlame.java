@@ -31,11 +31,11 @@ public class DrawCrucibleFlame extends DrawBlock{
             Draw.color(flameColor, a);
             Lines.circle(build.x + x, build.y + y, (flameRad + circleSpace + si) * build.warmup());
 
-            float base = (Time.time / particleLife);
+            float base = (Time.time() / particleLife);
             rand.setSeed(build.id);
             for(int i = 0; i < particles; i++){
                 float fin = (rand.random(1f) + base) % 1f, fout = 1f - fin;
-                float angle = rand.random(360f) + (Time.time / rotateScl) % 360f;
+                float angle = rand.random(360f) + (Time.time() / rotateScl) % 360f;
                 float len = particleRad * particleInterp.apply(fout);
                 Draw.alpha(a * (1f - Mathf.curve(fin, 1f - fadeMargin)));
                 Fill.circle(

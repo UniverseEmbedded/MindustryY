@@ -124,7 +124,7 @@ public class NuclearReactor extends PowerGenerator{
                 }
             }else{
                 productionEfficiency = 0f;
-                heat = Math.max(0f, heat - Time.delta / ambientCooldownTime);
+                heat = Math.max(0f, heat - Time.delta() / ambientCooldownTime);
             }
 
             if(heat > 0){
@@ -175,7 +175,7 @@ public class NuclearReactor extends PowerGenerator{
         public void drawLight(){
             float fract = productionEfficiency;
             smoothLight = Mathf.lerpDelta(smoothLight, fract, 0.08f);
-            Drawf.light(x, y, (90f + Mathf.absin(5, 5f)) * smoothLight, Tmp.c1.set(lightColor).lerp(Color.scarlet, heat), 0.6f * smoothLight);
+            Drawf.light(x, y, (90f + Mathf.absin(5, 5f)) * smoothLight, Tmp.c1().set(lightColor).lerp(Color.scarlet, heat), 0.6f * smoothLight);
         }
 
         @Override
@@ -190,7 +190,7 @@ public class NuclearReactor extends PowerGenerator{
             Draw.rect(topRegion, x, y);
 
             if(heat > flashThreshold){
-                flash += (1f + ((heat - flashThreshold) / (1f - flashThreshold)) * 5.4f) * Time.delta;
+                flash += (1f + ((heat - flashThreshold) / (1f - flashThreshold)) * 5.4f) * Time.delta();
                 Draw.color(Color.red, Color.yellow, Mathf.absin(flash, 9f, 1f));
                 Draw.alpha(0.3f);
                 Draw.rect(lightsRegion, x, y);

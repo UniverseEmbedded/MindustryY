@@ -18,13 +18,13 @@ abstract class UnitTetherComp implements Unitc{
 
     @Override
     public void afterRead(){
-        if(spawnerUnitId != -1) spawner = Groups.unit.getByID(spawnerUnitId);
+        if(spawnerUnitId != -1) spawner = Groups.current().unit.getByID(spawnerUnitId);
         spawnerUnitId = -1;
     }
 
     @Override
     public void afterSync(){
-        if(spawnerUnitId != -1) spawner = Groups.unit.getByID(spawnerUnitId);
+        if(spawnerUnitId != -1) spawner = Groups.current().unit.getByID(spawnerUnitId);
         spawnerUnitId = -1;
     }
 

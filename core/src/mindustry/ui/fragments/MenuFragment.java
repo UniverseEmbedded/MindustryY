@@ -15,6 +15,7 @@ import arc.scene.ui.layout.*;
 import arc.struct.*;
 import arc.util.*;
 import mindustry.core.*;
+import mindustry.campaign.shared.ui.*;
 import mindustry.game.EventType.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
@@ -105,7 +106,7 @@ public class MenuFragment{
                     }
                 });
             }).size(200, 60).name("becheck").update(t -> {
-                t.getLabel().setColor(becontrol.isUpdateAvailable() ? Tmp.c1.set(Color.white).lerp(Pal.accent, Mathf.absin(5f, 1f)) : Color.white);
+                t.getLabel().setColor(becontrol.isUpdateAvailable() ? Tmp.c1().set(Color.white).lerp(Pal.accent, Mathf.absin(5f, 1f)) : Color.white);
             }));
         }
 
@@ -141,6 +142,7 @@ public class MenuFragment{
 
         MobileButton
             play = new MobileButton(Icon.play, "@campaign", () -> checkPlay(ui.planet::show)),
+            shared = new MobileButton(Icon.players, "@sharedcampaign.menu", () -> checkPlay(ui.sharedCampaignDialog::show)),
             custom = new MobileButton(Icon.rightOpenOut, "@customgame", () -> checkPlay(ui.custom::show)),
             maps = new MobileButton(Icon.download, "@loadgame", () -> checkPlay(ui.load::show)),
             join = new MobileButton(Icon.add, "@joingame", () -> checkPlay(ui.join::show)),
@@ -155,6 +157,7 @@ public class MenuFragment{
         if(!Core.graphics.isPortrait()){
             container.marginTop(60f);
             container.add(play);
+            container.add(shared);
             container.add(join);
             container.add(custom);
             container.add(maps);
@@ -175,6 +178,8 @@ public class MenuFragment{
         }else{
             container.marginTop(0f);
             container.add(play);
+            container.add(shared);
+            container.row();
             container.add(maps);
             container.row();
             container.add(custom);
@@ -210,6 +215,7 @@ public class MenuFragment{
                 desktopButtons = Seq.with(
                     new MenuButton("@play", Icon.play,
                         new MenuButton("@campaign", Icon.play, () -> checkPlay(ui.planet::show)),
+                        new MenuButton("@sharedcampaign.menu", Icon.players, () -> checkPlay(ui.sharedCampaignDialog::show)),
                         new MenuButton("@joingame", Icon.add, () -> checkPlay(ui.join::show)),
                         new MenuButton("@customgame", Icon.terrain, () -> checkPlay(ui.custom::show)),
                         new MenuButton("@loadgame", Icon.download, () -> checkPlay(ui.load::show))

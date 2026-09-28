@@ -575,9 +575,9 @@ public class UnitType extends UnlockableContent implements Senseable{
     public Unit spawn(Team team, float x, float y, float rotation, @Nullable Cons<Unit> cons){
         float offsetX = 0f, offsetY = 0f;
         if(segmentUnits > 1 && sample instanceof Segmentc){
-            Tmp.v1.trns(rotation, segmentSpacing * segmentUnits / 2f);
-            offsetX = Tmp.v1.x;
-            offsetY = Tmp.v1.y;
+            Tmp.v1().trns(rotation, segmentSpacing * segmentUnits / 2f);
+            offsetX = Tmp.v1().x;
+            offsetY = Tmp.v1().y;
         }
 
         Unit out = create(team);
@@ -593,8 +593,8 @@ public class UnitType extends UnlockableContent implements Senseable{
                 UnitType type = i == segmentUnits - 1 && segmentEndUnit != null ? segmentEndUnit : segType;
 
                 Unit next = type.create(team);
-                Tmp.v1.trns(rotation, segmentSpacing * (i + 1));
-                next.set(x - Tmp.v1.x + offsetX, y - Tmp.v1.y + offsetY);
+                Tmp.v1().trns(rotation, segmentSpacing * (i + 1));
+                next.set(x - Tmp.v1().x + offsetX, y - Tmp.v1().y + offsetY);
                 next.rotation = rotation;
                 next.add();
                 ((Segmentc)last).addChild(next);
@@ -1019,7 +1019,7 @@ public class UnitType extends UnlockableContent implements Senseable{
 
         if(treadEffect == null){
             treadEffect = new Effect(50, e -> {
-                color(Tmp.c1.set(e.color).mul(1.5f));
+                color(Tmp.c1().set(e.color).mul(1.5f));
                 Fx.rand.setSeed(e.id);
                 for(int i = 0; i < 3; i++){
                     Fx.v.trns(e.rotation + Fx.rand.range(40f), Fx.rand.random(6f * e.finpow()));
@@ -1505,7 +1505,7 @@ public class UnitType extends UnlockableContent implements Senseable{
             legOffset.trns(mech.baseRotation(), 0f, Mathf.lerp(Mathf.sin(mech.walkExtend(true), 2f/Mathf.PI, 1) * mechSideSway, 0f, unit.elevation));
 
             //front
-            legOffset.add(Tmp.v1.trns(mech.baseRotation() + 90, 0f, Mathf.lerp(Mathf.sin(mech.walkExtend(true), 1f/Mathf.PI, 1) * mechFrontSway, 0f, unit.elevation)));
+            legOffset.add(Tmp.v1().trns(mech.baseRotation() + 90, 0f, Mathf.lerp(Mathf.sin(mech.walkExtend(true), 1f/Mathf.PI, 1) * mechFrontSway, 0f, unit.elevation)));
 
             unit.trns(legOffset.x, legOffset.y);
         }
@@ -1598,7 +1598,7 @@ public class UnitType extends UnlockableContent implements Senseable{
 
     public void drawMining(Unit unit){
         if(drawMineBeam){
-            float focusLen = mineBeamOffset + Mathf.absin(Time.time, 1.1f, 0.5f);
+            float focusLen = mineBeamOffset + Mathf.absin(Time.time(), 1.1f, 0.5f);
             float px = unit.x + Angles.trnsx(unit.rotation, focusLen);
             float py = unit.y + Angles.trnsy(unit.rotation, focusLen);
 
@@ -1611,19 +1611,19 @@ public class UnitType extends UnlockableContent implements Senseable{
         float swingScl = 12f, swingMag = tilesize / 8f;
         float flashScl = 0.3f;
 
-        float ex = unit.mineTile.worldx() + Mathf.sin(Time.time + 48, swingScl, swingMag);
-        float ey = unit.mineTile.worldy() + Mathf.sin(Time.time + 48, swingScl + 2f, swingMag);
+        float ex = unit.mineTile.worldx() + Mathf.sin(Time.time() + 48, swingScl, swingMag);
+        float ey = unit.mineTile.worldy() + Mathf.sin(Time.time() + 48, swingScl + 2f, swingMag);
 
         Draw.z(Layer.flyingUnit + 0.1f);
 
-        Draw.color(Color.lightGray, Color.white, 1f - flashScl + Mathf.absin(Time.time, 0.5f, flashScl));
+        Draw.color(Color.lightGray, Color.white, 1f - flashScl + Mathf.absin(Time.time(), 0.5f, flashScl));
 
         Draw.alpha(Renderer.unitLaserOpacity);
         Drawf.laser(mineLaserRegion, mineLaserEndRegion, px, py, ex, ey, 0.75f);
 
         if(unit.isLocal()){
             Lines.stroke(1f, Pal.accent);
-            Lines.poly(unit.mineTile.worldx(), unit.mineTile.worldy(), 4, tilesize / 2f * Mathf.sqrt2, Time.time);
+            Lines.poly(unit.mineTile.worldx(), unit.mineTile.worldy(), 4, tilesize / 2f * Mathf.sqrt2, Time.time());
         }
 
         Draw.color();
@@ -1645,7 +1645,7 @@ public class UnitType extends UnlockableContent implements Senseable{
         float radius = unit.hitSize() * 1.3f;
         Fill.light(unit.x, unit.y, Lines.circleVertices(radius), radius,
             Color.clear,
-            Tmp.c2.set(unit.type.shieldColor(unit)).lerp(Color.white, Mathf.clamp(unit.hitTime() / 2f)).a(0.7f * alpha)
+            Tmp.c2().set(unit.type.shieldColor(unit)).lerp(Color.white, Mathf.clamp(unit.hitTime() / 2f)).a(0.7f * alpha)
         );
     }
 
@@ -1684,7 +1684,7 @@ public class UnitType extends UnlockableContent implements Senseable{
 
         //draw back items
         if(unit.item() != null && unit.itemTime > 0.01f){
-            float sin = Mathf.absin(Time.time, 5f, 1f);
+            float sin = Mathf.absin(Time.time(), 5f, 1f);
             float size = (itemSize + sin) * unit.itemTime;
 
             Draw.mixcol(Pal.accent, sin * 0.1f);
@@ -1718,7 +1718,7 @@ public class UnitType extends UnlockableContent implements Senseable{
             unit.trail = new Trail(trailLength);
         }
         Trail trail = unit.trail;
-        trail.draw(trailColor == null ? unit.team.color : trailColor, (engineSize + Mathf.absin(Time.time, 2f, engineSize / 4f) * (useEngineElevation ? unit.elevation : 1f)) * trailScl);
+        trail.draw(trailColor == null ? unit.team.color : trailColor, (engineSize + Mathf.absin(Time.time(), 2f, engineSize / 4f) * (useEngineElevation ? unit.elevation : 1f)) * trailScl);
     }
 
     public void drawEngines(Unit unit){
@@ -1776,7 +1776,7 @@ public class UnitType extends UnlockableContent implements Senseable{
 
         if(unit instanceof UnderwaterMovec){
             Draw.alpha(1f);
-            Draw.mixcol(unit.floorOn().mapColor.write(Tmp.c1).mul(0.9f), 1f);
+            Draw.mixcol(unit.floorOn().mapColor.write(Tmp.c1()).mul(0.9f), 1f);
         }
 
         Draw.rect(region, unit.x, unit.y, unit.rotation - 90);
@@ -1794,7 +1794,7 @@ public class UnitType extends UnlockableContent implements Senseable{
 
     public Color cellColor(Unit unit){
         float f = Mathf.clamp(unit.healthf());
-        return Tmp.c1.set(Color.black).lerp(unit.team.color, f + Mathf.absin(Time.time, Math.max(f * 5f, 1f), 1f - f));
+        return Tmp.c1().set(Color.black).lerp(unit.team.color, f + Mathf.absin(Time.time(), Math.max(f * 5f, 1f), 1f - f));
     }
 
     public void drawLight(Unit unit){
@@ -1816,8 +1816,8 @@ public class UnitType extends UnlockableContent implements Senseable{
                 float yOffset = -(treadRect.y + treadRect.height/2f);
 
                 for(int side : Mathf.signs){
-                    Tmp.v1.set(xOffset * side, yOffset).rotate(unit.rotation - 90);
-                    Draw.rect(region, unit.x + Tmp.v1.x / 4f, unit.y + Tmp.v1.y / 4f, treadRect.width / 4f, region.height * region.scale / 4f, unit.rotation - 90);
+                    Tmp.v1().set(xOffset * side, yOffset).rotate(unit.rotation - 90);
+                    Draw.rect(region, unit.x + Tmp.v1().x / 4f, unit.y + Tmp.v1().y / 4f, treadRect.width / 4f, region.height * region.scale / 4f, unit.rotation - 90);
                 }
             }
         }
@@ -1825,7 +1825,7 @@ public class UnitType extends UnlockableContent implements Senseable{
 
     public <T extends Unit & Legsc> void drawLegs(T unit){
         applyColor(unit);
-        Tmp.c3.set(Draw.getMixColor());
+        Tmp.c3().set(Draw.getMixColor());
 
         Leg[] legs = unit.legs();
 
@@ -1848,7 +1848,7 @@ public class UnitType extends UnlockableContent implements Senseable{
 
             Vec2 position = unit.legOffset(legOffset, i).add(unit);
 
-            Tmp.v1.set(leg.base).sub(leg.joint).inv().setLength(legExtension);
+            Tmp.v1().set(leg.base).sub(leg.joint).inv().setLength(legExtension);
 
             if(footRegion.found() && leg.moving && shadowElevation > 0){
                 float scl = shadowElevation * invDrown;
@@ -1858,7 +1858,7 @@ public class UnitType extends UnlockableContent implements Senseable{
                 Draw.color();
             }
 
-            Draw.mixcol(Tmp.c3, Tmp.c3.a);
+            Draw.mixcol(Tmp.c3(), Tmp.c3().a);
 
             if(footRegion.found()){
                 Draw.rect(footRegion, leg.base.x, leg.base.y, position.angleTo(leg.base));
@@ -1866,7 +1866,7 @@ public class UnitType extends UnlockableContent implements Senseable{
 
             if(legBaseUnder){
                 Lines.stroke(legBaseRegion.height * legRegion.scl() * flips);
-                Lines.line(legBaseRegion, leg.joint.x + Tmp.v1.x, leg.joint.y + Tmp.v1.y, leg.base.x, leg.base.y, false);
+                Lines.line(legBaseRegion, leg.joint.x + Tmp.v1().x, leg.joint.y + Tmp.v1().y, leg.base.x, leg.base.y, false);
 
                 Lines.stroke(legRegion.height * legRegion.scl() * flips);
                 Lines.line(legRegion, position.x, position.y, leg.joint.x, leg.joint.y, false);
@@ -1875,7 +1875,7 @@ public class UnitType extends UnlockableContent implements Senseable{
                 Lines.line(legRegion, position.x, position.y, leg.joint.x, leg.joint.y, false);
 
                 Lines.stroke(legBaseRegion.height * legRegion.scl() * flips);
-                Lines.line(legBaseRegion, leg.joint.x + Tmp.v1.x, leg.joint.y + Tmp.v1.y, leg.base.x, leg.base.y, false);
+                Lines.line(legBaseRegion, leg.joint.x + Tmp.v1().x, leg.joint.y + Tmp.v1().y, leg.base.x, leg.base.y, false);
             }
 
             if(jointRegion.found()){
@@ -1954,7 +1954,7 @@ public class UnitType extends UnlockableContent implements Senseable{
         }
 
         for(int i : Mathf.signs){
-            Draw.mixcol(Tmp.c1.set(mechLegColor).lerp(Color.white, Mathf.clamp(unit.hitTime)), Math.max(Math.max(0, i * extension / mechStride), unit.hitTime));
+            Draw.mixcol(Tmp.c1().set(mechLegColor).lerp(Color.white, Mathf.clamp(unit.hitTime)), Math.max(Math.max(0, i * extension / mechStride), unit.hitTime));
 
             Draw.rect(legRegion,
             unit.x + Angles.trnsx(mech.baseRotation(), extension * i - boostTrns, -boostTrns*i),
@@ -1967,7 +1967,7 @@ public class UnitType extends UnlockableContent implements Senseable{
         Draw.mixcol(Color.white, unit.hitTime);
 
         if(unit.lastDrownFloor != null){
-            Draw.color(Color.white, Tmp.c1.set(unit.lastDrownFloor.mapColor).mul(0.83f), unit.drownTime * 0.9f);
+            Draw.color(Color.white, Tmp.c1().set(unit.lastDrownFloor.mapColor).mul(0.83f), unit.drownTime * 0.9f);
         }else{
             Draw.color(Color.white);
         }
@@ -1979,19 +1979,19 @@ public class UnitType extends UnlockableContent implements Senseable{
 
     public void applyOutlineColor(Unit unit){
         if(unit.drownTime > 0 && unit.lastDrownFloor != null){
-            Draw.color(Color.white, Tmp.c1.set(unit.lastDrownFloor.mapColor).mul(0.8f), unit.drownTime * 0.9f);
+            Draw.color(Color.white, Tmp.c1().set(unit.lastDrownFloor.mapColor).mul(0.8f), unit.drownTime * 0.9f);
         }
     }
 
     public void applyColor(Unit unit){
         Draw.color();
         if(healFlash){
-            Tmp.c1.set(Color.white).lerp(healColor, Mathf.clamp(unit.healTime - unit.hitTime));
+            Tmp.c1().set(Color.white).lerp(healColor, Mathf.clamp(unit.healTime - unit.hitTime));
         }
-        Draw.mixcol(Tmp.c1, Math.max(unit.hitTime, !healFlash ? 0f : Mathf.clamp(unit.healTime)));
+        Draw.mixcol(Tmp.c1(), Math.max(unit.hitTime, !healFlash ? 0f : Mathf.clamp(unit.healTime)));
 
         if(unit.drownTime > 0 && unit.lastDrownFloor != null){
-            Draw.mixcol(Tmp.c1.set(unit.lastDrownFloor.mapColor).mul(0.83f), unit.drownTime * 0.9f);
+            Draw.mixcol(Tmp.c1().set(unit.lastDrownFloor.mapColor).mul(0.83f), unit.drownTime * 0.9f);
         }
         //this is horribly scuffed.
         if(renderer != null && renderer.overlays != null){
@@ -2024,9 +2024,9 @@ public class UnitType extends UnlockableContent implements Senseable{
             float rot = unit.rotation - 90;
             Color color = this.color != null ? this.color : type.engineColor == null ? unit.team.color : type.engineColor;
 
-            Tmp.v1.set(x, y).rotate(rot);
-            float ex = Tmp.v1.x, ey = Tmp.v1.y;
-            float rad = (radius + Mathf.absin(Time.time, 2f, radius / 4f)) * scale;
+            Tmp.v1().set(x, y).rotate(rot);
+            float ex = Tmp.v1().x, ey = Tmp.v1().y;
+            float rad = (radius + Mathf.absin(Time.time(), 2f, radius / 4f)) * scale;
 
             //engine outlines (cursed?)
             /*float z = Draw.z();
@@ -2035,7 +2035,7 @@ public class UnitType extends UnlockableContent implements Senseable{
             Fill.circle(
                 unit.x + ex,
                 unit.y + ey,
-                (type.outlineRadius * Draw.scl + radius + Mathf.absin(Time.time, 2f, radius / 4f)) * scale
+                (type.outlineRadius * Draw.scl + radius + Mathf.absin(Time.time(), 2f, radius / 4f)) * scale
             );
             Draw.z(z);*/
 

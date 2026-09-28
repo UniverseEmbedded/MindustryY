@@ -455,7 +455,7 @@ public class ModsDialog extends BaseDialog{
                             ui.content.show(c);
                         }).size(50f).with(im -> {
                             var click = im.getClickListener();
-                            im.update(() -> im.getImage().color.lerp(!click.isOver() ? Color.lightGray : Color.white, 0.4f * Time.delta));
+                            im.update(() -> im.getImage().color.lerp(!click.isOver() ? Color.lightGray : Color.white, 0.4f * Time.delta()));
 
                         }).tooltip(c.localizedName);
 

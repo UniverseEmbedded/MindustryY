@@ -54,11 +54,14 @@ public class ForceProjector extends Block{
     //TODO json support
     public @Nullable Consume itemConsumer, coolantConsumer;
 
-    //lambdas need to be static to prevent GC
-    protected static ForceProjector paramBlock;
-    protected static ForceBuild paramEntity;
+    //lambdas stay static to prevent GC; mutable callback parameters are worker-local for overlapping GameContexts.
+    protected static final class ShieldScratch{ ForceProjector paramBlock; ForceBuild paramEntity; }
+    protected static final ThreadLocal<ShieldScratch> shieldScratch = ThreadLocal.withInitial(ShieldScratch::new);
     protected static final Cons<Bullet> shieldConsumer = bullet -> {
-        if(bullet.team != paramEntity.team && bullet.type.absorbable && !bullet.absorbed &&
+        ShieldScratch scratch = shieldScratch.get();
+        ForceProjector paramBlock = scratch.paramBlock;
+        ForceBuild paramEntity = scratch.paramEntity;
+        if(paramBlock != null && paramEntity != null && bullet.team != paramEntity.team && bullet.type.absorbable && !bullet.absorbed &&
             Intersector.isInRegularPolygon(paramBlock.sides, paramEntity.x, paramEntity.y, paramEntity.realRadius(), paramBlock.shieldRotation, bullet.x, bullet.y)){
 
             bullet.absorb();
@@ -244,13 +247,13 @@ public class ForceProjector extends Block{
                 buildup = shieldHealth;
                 shieldBreakEffect.at(x, y, realRadius(), team.color, block);
                 breakSound.at(x, y);
-                if(team != state.rules.defaultTeam){
+                if(team != mindustry.Vars.game().state.rules.defaultTeam){
                     Events.fire(Trigger.forceProjectorBreak);
                 }
             }
 
             if(hit > 0f){
-                hit -= 1f / 5f * Time.delta;
+                hit -= 1f / 5f * Time.delta();
             }
 
             deflectBullets();
@@ -260,9 +263,14 @@ public class ForceProjector extends Block{
             float realRadius = realRadius();
 
             if(realRadius > 0 && !broken){
-                paramBlock = ForceProjector.this;
-                paramEntity = this;
-                Groups.bullet.intersect(x - realRadius, y - realRadius, realRadius * 2f, realRadius * 2f, shieldConsumer);
+                ShieldScratch scratch = shieldScratch.get();
+                scratch.paramBlock = ForceProjector.this;
+                scratch.paramEntity = this;
+                try{
+                    Groups.current().bullet.intersect(x - realRadius, y - realRadius, realRadius * 2f, realRadius * 2f, shieldConsumer);
+                }finally{
+                    scratch.paramBlock = null; scratch.paramEntity = null;
+                }
             }
         }
 

@@ -16,6 +16,8 @@ import static mindustry.Vars.*;
 
 /** Updates and handles state of the campaign universe. Has no relevance to other gamemodes. */
 public class Universe{
+    private final boolean persistentSettings;
+    private final boolean strategicTurns;
     private int seconds;
     private int netSeconds;
     private float secondCounter;
@@ -26,18 +28,30 @@ public class Universe{
     private ItemSeq lastLaunchResources = new ItemSeq();
 
     public Universe(){
-        load();
+        this(true, true);
+    }
 
-        //update base coverage on capture
+    /**
+     * @param persistentSettings whether this runtime owns the process campaign profile/settings
+     * @param strategicTurns whether this runtime is authoritative for offline campaign turns/invasions
+     */
+    public Universe(boolean persistentSettings, boolean strategicTurns){
+        this.persistentSettings = persistentSettings;
+        this.strategicTurns = strategicTurns;
+        if(persistentSettings) load();
+
+        // Runtime-local Events dispatch makes this listener belong to the constructing GameContext.
         Events.on(SectorCaptureEvent.class, e -> {
-            if(!net.client() && state.isCampaign()){
-                state.getSector().planet.updateBaseCoverage();
+            if(!mindustry.Vars.game().net.client() && mindustry.Vars.game().state.isCampaign()){
+                mindustry.Vars.game().state.getSector().planet.updateBaseCoverage();
             }
         });
     }
 
     /** Update regardless of whether the player is in the campaign. */
     public void updateGlobal(){
+        // Planet.position is process-shared render state. Embedded/headless contexts compute positions on demand.
+        if(!mindustry.Vars.runtimeVisualsEnabled()) return;
         for(Planet planet : content.planets()){
             //update all parentless planets (solar system root), regardless of which one the player is in
             if(planet.parent == null) updatePlanet(planet);
@@ -63,12 +77,12 @@ public class Universe{
     public void update(){
 
         //only update time when not in multiplayer
-        if(!net.client()){
-            secondCounter += Time.delta / 60f;
-            turnCounter += Time.delta;
+        if(!mindustry.Vars.game().net.client()){
+            secondCounter += Time.delta() / 60f;
+            turnCounter += Time.delta();
 
             //auto-run turns
-            if(turnCounter >= turnDuration){
+            if(strategicTurns && turnCounter >= turnDuration){
                 turnCounter = 0;
                 runTurn();
             }
@@ -78,41 +92,43 @@ public class Universe{
                 secondCounter %= 1f;
 
                 //save every few seconds
-                if(seconds % 10 == 1){
+                if(persistentSettings && seconds % 10 == 1){
                     save();
                 }
             }
         }
 
-        if(state.hasSector() && state.getSector().planet.updateLighting && !(state.getSector().preset != null && state.getSector().preset.noLighting)){
-            var planet = state.getSector().planet;
+        if(mindustry.Vars.game().state.hasSector() && mindustry.Vars.game().state.getSector().planet.updateLighting && !(mindustry.Vars.game().state.getSector().preset != null && mindustry.Vars.game().state.getSector().preset.noLighting)){
+            var planet = mindustry.Vars.game().state.getSector().planet;
             //update sector light
-            float light = state.getSector().getLight();
+            float light = mindustry.Vars.game().state.getSector().getLight();
             float alpha = Mathf.clamp(Mathf.map(light, planet.lightSrcFrom, planet.lightSrcTo, planet.lightDstFrom, planet.lightDstTo));
 
             //assign and map so darkness is not 100% dark
-            state.rules.ambientLight.a = 1f - alpha;
-            state.rules.lighting = !Mathf.equal(alpha, 1f);
+            mindustry.Vars.game().state.rules.ambientLight.a = 1f - alpha;
+            mindustry.Vars.game().state.rules.lighting = !Mathf.equal(alpha, 1f);
         }
     }
 
     public void clearLoadoutInfo(){
         lastLoadout = null;
         lastLaunchResources = new ItemSeq();
-        Core.settings.remove("launch-resources-seq");
-        Core.settings.remove("lastloadout-core-shard");
-        Core.settings.remove("lastloadout-core-nucleus");
-        Core.settings.remove("lastloadout-core-foundation");
+        if(persistentSettings){
+            Core.settings.remove("launch-resources-seq");
+            Core.settings.remove("lastloadout-core-shard");
+            Core.settings.remove("lastloadout-core-nucleus");
+            Core.settings.remove("lastloadout-core-foundation");
+        }
     }
 
     public ItemSeq getLaunchResources(){
-        lastLaunchResources = Core.settings.getJson("launch-resources-seq", ItemSeq.class, ItemSeq::new);
+        if(persistentSettings) lastLaunchResources = Core.settings.getJson("launch-resources-seq", ItemSeq.class, ItemSeq::new);
         return lastLaunchResources;
     }
 
     public void updateLaunchResources(ItemSeq stacks){
         this.lastLaunchResources = stacks;
-        Core.settings.putJson("launch-resources-seq", lastLaunchResources);
+        if(persistentSettings) Core.settings.putJson("launch-resources-seq", lastLaunchResources);
     }
 
     /** Updates selected loadout for future deployment. Creates an empty schematic with a single core block. */
@@ -122,12 +138,12 @@ public class Universe{
 
     /** Updates selected loadout for future deployment. */
     public void updateLoadout(CoreBlock block, Schematic schem){
-        Core.settings.put("lastloadout-" + block.name, schem.file == null ? "" : schem.file.nameWithoutExtension());
+        if(persistentSettings) Core.settings.put("lastloadout-" + block.name, schem.file == null ? "" : schem.file.nameWithoutExtension());
         lastLoadout = schem;
     }
 
     public Schematic getLastLoadout(){
-        if(lastLoadout == null) lastLoadout = state.rules.sector == null || state.rules.sector.planet.generator == null ? Loadouts.basicShard : state.rules.sector.planet.generator.defaultLoadout;
+        if(lastLoadout == null) lastLoadout = mindustry.Vars.game().state.rules.sector == null || mindustry.Vars.game().state.rules.sector.planet.generator == null ? Loadouts.basicShard : mindustry.Vars.game().state.rules.sector.planet.generator.defaultLoadout;
         return lastLoadout;
     }
 
@@ -138,7 +154,7 @@ public class Universe{
         if(schematics == null) return Loadouts.basicShard;
 
         //find last used loadout file name
-        String file = Core.settings.getString("lastloadout-" + core.name, "");
+        String file = persistentSettings ? Core.settings.getString("lastloadout-" + core.name, "") : "";
 
         //use default (first) schematic if not found
         Seq<Schematic> all = schematics.getLoadouts(core);
@@ -149,10 +165,11 @@ public class Universe{
 
     /** Runs possible events. Resets event counter. */
     public void runTurn(){
+        if(!strategicTurns) return;
         turn++;
 
         int newSecondsPassed = (int)(turnDuration / 60);
-        Planet current = state.getPlanet();
+        Planet current = mindustry.Vars.game().state.getPlanet();
 
         //update relevant sectors
         for(Planet planet : content.planets()){
@@ -166,7 +183,7 @@ public class Universe{
                 //first pass: clear import stats
                 for(Sector sector : planet.sectors){
                     if(sector.hasBase() && !sector.isBeingPlayed()){
-                        sector.info.lastImported.clear();
+                        sector.info().lastImported.clear();
                     }
                 }
 
@@ -175,14 +192,14 @@ public class Universe{
                     if(sector.hasBase() && !sector.isBeingPlayed() && !sector.isAttacked()){
 
                         //export to another sector
-                        if(sector.info.destination != null){
-                            Sector to = sector.info.destination;
+                        if(sector.info().destination != null){
+                            Sector to = sector.info().destination;
                             if(to.hasBase() && to.planet == planet){
                                 ItemSeq items = new ItemSeq();
                                 //calculated exported items to this sector
-                                sector.info.export.each((item, stat) -> items.add(item, (int)(stat.mean * newSecondsPassed)));
+                                sector.info().export.each((item, stat) -> items.add(item, (int)(stat.mean * newSecondsPassed)));
                                 to.addItems(items);
-                                to.info.lastImported.add(items);
+                                to.info().lastImported.add(items);
                             }
                         }
                     }
@@ -192,15 +209,15 @@ public class Universe{
             //third pass: everything else
             for(Sector sector : planet.sectors){
                 if(sector.hasBase()){
-                    if(sector.info.importRateCache != null){
-                        sector.info.refreshImportRates(planet);
+                    if(sector.info().importRateCache != null){
+                        sector.info().refreshImportRates(planet);
                     }
 
                     //if it is being attacked, capture time is 0; otherwise, increment the timer
                     if(sector.isAttacked()){
-                        sector.info.minutesCaptured = 0;
+                        sector.info().minutesCaptured = 0;
                     }else{
-                        sector.info.minutesCaptured += turnDuration / 60 / 60;
+                        sector.info().minutesCaptured += turnDuration / 60 / 60;
                     }
 
                     //attacked sectors are frozen in time; don't update those
@@ -210,46 +227,46 @@ public class Universe{
                         if(!sector.isBeingPlayed()){
 
                             //add production, making sure that it's capped
-                            sector.info.production.each((item, stat) -> sector.info.items.add(item, Math.min((int)(stat.mean * newSecondsPassed), sector.info.storageCapacity - sector.info.items.get(item))));
+                            sector.info().production.each((item, stat) -> sector.info().items.add(item, Math.min((int)(stat.mean * newSecondsPassed), sector.info().storageCapacity - sector.info().items.get(item))));
 
                             if(planet.campaignRules.legacyLaunchPads){
-                                sector.info.export.each((item, stat) -> {
-                                    if(sector.info.items.get(item) <= 0 && sector.info.production.get(item, ExportStat::new).mean < 0 && stat.mean > 0){
+                                sector.info().export.each((item, stat) -> {
+                                    if(sector.info().items.get(item) <= 0 && sector.info().production.get(item, ExportStat::new).mean < 0 && stat.mean > 0){
                                         //cap export by import when production is negative.
                                         //TODO remove
-                                        stat.mean = Math.min(sector.info.lastImported.get(item) / (float)newSecondsPassed, stat.mean);
+                                        stat.mean = Math.min(sector.info().lastImported.get(item) / (float)newSecondsPassed, stat.mean);
                                     }
                                 });
                             }
 
                             //prevent negative values with unloaders
-                            sector.info.items.checkNegative();
+                            sector.info().items.checkNegative();
 
                             sector.saveInfo();
                         }
 
                         //queue random invasions
-                        if(sector.planet.campaignRules.sectorInvasion && sector.info.minutesCaptured > invasionGracePeriod && sector.info.hasSpawns){
+                        if(sector.planet.campaignRules.sectorInvasion && sector.info().minutesCaptured > invasionGracePeriod && sector.info().hasSpawns){
                             int count = sector.near().count(s -> s.hasEnemyBase() && !s.hasBase() && (s.preset == null || !s.preset.requireUnlock));
 
                             //invasion chance depends on # of nearby bases
                             if(count > 0 && Mathf.chance(baseInvasionChance * (0.8f + (count - 1) * 0.3f))){
-                                int waveMax = Math.max(sector.info.winWave, sector.isBeingPlayed() ? state.wave : sector.info.wave) + Mathf.random(2, 4) * 5;
+                                int waveMax = Math.max(sector.info().winWave, sector.isBeingPlayed() ? mindustry.Vars.game().state.wave : sector.info().wave) + Mathf.random(2, 4) * 5;
 
                                 //assign invasion-related things
                                 if(sector.isBeingPlayed()){
-                                    state.rules.winWave = waveMax;
-                                    state.rules.waves = true;
-                                    state.rules.attackMode = false;
-                                    planet.campaignRules.apply(planet, state.rules); //enabling waves may force changes in campaign rules
+                                    mindustry.Vars.game().state.rules.winWave = waveMax;
+                                    mindustry.Vars.game().state.rules.waves = true;
+                                    mindustry.Vars.game().state.rules.attackMode = false;
+                                    planet.campaignRules.apply(planet, mindustry.Vars.game().state.rules); //enabling waves may force changes in campaign rules
                                     //update rules in multiplayer
-                                    if(net.server()){
-                                        Call.setRules(state.rules);
+                                    if(mindustry.Vars.game().net.server()){
+                                        Call.setRules(mindustry.Vars.game().state.rules);
                                     }
                                 }else{
-                                    sector.info.winWave = waveMax;
-                                    sector.info.waves = true;
-                                    sector.info.attack = false;
+                                    sector.info().winWave = waveMax;
+                                    sector.info().waves = true;
+                                    sector.info().attack = false;
                                     sector.saveInfo();
                                 }
 
@@ -276,7 +293,7 @@ public class Universe{
 
     public int seconds(){
         //use networked seconds when playing as client
-        return net.client() ? netSeconds : seconds;
+        return mindustry.Vars.game().net.client() ? netSeconds : seconds;
     }
 
     public void setSeconds(float seconds){
@@ -291,11 +308,13 @@ public class Universe{
     }
 
     private void save(){
+        if(!persistentSettings) return;
         Core.settings.put("utimei", seconds);
         Core.settings.put("turn", turn);
     }
 
     private void load(){
+        if(!persistentSettings) return;
         seconds = Core.settings.getInt("utimei");
         turn = Core.settings.getInt("turn");
     }

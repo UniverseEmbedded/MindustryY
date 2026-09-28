@@ -146,11 +146,11 @@ public class StatusEffect extends UnlockableContent{
         if(damage > 0){
             unit.damageContinuousPierce(damage);
         }else if(damage < 0){ //heal unit
-            unit.heal(-1f * damage * Time.delta);
+            unit.heal(-1f * damage * Time.delta());
         }
 
         if(intervalDamageTime > 0){
-            entry.damageTime += Time.delta;
+            entry.damageTime += Time.delta();
             if(entry.damageTime >= intervalDamageTime){
                 entry.damageTime %= intervalDamageTime;
                 if(intervalDamagePierce){
@@ -162,8 +162,8 @@ public class StatusEffect extends UnlockableContent{
         }
 
         if(!Vars.headless && effect != Fx.none && Mathf.chanceDelta(effectChance) && !unit.inFogTo(Vars.player.team())){
-            Tmp.v1.rnd(Mathf.range(unit.type.hitSize/2f));
-            effect.at(unit.x + Tmp.v1.x, unit.y + Tmp.v1.y, 0, color, parentizeEffect ? unit : null);
+            Tmp.v1().rnd(Mathf.range(unit.type.hitSize/2f));
+            effect.at(unit.x + Tmp.v1().x, unit.y + Tmp.v1().y, 0, color, parentizeEffect ? unit : null);
         }
     }
 

@@ -514,9 +514,9 @@ public class BulletType extends Content implements Cloneable{
 
         if(entity instanceof Unit unit){
             if(unit.type.knockbackMultiplier > 0f){
-                Tmp.v3.set(unit).sub(b).nor().scl(knockback * 80f * unit.type.knockbackMultiplier);
-                if(impact) Tmp.v3.setAngle(b.rotation() + (knockback < 0 ? 180f : 0f));
-                unit.impulse(Tmp.v3);
+                Tmp.v3().set(unit).sub(b).nor().scl(knockback * 80f * unit.type.knockbackMultiplier);
+                if(impact) Tmp.v3().setAngle(b.rotation() + (knockback < 0 ? 180f : 0f));
+                unit.impulse(Tmp.v3());
             }
 
             if(Mathf.chance(statusChance)){
@@ -638,9 +638,9 @@ public class BulletType extends Content implements Cloneable{
     public void createUnits(Bullet b, float x, float y){
         if(!net.client() && despawnUnit != null && Mathf.chance(despawnUnitChance)){
             for(int i = 0; i < despawnUnitCount; i++){
-                Tmp.v1.rnd(Mathf.random(despawnUnitRadius));
-                var u = despawnUnit.spawn(b.team, x + Tmp.v1.x, y + Tmp.v1.y);
-                u.rotation = faceOutwards ? Tmp.v1.angle() : b.rotation();
+                Tmp.v1().rnd(Mathf.random(despawnUnitRadius));
+                var u = despawnUnit.spawn(b.team, x + Tmp.v1().x, y + Tmp.v1().y);
+                u.rotation = faceOutwards ? Tmp.v1().angle() : b.rotation();
                 Units.notifyUnitSpawn(u);
             }
         }
@@ -766,29 +766,29 @@ public class BulletType extends Content implements Cloneable{
             }
 
             if(target != null){
-                b.vel.setAngle(Angles.moveToward(b.rotation(), b.angleTo(target), homingPower * Time.delta * 50f));
+                b.vel.setAngle(Angles.moveToward(b.rotation(), b.angleTo(target), homingPower * Time.delta() * 50f));
             }
         }
 
         if(followAimSpeed > 0f && b.shooter instanceof Unit u){
             float angle = b.angleTo(u.aimX, u.aimY);
-            b.vel.setAngle(Angles.moveToward(b.vel.angle(), angle, followAimSpeed * Time.delta));
+            b.vel.setAngle(Angles.moveToward(b.vel.angle(), angle, followAimSpeed * Time.delta()));
         }
     }
 
     public void updateWeaving(Bullet b){
         if(weaveMag != 0){
-            b.vel.rotateRadExact((float)Math.sin((b.time + Math.PI * weaveScale/2f) / weaveScale) * weaveMag * (weaveRandom ? (Mathf.randomSeed(b.id, 0, 1) == 1 ? -1 : 1) : 1f) * Time.delta * Mathf.degRad);
+            b.vel.rotateRadExact((float)Math.sin((b.time + Math.PI * weaveScale/2f) / weaveScale) * weaveMag * (weaveRandom ? (Mathf.randomSeed(b.id, 0, 1) == 1 ? -1 : 1) : 1f) * Time.delta() * Mathf.degRad);
         }
 
         if(rotateSpeed != 0){
-            b.vel.rotate(rotateSpeed * Time.delta);
+            b.vel.rotate(rotateSpeed * Time.delta());
         }
 
         if(circleShooter && b.owner instanceof Healthc h && h.isValid()){
-            Tmp.v1.set(h).sub(b);
-            Tmp.v1.rotate(90f * Mathf.lerp(0f, 1f, 1f - Mathf.clamp((Tmp.v1.len() - circleShooterRadius) / circleShooterRadiusSmooth)));
-            b.vel.add(Tmp.v1.limit(speed * circleShooterRotateSpeed * Time.delta)).limit(speed);
+            Tmp.v1().set(h).sub(b);
+            Tmp.v1().rotate(90f * Mathf.lerp(0f, 1f, 1f - Mathf.clamp((Tmp.v1().len() - circleShooterRadius) / circleShooterRadiusSmooth)));
+            b.vel.add(Tmp.v1().limit(speed * circleShooterRotateSpeed * Time.delta())).limit(speed);
         }
     }
 
@@ -798,22 +798,22 @@ public class BulletType extends Content implements Cloneable{
         if(trailChance > 0 && canSpawn){
             if(Mathf.chanceDelta(trailChance)){
                 if(trailSpread > 0){
-                    Tmp.v1.rnd(Mathf.random(trailSpread));
+                    Tmp.v1().rnd(Mathf.random(trailSpread));
                 }else{
-                    Tmp.v1.setZero();
+                    Tmp.v1().setZero();
                 }
-                trailEffect.at(b.x + Tmp.v1.x, b.y + Tmp.v1.y, trailRotation ? b.rotation() : trailParam, trailColor);
+                trailEffect.at(b.x + Tmp.v1().x, b.y + Tmp.v1().y, trailRotation ? b.rotation() : trailParam, trailColor);
             }
         }
 
         if(trailInterval > 0f && canSpawn){
             if(b.timer(0, trailInterval)){
                 if(trailSpread > 0){
-                    Tmp.v1.rnd(Mathf.random(trailSpread));
+                    Tmp.v1().rnd(Mathf.random(trailSpread));
                 }else{
-                    Tmp.v1.setZero();
+                    Tmp.v1().setZero();
                 }
-                trailEffect.at(b.x + Tmp.v1.x, b.y + Tmp.v1.y, trailRotation ? b.rotation() : trailParam, trailColor);
+                trailEffect.at(b.x + Tmp.v1().x, b.y + Tmp.v1().y, trailRotation ? b.rotation() : trailParam, trailColor);
             }
         }
     }
@@ -824,7 +824,7 @@ public class BulletType extends Content implements Cloneable{
                 b.trail = new Trail(trailLength);
             }
             b.trail.length = trailLength;
-            b.trail.update(b.x, b.y, trailInterp.apply(b.fin()) * (1f + (trailSinMag > 0 ? Mathf.absin(Time.time, trailSinScl, trailSinMag) : 0f)));
+            b.trail.update(b.x, b.y, trailInterp.apply(b.fin()) * (1f + (trailSinMag > 0 ? Mathf.absin(Time.time(), trailSinScl, trailSinMag) : 0f)));
         }
     }
 

@@ -121,7 +121,7 @@ public class LoadRenderer implements Disposable{
         float stroke = 5f * s;
 
         //light
-        Fill.light(w/2, h/2, lightVerts, lightRad, Tmp.c1.set(color).a(0.15f), Color.clear);
+        Fill.light(w/2, h/2, lightVerts, lightRad, Tmp.c1().set(color).a(0.15f), Color.clear);
 
         float space = s*(60);
         float progress = assets.getProgress();
@@ -130,7 +130,7 @@ public class LoadRenderer implements Disposable{
 
         //preview : no frametime
         if(preview){
-            testprogress += Time.delta / (60f * 3);
+            testprogress += Time.delta() / (60f * 3);
             progress = testprogress;
             if(input.keyTap(KeyCode.space)){
                 testprogress = 0;

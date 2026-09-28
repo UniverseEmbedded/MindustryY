@@ -104,7 +104,7 @@ public class ImpactReactor extends PowerGenerator{
                 warmup = Mathf.lerpDelta(warmup, 0f, 0.01f);
             }
 
-            totalProgress += warmup * Time.delta;
+            totalProgress += warmup * Time.delta();
 
             productionEfficiency = Mathf.pow(warmup, 5f);
         }

@@ -14,6 +14,7 @@ import mindustry.game.Saves.*;
 import mindustry.game.*;
 import mindustry.gen.*;
 import mindustry.graphics.g3d.PlanetGrid.*;
+import mindustry.runtime.*;
 import mindustry.ui.*;
 import mindustry.world.modules.*;
 
@@ -22,7 +23,6 @@ import static mindustry.Vars.*;
 /** A small section of a planet. */
 public class Sector{
     static final String[] threats = {"low", "medium", "high", "extreme", "eradication"};
-    private static final Seq<Sector> tmpSeq1 = new Seq<>();
 
     public final SectorRect rect;
     public final Plane plane;
@@ -53,12 +53,11 @@ public class Sector{
     }
 
     public Seq<Sector> near(){
-        tmpSeq1.clear();
+        Seq<Sector> out = new Seq<>(tile.tiles.length);
         for(Ptile tile : tile.tiles){
-            tmpSeq1.add(planet.getSector(tile));
+            out.add(planet.getSector(tile));
         }
-
-        return tmpSeq1;
+        return out;
     }
 
     public void near(Cons<Sector> cons){
@@ -76,12 +75,25 @@ public class Sector{
         return false;
     }
 
+    /** Dynamic threat for the active runtime. The public field remains primary/profile metadata for compatibility. */
+    public float threat(){
+        GameContext context = Vars.game();
+        return RuntimeContexts.isPrimary() ? threat : context.sectorThreat(this, threat);
+    }
+
+    public void setThreat(float value){
+        GameContext context = Vars.game();
+        if(RuntimeContexts.isPrimary()) threat = value;
+        else context.setSectorThreat(this, value);
+    }
+
     /** Displays threat as a formatted string. */
     public String displayThreat(){
+        float activeThreat = threat();
         float step = 0.25f;
-        String color = Tmp.c1.set(Color.white).lerp(Color.scarlet, Mathf.round(threat, step)).toString();
+        String color = Tmp.c1().set(Color.white).lerp(Color.scarlet, Mathf.round(activeThreat, step)).toString();
         //TODO: rework this in the future
-        return "[#" + color + "]" + Core.bundle.get("threat." + (preset != null && Mathf.equal(preset.difficulty, SectorDifficulty.unreasonable) ? "unreasonable" : threats[Math.min((int)(threat / step), threats.length - 1)]));
+        return "[#" + color + "]" + Core.bundle.get("threat." + (preset != null && Mathf.equal(preset.difficulty, SectorDifficulty.unreasonable) ? "unreasonable" : threats[Math.min((int)(activeThreat / step), threats.length - 1)]));
     }
 
     /** @return whether this sector can be landed on at all.
@@ -98,11 +110,22 @@ public class Sector{
         return (preset != null && preset.overrideLaunchDefaults) ? preset.allowLaunchLoadout : planet.allowLaunchLoadout;
     }
 
+    /** Active mutable info for the current runtime. Primary profile data remains in the legacy field. */
+    public SectorInfo info(){
+        GameContext context = Vars.game();
+        return RuntimeContexts.isPrimary() ? info : context.sectorInfo(this);
+    }
+
     public void saveInfo(){
+        if(!RuntimeContexts.isPrimary()) return;
         Core.settings.putJson(planet.name + "-s-" + id + "-info", info);
     }
 
     public void loadInfo(){
+        if(!RuntimeContexts.isPrimary()){
+            Vars.game().setSectorInfo(this, new SectorInfo());
+            return;
+        }
         info = Core.settings.getJson(planet.name + "-s-" + id + "-info", SectorInfo.class, SectorInfo::new);
 
         //fix an old naming bug; this doesn't happen with new saves, but old saves need manual fixes
@@ -118,6 +141,10 @@ public class Sector{
 
     /** Removes any sector info. */
     public void clearInfo(){
+        if(!RuntimeContexts.isPrimary()){
+            Vars.game().setSectorInfo(this, new SectorInfo());
+            return;
+        }
         info = new SectorInfo();
         Core.settings.remove(planet.name + "-s-" + id + "-info");
     }
@@ -127,13 +154,16 @@ public class Sector{
     }
 
     public boolean isAttacked(){
-        if(isBeingPlayed()) return state.rules.waves || state.rules.attackMode;
-        return save != null && (info.waves || info.attack) && info.hasCore;
+        if(isBeingPlayed()) return Vars.game().state.rules.waves || Vars.game().state.rules.attackMode;
+        SectorInfo active = info();
+        return hasSave() && (active.waves || active.attack) && active.hasCore;
     }
 
     /** @return whether the player has a base (active save with a core) here. */
     public boolean hasBase(){
-        return save != null && info.hasCore && !(Vars.state.isGame() && Vars.state.rules.sector == this && state.gameOver);
+        SectorInfo active = info();
+        boolean persisted = RuntimeContexts.isPrimary() ? save != null : active.hasCore;
+        return persisted && active.hasCore && !(Vars.game().state.isGame() && Vars.game().state.rules.sector == this && Vars.game().state.gameOver);
     }
 
     public boolean isFrozen(){
@@ -142,49 +172,54 @@ public class Sector{
 
     /** @return whether the enemy has a generated base here. */
     public boolean hasEnemyBase(){
-        return ((generateEnemyBase && preset == null) || (preset != null && preset.captureWave == 0)) && (save == null || info.attack || !hasBase());
+        SectorInfo active = info();
+        return ((generateEnemyBase && preset == null) || (preset != null && preset.captureWave == 0)) && (!hasSave() || active.attack || !hasBase());
     }
 
     public boolean isBeingPlayed(){
         //after the launch dialog, a sector is no longer considered being played
-        return Vars.state.isGame() && Vars.state.rules.sector == this && !Vars.state.gameOver && !net.client();
+        return Vars.game().state.isGame() && Vars.game().state.rules.sector == this && !Vars.game().state.gameOver && !Vars.game().net.client();
     }
 
     public String name(){
-        if(preset != null && info.name == null && (preset.requireUnlock || preset.showHidden)){
+        SectorInfo active = info();
+        if(preset != null && active.name == null && (preset.requireUnlock || preset.showHidden)){
             return preset.localizedName;
         }
         //single-sector "planets" use their own name for the sector name.
-        if(info.name == null && planet.sectors.size == 1){
+        if(active.name == null && planet.sectors.size == 1){
             return planet.localizedName;
         }
-        return info.name == null ? id + "" : info.name;
+        return active.name == null ? id + "" : active.name;
     }
 
     public void setName(String name){
-        info.name = name;
+        info().name = name;
         saveInfo();
     }
 
     @Nullable
     public TextureRegion icon(){
-        return info.contentIcon != null ? info.contentIcon.uiIcon : info.icon == null ? (preset != null && preset.requireUnlock && preset.unlocked() && preset.uiIcon.found() ? preset.uiIcon : null) : Fonts.getLargeIcon(info.icon);
+        SectorInfo active = info();
+        return active.contentIcon != null ? active.contentIcon.uiIcon : active.icon == null ? (preset != null && preset.requireUnlock && preset.unlocked() && preset.uiIcon.found() ? preset.uiIcon : null) : Fonts.getLargeIcon(active.icon);
     }
 
     @Nullable
     public String iconChar(){
-        if(info.contentIcon != null) return info.contentIcon.emoji();
-        if(info.icon != null) return (char)Iconc.codes.get(info.icon) + "";
+        SectorInfo active = info();
+        if(active.contentIcon != null) return active.contentIcon.emoji();
+        if(active.icon != null) return (char)Iconc.codes.get(active.icon) + "";
         return null;
     }
 
     public boolean isCaptured(){
-        if(isBeingPlayed()) return !state.rules.waves && !state.rules.attackMode;
-        return save != null && !info.waves && !info.attack;
+        if(isBeingPlayed()) return !Vars.game().state.rules.waves && !Vars.game().state.rules.attackMode;
+        SectorInfo active = info();
+        return hasSave() && !active.waves && !active.attack;
     }
 
     public boolean hasSave(){
-        return save != null;
+        return RuntimeContexts.isPrimary() ? save != null : info().hasCore;
     }
 
     public boolean locked(){
@@ -193,8 +228,10 @@ public class Sector{
 
     /** @return light dot product in the range [0, 1]. */
     public float getLight(){
-        Vec3 normal = Tmp.v31.set(tile.v).rotate(Vec3.Y, -planet.getRotation()).nor();
-        Vec3 light = Tmp.v32.set(planet.solarSystem.position).sub(planet.position).nor();
+        Vec3 normal = Tmp.v31().set(tile.v).rotate(Vec3.Y, -planet.getRotation()).nor();
+        Vec3 planetPosition = planet.getWorldPosition(Tmp.v33());
+        Vec3 solarPosition = planet.solarSystem.getWorldPosition(Tmp.v34());
+        Vec3 light = Tmp.v32().set(solarPosition).sub(planetPosition).nor();
         //lightness in [0, 1]
         return (normal.dot(light) + 1f) / 2f;
     }
@@ -219,14 +256,15 @@ public class Sector{
     public void addItems(ItemSeq items){
 
         if(isBeingPlayed()){
-            if(state.rules.defaultTeam.core() != null){
-                ItemModule storage = state.rules.defaultTeam.items();
-                int cap = state.rules.defaultTeam.core().storageCapacity;
+            if(Vars.game().state.rules.defaultTeam.core() != null){
+                ItemModule storage = Vars.game().state.rules.defaultTeam.items();
+                int cap = Vars.game().state.rules.defaultTeam.core().storageCapacity;
                 items.each((item, amount) -> storage.add(item, Math.min(cap - storage.get(item), amount)));
             }
         }else if(hasBase()){
-            items.each((item, amount) -> info.items.add(item, Math.min(info.storageCapacity - info.items.get(item), amount)));
-            info.items.checkNegative();
+            SectorInfo active = info();
+            items.each((item, amount) -> active.items.add(item, Math.min(active.storageCapacity - active.items.get(item), amount)));
+            active.items.checkNegative();
             saveInfo();
         }
     }
@@ -237,10 +275,10 @@ public class Sector{
 
         //for sectors being played on, add items directly
         if(isBeingPlayed()){
-            if(state.rules.defaultTeam.core() != null) count.add(state.rules.defaultTeam.items());
+            if(Vars.game().state.rules.defaultTeam.core() != null) count.add(Vars.game().state.rules.defaultTeam.items());
         }else{
             //add items already present
-            count.add(info.items);
+            count.add(info().items);
         }
 
         return count;
@@ -258,14 +296,14 @@ public class Sector{
             corners[i] = tile.corners[i].v.cpy().setLength(planet.radius);
         }
 
-        Tmp.v33.setZero();
+        Tmp.v33().setZero();
         for(Vec3 c : corners){
-            Tmp.v33.add(c);
+            Tmp.v33().add(c);
         }
         //v33 is now the center of this shape
-        Vec3 center = Tmp.v33.scl(1f / corners.length).cpy();
+        Vec3 center = Tmp.v33().scl(1f / corners.length).cpy();
         //radius of circle
-        float radius = Tmp.v33.dst(corners[0]) * 0.98f;
+        float radius = Tmp.v33().dst(corners[0]) * 0.98f;
 
         //get plane that these points are on
         plane.set(corners[0], corners[2], corners[4]);

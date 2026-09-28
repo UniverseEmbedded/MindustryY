@@ -298,7 +298,7 @@ public class Weapon implements Cloneable{
     public void update(Unit unit, WeaponMount mount){
         boolean can = unit.canShoot();
         float lastReload = mount.reload;
-        mount.reload = Math.max(mount.reload - Time.delta * unit.reloadMultiplier, 0);
+        mount.reload = Math.max(mount.reload - Time.delta() * unit.reloadMultiplier, 0);
         mount.recoil = Mathf.approachDelta(mount.recoil, 0, unit.reloadMultiplier / recoilTime);
         if(recoils > 0){
             if(mount.recoils == null) mount.recoils = new float[recoils];
@@ -322,7 +322,7 @@ public class Weapon implements Cloneable{
 
         //find a new target
         if(!controllable && autoTarget){
-            if((mount.retarget -= Time.delta) <= 0f){
+            if((mount.retarget -= Time.delta()) <= 0f){
                 mount.target = findTarget(unit, mountX, mountY, bullet.range, bullet.collidesAir, bullet.collidesGround);
                 mount.retarget = mount.target == null ? targetInterval : targetSwitchInterval;
             }
@@ -358,7 +358,7 @@ public class Weapon implements Cloneable{
             axisY = unit.y + Angles.trnsy(unit.rotation - 90,  x, y);
 
             mount.targetRotation = Angles.angle(axisX, axisY, mount.aimX, mount.aimY) - unit.rotation;
-            mount.rotation = Angles.moveToward(mount.rotation, mount.targetRotation, rotateSpeed * Time.delta);
+            mount.rotation = Angles.moveToward(mount.rotation, mount.targetRotation, rotateSpeed * Time.delta());
             if(rotationLimit < 360){
                 float dst = Angles.angleDist(mount.rotation, baseRotation);
                 if(dst > rotationLimit/2f){
@@ -387,7 +387,7 @@ public class Weapon implements Cloneable{
                 mount.bullet.set(bulletX, bulletY);
                 mount.reload = reload;
                 mount.recoil = 1f;
-                unit.vel.add(Tmp.v1.trns(mount.bullet.rotation() + 180f, mount.bullet.type.recoil * Time.delta));
+                unit.vel.add(Tmp.v1().trns(mount.bullet.rotation() + 180f, mount.bullet.type.recoil * Time.delta()));
                 if(shootSound != Sounds.none && !headless){
                     if(mount.sound == null) mount.sound = new SoundLoop(shootSound, 1f);
                     mount.sound.update(bulletX, bulletY, true);
@@ -400,10 +400,10 @@ public class Weapon implements Cloneable{
                 //resulting length of the bullet (smoothed)
                 float resultLength = Mathf.approachDelta(curLength, shootLength, aimChangeSpeed);
                 //actual aim end point based on length
-                Tmp.v1.trns(shootAngle, mount.lastLength = resultLength).add(bulletX, bulletY);
+                Tmp.v1().trns(shootAngle, mount.lastLength = resultLength).add(bulletX, bulletY);
 
-                mount.bullet.aimX = Tmp.v1.x;
-                mount.bullet.aimY = Tmp.v1.y;
+                mount.bullet.aimX = Tmp.v1().x;
+                mount.bullet.aimY = Tmp.v1().y;
 
                 if(alwaysContinuous && mount.shoot){
                     mount.bullet.time = mount.bullet.lifetime * mount.bullet.type.optimalLifeFract * mount.warmup;
@@ -414,7 +414,7 @@ public class Weapon implements Cloneable{
             }
         }else{
             //heat decreases when not firing
-            mount.heat = Math.max(mount.heat - Time.delta * unit.reloadMultiplier / cooldownTime, 0);
+            mount.heat = Math.max(mount.heat - Time.delta() * unit.reloadMultiplier / cooldownTime, 0);
 
             if(mount.sound != null){
                 mount.sound.update(bulletX, bulletY, false);
@@ -432,7 +432,7 @@ public class Weapon implements Cloneable{
             Vars.control.sound.loop(activeSound, unit, activeSoundVolume);
         }
 
-        float velLen = unit.isRemote() ? unit.vel.len() : unit.deltaLen() / Time.delta;
+        float velLen = unit.isRemote() ? unit.vel.len() : unit.deltaLen() / Time.delta();
 
         //shoot if applicable
         if(mount.shoot && //must be shooting
@@ -523,7 +523,7 @@ public class Weapon implements Cloneable{
             bullet.smokeEffect.at(bulletX, bulletY, angle, bullet.hitColor, unit);
         }
 
-        unit.vel.add(Tmp.v1.trns(shootAngle + 180f, bullet.recoil));
+        unit.vel.add(Tmp.v1().trns(shootAngle + 180f, bullet.recoil));
         Effect.shake(shake, shake, bulletX, bulletY);
         mount.recoil = 1f;
         if(recoils > 0){
@@ -542,9 +542,9 @@ public class Weapon implements Cloneable{
                 bulletX = mountX + Angles.trnsx(weaponRotation, this.shootX, this.shootY),
                 bulletY = mountY + Angles.trnsy(weaponRotation, this.shootX, this.shootY);
             //make sure the length updates to the last set value
-            Tmp.v1.trns(bulletRotation(unit, mount, bulletX, bulletY), shootY + mount.lastLength).add(bulletX, bulletY);
-            bullet.aimX = Tmp.v1.x;
-            bullet.aimY = Tmp.v1.y;
+            Tmp.v1().trns(bulletRotation(unit, mount, bulletX, bulletY), shootY + mount.lastLength).add(bulletX, bulletY);
+            bullet.aimX = Tmp.v1().x;
+            bullet.aimY = Tmp.v1().y;
         }
     }
 

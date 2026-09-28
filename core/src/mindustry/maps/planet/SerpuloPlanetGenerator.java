@@ -262,14 +262,14 @@ public class SerpuloPlanetGenerator extends PlanetGenerator{
             void connect(Room to){
                 if(!connected.add(to) || to == this) return;
 
-                Vec2 midpoint = Tmp.v1.set(to.x, to.y).add(x, y).scl(0.5f);
+                Vec2 midpoint = Tmp.v1().set(to.x, to.y).add(x, y).scl(0.5f);
                 rand.nextFloat();
 
                 if(indirectPaths){
-                    midpoint.add(Tmp.v2.set(1, 0f).setAngle(Angles.angle(to.x, to.y, x, y) + 90f * (rand.chance(0.5) ? 1f : -1f)).scl(Tmp.v1.dst(x, y) * 2f));
+                    midpoint.add(Tmp.v2().set(1, 0f).setAngle(Angles.angle(to.x, to.y, x, y) + 90f * (rand.chance(0.5) ? 1f : -1f)).scl(Tmp.v1().dst(x, y) * 2f));
                 }else{
                     //add randomized offset to avoid straight lines
-                    midpoint.add(Tmp.v2.setToRandomDirection(rand).scl(Tmp.v1.dst(x, y)));
+                    midpoint.add(Tmp.v2().setToRandomDirection(rand).scl(Tmp.v1().dst(x, y)));
                 }
 
                 midpoint.sub(width/2f, height/2f).limit(width / 2f / Mathf.sqrt3).add(width/2f, height/2f);
@@ -311,11 +311,11 @@ public class SerpuloPlanetGenerator extends PlanetGenerator{
             void connectLiquid(Room to){
                 if(to == this) return;
 
-                Vec2 midpoint = Tmp.v1.set(to.x, to.y).add(x, y).scl(0.5f);
+                Vec2 midpoint = Tmp.v1().set(to.x, to.y).add(x, y).scl(0.5f);
                 rand.nextFloat();
 
                 //add randomized offset to avoid straight lines
-                midpoint.add(Tmp.v2.setToRandomDirection(rand).scl(Tmp.v1.dst(x, y)));
+                midpoint.add(Tmp.v2().setToRandomDirection(rand).scl(Tmp.v1().dst(x, y)));
                 midpoint.sub(width/2f, height/2f).limit(width / 2f / Mathf.sqrt3).add(width/2f, height/2f);
 
                 int mx = (int)midpoint.x, my = (int)midpoint.y;
@@ -334,10 +334,10 @@ public class SerpuloPlanetGenerator extends PlanetGenerator{
         Seq<Room> roomseq = new Seq<>();
 
         for(int i = 0; i < rooms; i++){
-            Tmp.v1.trns(rand.random(360f), rand.random(radius / constraint));
-            float rx = (width/2f + Tmp.v1.x);
-            float ry = (height/2f + Tmp.v1.y);
-            float maxrad = radius - Tmp.v1.len();
+            Tmp.v1().trns(rand.random(360f), rand.random(radius / constraint));
+            float rx = (width/2f + Tmp.v1().x);
+            float ry = (height/2f + Tmp.v1().y);
+            float maxrad = radius - Tmp.v1().len();
             float rrad = Math.min(rand.random(9f, maxrad / 2f), 30f);
             roomseq.add(new Room((int)rx, (int)ry, (int)rrad));
         }
@@ -372,8 +372,8 @@ public class SerpuloPlanetGenerator extends PlanetGenerator{
 
                 for(int j = 0; j < enemySpawns; j++){
                     float enemyOffset = rand.range(60f);
-                    Tmp.v1.set(cx - width/2, cy - height/2).rotate(180f + enemyOffset).add(width/2, height/2);
-                    Room espawn = new Room((int)Tmp.v1.x, (int)Tmp.v1.y, rand.random(8, 16));
+                    Tmp.v1().set(cx - width/2, cy - height/2).rotate(180f + enemyOffset).add(width/2, height/2);
+                    Room espawn = new Room((int)Tmp.v1().x, (int)Tmp.v1().y, rand.random(8, 16));
                     roomseq.add(espawn);
                     enemies.add(espawn);
                 }

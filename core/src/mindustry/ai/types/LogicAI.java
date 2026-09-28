@@ -49,7 +49,7 @@ public class LogicAI extends AIController{
     @Override
     public void updateMovement(){
         if(targetTimer > 0f){
-            targetTimer -= Time.delta;
+            targetTimer -= Time.delta();
         }else{
             radars.clear();
             targetTimer = 40f;
@@ -57,7 +57,7 @@ public class LogicAI extends AIController{
 
         //timeout when not controlled by logic for a while
         if(controlTimer > 0 && controller != null && controller.isValid()){
-            controlTimer -= Time.delta;
+            controlTimer -= Time.delta();
         }else{
             unit.resetController();
             return;
@@ -65,18 +65,18 @@ public class LogicAI extends AIController{
 
         switch(control){
             case move -> {
-                moveTo(Tmp.v1.set(moveX, moveY), 1f, 30f);
+                moveTo(Tmp.v1().set(moveX, moveY), 1f, 30f);
             }
             case approach -> {
-                moveTo(Tmp.v1.set(moveX, moveY), moveRad - 7f, 7, true, null);
+                moveTo(Tmp.v1().set(moveX, moveY), moveRad - 7f, 7, true, null);
             }
             case pathfind -> {
                 if(unit.isFlying()){
-                    moveTo(Tmp.v1.set(moveX, moveY), 1f, 30f);
+                    moveTo(Tmp.v1().set(moveX, moveY), 1f, 30f);
                 }else{
-                    var result = controlPath.getPathPosition(unit, Tmp.v2.set(moveX, moveY));
+                    var result = controlPath.getPathPosition(unit, Tmp.v2().set(moveX, moveY));
                     if(result.move){
-                        moveTo(result.dest, 1f, Tmp.v2.epsilonEquals(result.dest, 4.1f) ? 30f : 0f);
+                        moveTo(result.dest, 1f, Tmp.v2().epsilonEquals(result.dest, 4.1f) ? 30f : 0f);
                     }
                 }
             }

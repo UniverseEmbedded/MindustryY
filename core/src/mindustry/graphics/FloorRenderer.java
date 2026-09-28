@@ -139,7 +139,7 @@ public class FloorRenderer{
         drawnLayers.clear();
         drawnLayerSet.clear();
 
-        Rect bounds = camera.bounds(Tmp.r3);
+        Rect bounds = camera.bounds(Tmp.r3());
 
         //preliminary layer check
         for(int x = minx; x <= maxx; x++){
@@ -219,7 +219,7 @@ public class FloorRenderer{
 
         layer.begin();
 
-        Rect bounds = camera.bounds(Tmp.r3);
+        Rect bounds = camera.bounds(Tmp.r3());
 
         for(int x = minx; x <= maxx; x++){
             for(int y = miny; y <= maxy; y++){

@@ -56,7 +56,7 @@ public class OverdriveProjector extends Block{
 
         Drawf.dashCircle(x * tilesize + offset, y * tilesize + offset, range, baseColor);
 
-        indexer.eachBlock(player.team(), x * tilesize + offset, y * tilesize + offset, range, other -> other.block.canOverdrive, other -> Drawf.selected(other, Tmp.c1.set(baseColor).a(Mathf.absin(4f, 1f))));
+        indexer.eachBlock(player.team(), x * tilesize + offset, y * tilesize + offset, range, other -> other.block.canOverdrive, other -> Drawf.selected(other, Tmp.c1().set(baseColor).a(Mathf.absin(4f, 1f))));
     }
 
     @Override
@@ -97,7 +97,7 @@ public class OverdriveProjector extends Block{
         public void updateTile(){
             smoothEfficiency = Mathf.lerpDelta(smoothEfficiency, efficiency, 0.08f);
             heat = Mathf.lerpDelta(heat, efficiency > 0 ? 1f : 0f, 0.08f);
-            charge += heat * Time.delta;
+            charge += heat * Time.delta();
 
             if(hasBoost){
                 phaseHeat = Mathf.lerpDelta(phaseHeat, optionalEfficiency, 0.1f);
@@ -128,7 +128,7 @@ public class OverdriveProjector extends Block{
         public void drawSelect(){
             float realRange = range + phaseHeat * phaseRangeBoost;
 
-            indexer.eachBlock(this, realRange, other -> other.block.canOverdrive, other -> Drawf.selected(other, Tmp.c1.set(baseColor).a(Mathf.absin(4f, 1f))));
+            indexer.eachBlock(this, realRange, other -> other.block.canOverdrive, other -> Drawf.selected(other, Tmp.c1().set(baseColor).a(Mathf.absin(4f, 1f))));
 
             Drawf.dashCircle(x, y, realRange, baseColor);
         }
@@ -139,10 +139,10 @@ public class OverdriveProjector extends Block{
 
             if(!Lod.l2) return;
 
-            float f = 1f - (Time.time / 100f) % 1f;
+            float f = 1f - (Time.time() / 100f) % 1f;
 
             Draw.color(baseColor, phaseColor, phaseHeat);
-            Draw.alpha(heat * Mathf.absin(Time.time, 50f / Mathf.PI2, 1f) * 0.5f * Lod.alpha2);
+            Draw.alpha(heat * Mathf.absin(Time.time(), 50f / Mathf.PI2, 1f) * 0.5f * Lod.alpha2);
             Draw.rect(topRegion, x, y);
             Draw.alpha(Lod.alpha2);
             Lines.stroke((2f * f + 0.1f) * heat);

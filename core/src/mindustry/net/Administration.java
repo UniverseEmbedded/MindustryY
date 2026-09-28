@@ -33,9 +33,16 @@ public class Administration{
     public Seq<Pattern> bannedNames = new Seq<>();
 
     private boolean modified, loaded;
+    /** Embedded runtime administration is isolated in-memory; only the primary profile persists to Core.settings. */
+    private final boolean persistent;
     private ObjectMap<String, IdEncounterInfo> encounteredIDsForIp = new ObjectMap<>();
 
     public Administration(){
+        this(true);
+    }
+
+    public Administration(boolean persistent){
+        this.persistent = persistent;
         load();
 
         //anti-spam
@@ -246,7 +253,7 @@ public class Administration{
         getCreateInfo(id).banned = true;
 
         save();
-        Events.fire(new PlayerBanEvent(Groups.player.find(p -> id.equals(p.uuid())), id));
+        Events.fire(new PlayerBanEvent(Groups.current().player.find(p -> id.equals(p.uuid())), id));
         return true;
     }
 
@@ -285,7 +292,7 @@ public class Administration{
         info.banned = false;
         bannedIPs.removeAll(info.ips, false);
         save();
-        Events.fire(new PlayerUnbanEvent(Groups.player.find(p -> id.equals(p.uuid())), id));
+        Events.fire(new PlayerUnbanEvent(Groups.current().player.find(p -> id.equals(p.uuid())), id));
         return true;
     }
 
@@ -487,11 +494,11 @@ public class Administration{
     }
 
     public void save(){
-        modified = true;
+        if(persistent) modified = true;
     }
 
     public void forceSave(){
-        if(modified && loaded){
+        if(persistent && modified && loaded){
             Core.settings.putJson("player-data", playerInfo);
             Core.settings.putJson("ip-kicks", kickedIPs);
             Core.settings.putJson("ip-bans", String.class, bannedIPs);
@@ -505,6 +512,7 @@ public class Administration{
     @SuppressWarnings("unchecked")
     private void load(){
         loaded = true;
+        if(!persistent) return;
         //load default data
         playerInfo = Core.settings.getJson("player-data", ObjectMap.class, ObjectMap::new);
         kickedIPs = Core.settings.getJson("ip-kicks", ObjectMap.class, ObjectMap::new);

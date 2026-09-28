@@ -23,13 +23,16 @@ import mindustry.world.blocks.power.*;
 import static mindustry.Vars.*;
 
 public class Tile implements Position, QuadTreeObject, Displayable{
-    private static final TileChangeEvent tileChange = new TileChangeEvent();
-    private static final TilePreChangeEvent preChange = new TilePreChangeEvent();
-    private static final TileFloorChangeEvent floorChange = new TileFloorChangeEvent();
-    private static final TileOverlayChangeEvent overlayChange = new TileOverlayChangeEvent();;
+    private static final ThreadLocal<Scratch> scratch = ThreadLocal.withInitial(Scratch::new);
 
-    private static final ObjectSet<Building> tileSet = new ObjectSet<>();
-    private static final IntSet staleGraphs = new IntSet();
+    private static final class Scratch{
+        final TileChangeEvent tileChange = new TileChangeEvent();
+        final TilePreChangeEvent preChange = new TilePreChangeEvent();
+        final TileFloorChangeEvent floorChange = new TileFloorChangeEvent();
+        final TileOverlayChangeEvent overlayChange = new TileOverlayChangeEvent();
+        final ObjectSet<Building> tileSet = new ObjectSet<>();
+        final IntSet staleGraphs = new IntSet();
+    }
 
     /**
      * Extra data for specific blocks. Only saved if Block#saveData is true.
@@ -76,7 +79,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
 
     /** @return this tile's position, packed to the world width - for use in width*height arrays. */
     public int array(){
-        return x + y * world.tiles.width;
+        return x + y * mindustry.Vars.game().world.tiles.width;
     }
 
     public byte relativeTo(Tile tile){
@@ -160,7 +163,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
     }
 
     public boolean inMapArea(){
-        return world.isInMapArea(x, y);
+return mindustry.Vars.game().world.isInMapArea(x, y);
     }
 
     public float worldx(){
@@ -269,7 +272,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
                         int worldx = dx + offset + x;
                         int worldy = dy + offset + y;
                         if(!(worldx == x && worldy == y)){
-                            Tile other = world.tile(worldx, worldy);
+                            Tile other = mindustry.Vars.game().world.tile(worldx, worldy);
 
                             if(other != null){
                                 if(pass == 0){
@@ -312,7 +315,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
         var prev = this.floor;
         this.floor = type;
 
-        if(!headless && !world.isGenerating() && !isEditorTile()){
+        if(!headless && !mindustry.Vars.game().world.isGenerating() && !isEditorTile()){
             renderer.blocks.removeFloorIndex(this);
         }
 
@@ -320,12 +323,12 @@ public class Tile implements Position, QuadTreeObject, Displayable{
         if(build != null){
             build.onProximityUpdate();
         }
-        if(!world.isGenerating() && pathfinder != null && !state.isEditor()){
-            pathfinder.updateTile(this);
+        if(!mindustry.Vars.game().world.isGenerating() && mindustry.Vars.game().pathfinder != null && !mindustry.Vars.game().state.isEditor()){
+            mindustry.Vars.game().pathfinder.updateTile(this);
         }
 
-        if(!world.isGenerating()){
-            Events.fire(floorChange.set(this, prev, type));
+        if(!mindustry.Vars.game().world.isGenerating()){
+            Events.fire(scratch.get().floorChange.set(this, prev, type));
         }
 
         if(this.floor != prev){
@@ -343,11 +346,11 @@ public class Tile implements Position, QuadTreeObject, Displayable{
     }
 
     public void circle(int radius, Intc2 cons){
-        Geometry.circle(x, y, world.width(), world.height(), radius, cons);
+        Geometry.circle(x, y, mindustry.Vars.game().world.width(), mindustry.Vars.game().world.height(), radius, cons);
     }
 
     public void circle(int radius, Cons<Tile> cons){
-        circle(radius, (x, y) -> cons.get(world.rawTile(x, y)));
+        circle(radius, (x, y) -> cons.get(mindustry.Vars.game().world.rawTile(x, y)));
     }
 
     public Color getFloorColor(){
@@ -355,20 +358,20 @@ public class Tile implements Position, QuadTreeObject, Displayable{
     }
 
     public void recacheWall(){
-        if(!headless && !world.isGenerating()){
+        if(!headless && !mindustry.Vars.game().world.isGenerating()){
             renderer.blocks.recacheWall(this);
         }
     }
 
     public void recache(){
-        if(!headless && !world.isGenerating()){
+        if(!headless && !mindustry.Vars.game().world.isGenerating()){
             renderer.blocks.floor.recacheTile(this);
             renderer.minimap.update(this);
             renderer.blocks.invalidateTile(this);
             renderer.blocks.addFloorIndex(this);
             //update neighbor tiles as well
             for(int i = 0; i < 8; i++){
-                Tile other = world.tile(x + Geometry.d8[i].x, y + Geometry.d8[i].y);
+                Tile other = mindustry.Vars.game().world.tile(x + Geometry.d8[i].x, y + Geometry.d8[i].y);
                 if(other != null){
                     renderer.blocks.floor.recacheTile(other);
                 }
@@ -432,11 +435,11 @@ public class Tile implements Position, QuadTreeObject, Displayable{
 
         recache();
 
-        if(!world.isGenerating()){
-            Events.fire(overlayChange.set(this, prev, this.overlay));
+        if(!mindustry.Vars.game().world.isGenerating()){
+            Events.fire(scratch.get().overlayChange.set(this, prev, this.overlay));
         }
 
-        if(!world.isGenerating() && build != null){
+        if(!mindustry.Vars.game().world.isGenerating() && build != null){
             build.onProximityUpdate();
         }
     }
@@ -485,7 +488,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
             int size = block.size, o = block.sizeOffset;
             for(int dx = 0; dx < size; dx++){
                 for(int dy = 0; dy < size; dy++){
-                    Tile other = world.tile(x + dx + o, y + dy + o);
+                    Tile other = mindustry.Vars.game().world.tile(x + dx + o, y + dy + o);
                     if(other != null) cons.get(other);
                 }
             }
@@ -523,7 +526,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
             int size = block.size, o = block.sizeOffset;
             for(int dx = 0; dx < size; dx++){
                 for(int dy = 0; dy < size; dy++){
-                    Tile other = world.tile(x + dx + o, y + dy + o);
+                    Tile other = mindustry.Vars.game().world.tile(x + dx + o, y + dy + o);
                     if(other != null) tmpArray.get(other);
                 }
             }
@@ -546,29 +549,29 @@ public class Tile implements Position, QuadTreeObject, Displayable{
     }
 
     public @Nullable Tile nearby(Point2 relative){
-        return world.tile(x + relative.x, y + relative.y);
+        return mindustry.Vars.game().world.tile(x + relative.x, y + relative.y);
     }
 
     public @Nullable Tile nearby(int dx, int dy){
-        return world.tile(x + dx, y + dy);
+        return mindustry.Vars.game().world.tile(x + dx, y + dy);
     }
 
     public @Nullable Tile nearby(int rotation){
         return switch(rotation){
-            case 0 -> world.tile(x + 1, y);
-            case 1 -> world.tile(x, y + 1);
-            case 2 -> world.tile(x - 1, y);
-            case 3 -> world.tile(x, y - 1);
+            case 0 -> mindustry.Vars.game().world.tile(x + 1, y);
+            case 1 -> mindustry.Vars.game().world.tile(x, y + 1);
+            case 2 -> mindustry.Vars.game().world.tile(x - 1, y);
+            case 3 -> mindustry.Vars.game().world.tile(x, y - 1);
             default -> null;
         };
     }
 
     public @Nullable Building nearbyBuild(int rotation){
         return switch(rotation){
-            case 0 -> world.build(x + 1, y);
-            case 1 -> world.build(x, y + 1);
-            case 2 -> world.build(x - 1, y);
-            case 3 -> world.build(x, y - 1);
+            case 0 -> mindustry.Vars.game().world.build(x + 1, y);
+            case 1 -> mindustry.Vars.game().world.build(x, y + 1);
+            case 2 -> mindustry.Vars.game().world.build(x - 1, y);
+            case 3 -> mindustry.Vars.game().world.build(x, y - 1);
             default -> null;
         };
     }
@@ -622,7 +625,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
                 int offsety = -(size - 1) / 2;
                 for(int dx = 0; dx < size; dx++){
                     for(int dy = 0; dy < size; dy++){
-                        Tile other = world.tile(cx + dx + offsetx, cy + dy + offsety);
+                        Tile other = mindustry.Vars.game().world.tile(cx + dx + offsetx, cy + dy + offsety);
                         if(other != null){
                             //reset entity and block *manually* - thus, preChanged() will not be called anywhere else, for multiblocks
                             if(other != this){ //do not remove own entity so it can be processed in changed()
@@ -649,13 +652,12 @@ public class Tile implements Position, QuadTreeObject, Displayable{
             build = null;
 
             //update edge entities
+            ObjectSet<Building> tileSet = scratch.get().tileSet;
             tileSet.clear();
 
             for(Point2 edge : Edges.getEdges(size)){
-                Building other = world.build(x + edge.x, y + edge.y);
-                if(other != null){
-                    tileSet.add(other);
-                }
+                Building other = mindustry.Vars.game().world.build(x + edge.x, y + edge.y);
+                if(other != null) tileSet.add(other);
             }
 
             //update proximity, since multiblock was just removed
@@ -665,18 +667,18 @@ public class Tile implements Position, QuadTreeObject, Displayable{
         }
 
         if(block.hasBuilding()){
-            build = entityprov.get().init(this, team, block.update && !state.isEditor(), rotation);
+            build = entityprov.get().init(this, team, block.update && !mindustry.Vars.game().state.isEditor(), rotation);
         }
     }
 
     protected void changed(){
-        if(!world.isGenerating()){
+        if(!mindustry.Vars.game().world.isGenerating()){
             if(build != null){
                 build.updateProximity();
             }else{
                 //since the entity won't update proximity for us, update proximity for all nearby tiles manually
                 for(Point2 p : Geometry.d4){
-                    Building tile = world.build(x + p.x, y + p.y);
+                    Building tile = mindustry.Vars.game().world.build(x + p.x, y + p.y);
                     if(tile != null && !tile.tile.changing){
                         tile.onProximityUpdate();
                     }
@@ -693,14 +695,14 @@ public class Tile implements Position, QuadTreeObject, Displayable{
     }
 
     protected void fireChanged(){
-        if(!world.isGenerating()){
-            Events.fire(tileChange.set(this));
+        if(!mindustry.Vars.game().world.isGenerating()){
+            Events.fire(scratch.get().tileChange.set(this));
         }
     }
 
     protected void firePreChanged(){
-        if(!world.isGenerating()){
-            Events.fire(preChange.set(this));
+        if(!mindustry.Vars.game().world.isGenerating()){
+            Events.fire(scratch.get().preChange.set(this));
         }
     }
 
@@ -759,7 +761,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
     public static void setTileBlocks(Block block, Team team, int[] positions){
         if(block == null || positions == null) return;
         for(int pos : positions){
-            Tile tile = world.tile(pos);
+            Tile tile = mindustry.Vars.game().world.tile(pos);
             if(tile != null){
                 tile.setBlock(block, team, 0);
             }
@@ -771,7 +773,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
     public static void setTileFloors(Block block, int[] positions){
         if(positions == null || !(block instanceof Floor floor)) return;
         for(int pos : positions){
-            Tile tile = world.tile(pos);
+            Tile tile = mindustry.Vars.game().world.tile(pos);
             if(tile != null){
                 tile.setFloor(floor);
             }
@@ -783,7 +785,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
     public static void setTileOverlays(Block block, int[] positions){
         if(positions == null || !(block instanceof OverlayFloor floor)) return;
         for(int pos : positions){
-            Tile tile = world.tile(pos);
+            Tile tile = mindustry.Vars.game().world.tile(pos);
             if(tile != null){
                 tile.setOverlay(floor);
             }
@@ -861,18 +863,21 @@ public class Tile implements Position, QuadTreeObject, Displayable{
     public static void setTeams(int[] positions, Team team){
         if(positions == null) return;
 
+        Scratch local = scratch.get();
+        IntSet staleGraphs = local.staleGraphs;
+        ObjectSet<Building> tileSet = local.tileSet;
         staleGraphs.clear();
         tileSet.clear();
 
         for(int pos : positions){
-            var build = world.build(pos);
+            var build = mindustry.Vars.game().world.build(pos);
             if(build != null){
                 var power = build.power;
                 if(build.power != null){
                     staleGraphs.add(build.power.graph.getID());
 
                     for(int i = 0; i < power.links.size; i++){
-                        var other = world.build(power.links.items[i]);
+                        var other = mindustry.Vars.game().world.build(power.links.items[i]);
                         if(other != null && other.power != null){
                             tileSet.add(other);
                             staleGraphs.add(other.power.graph.getID());
@@ -889,15 +894,16 @@ public class Tile implements Position, QuadTreeObject, Displayable{
 
         //update power graphs in a second pass
         for(int pos : positions){
-            var build = world.build(pos);
+            var build = mindustry.Vars.game().world.build(pos);
             reflowPower(team, build);
         }
     }
 
     private static void reflowPower(Team team, Building build){
+        IntSet staleGraphs = scratch.get().staleGraphs;
         if(build != null && build.power != null && staleGraphs.contains(build.power.graph.getID())){
             for(int i = 0; i < build.power.links.size; i++){
-                var other = world.build(build.power.links.items[i]);
+                var other = mindustry.Vars.game().world.build(build.power.links.items[i]);
 
                 //only reflow links that were connected to the old power graph; ones that have a new one were already covered.
                 if(other != null && other.team != team && other.power != null && staleGraphs.contains(other.power.graph.getID())){
@@ -926,7 +932,7 @@ public class Tile implements Position, QuadTreeObject, Displayable{
         for(int i = 0; i < buildings.size; i += 2){
             int pos = buildings.items[i];
             float health = Float.intBitsToFloat(buildings.items[i + 1]);
-            var build = world.build(pos);
+            var build = mindustry.Vars.game().world.build(pos);
             if(build != null && build.health != health){
                 build.health = health;
                 indexer.notifyHealthChanged(build);

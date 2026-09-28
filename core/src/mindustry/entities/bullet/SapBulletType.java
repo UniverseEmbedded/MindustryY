@@ -47,15 +47,15 @@ public class SapBulletType extends BulletType{
     @Override
     public void draw(Bullet b){
         if(b.data instanceof Position data){
-            Tmp.v1.set(data).lerp(b, b.fin());
+            Tmp.v1().set(data).lerp(b, b.fin());
 
             Draw.color(color);
             Drawf.laser(laserRegion, laserEndRegion,
-                b.x, b.y, Tmp.v1.x, Tmp.v1.y, width * b.fout());
+                b.x, b.y, Tmp.v1().x, Tmp.v1().y, width * b.fout());
 
             Draw.reset();
 
-            Drawf.light(b.x, b.y, Tmp.v1.x, Tmp.v1.y, 15f * b.fout(), lightColor, lightOpacity);
+            Drawf.light(b.x, b.y, Tmp.v1().x, Tmp.v1().y, 15f * b.fout(), lightColor, lightOpacity);
         }
     }
 

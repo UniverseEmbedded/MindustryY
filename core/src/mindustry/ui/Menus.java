@@ -233,6 +233,7 @@ public class Menus{
 
     @Remote(targets = Loc.both, called = Loc.both)
     public static void menuChoose(@Nullable Player player, int menuId, int option){
+        if(player != null && player.spectator()) return;
         if(player != null){
             Events.fire(new MenuOptionChooseEvent(player, menuId, option));
             if(menuId >= 0 && menuId < menuListeners.size){
@@ -261,6 +262,7 @@ public class Menus{
 
     @Remote(targets = Loc.both, called = Loc.both)
     public static void textInputResult(@Nullable Player player, int textInputId, @Nullable String text){
+        if(player != null && player.spectator()) return;
         if(player != null){
             Events.fire(new TextInputEvent(player, textInputId, text));
             if(textInputId >= 0 && textInputId < textInputListeners.size){
@@ -382,7 +384,7 @@ public class Menus{
     //internal use only
     @Remote(variants = Variant.both)
     public static void removeWorldLabel(int id){
-        var label = Groups.sync.getByID(id);
+        var label = Groups.current().sync.getByID(id);
         if(label instanceof WorldLabelc){
             label.remove();
         }

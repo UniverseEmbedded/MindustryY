@@ -92,15 +92,15 @@ public class OverlayRenderer{
 
         if(!player.dead() && ui.hudfrag.shown()){
             if(Core.settings.getBool("playerindicators")){
-                for(Player player : Groups.player){
+                for(Player player : Groups.current().player){
                     if(Vars.player != player && Vars.player.team() == player.team()){
                         if(!rect.setSize(Core.camera.width * 0.9f, Core.camera.height * 0.9f)
                         .setCenter(Core.camera.position.x, Core.camera.position.y).contains(player.x, player.y)){
 
-                            Tmp.v1.set(player).sub(Vars.player).setLength(indicatorLength);
+                            Tmp.v1().set(player).sub(Vars.player).setLength(indicatorLength);
 
                             Lines.stroke(2f, Vars.player.team().color);
-                            Lines.lineAngle(Vars.player.x + Tmp.v1.x, Vars.player.y + Tmp.v1.y, Tmp.v1.angle(), 4f);
+                            Lines.lineAngle(Vars.player.x + Tmp.v1().x, Vars.player.y + Tmp.v1().y, Tmp.v1().angle(), 4f);
                             Draw.reset();
                         }
                     }
@@ -108,13 +108,13 @@ public class OverlayRenderer{
             }
 
             if(Core.settings.getBool("indicators") && !state.rules.fog){
-                Groups.unit.each(unit -> {
+                Groups.current().unit.each(unit -> {
                     if(!unit.isLocal() && unit.team != player.team() && !rect.setSize(Core.camera.width * 0.9f, Core.camera.height * 0.9f)
                     .setCenter(Core.camera.position.x, Core.camera.position.y).contains(unit.x, unit.y)){
-                        Tmp.v1.set(unit.x, unit.y).sub(player).setLength(indicatorLength);
+                        Tmp.v1().set(unit.x, unit.y).sub(player).setLength(indicatorLength);
 
                         Lines.stroke(1f, unit.team().color);
-                        Lines.lineAngle(player.x + Tmp.v1.x, player.y + Tmp.v1.y, Tmp.v1.angle(), 3f);
+                        Lines.lineAngle(player.x + Tmp.v1().x, player.y + Tmp.v1().y, Tmp.v1().angle(), 3f);
                         Draw.reset();
                     }
                 });
@@ -142,7 +142,7 @@ public class OverlayRenderer{
             }
 
             for(int i = 0; i < 4; i++){
-                float rot = i * 90f + 45f + (-Time.time) % 360f;
+                float rot = i * 90f + 45f + (-Time.time()) % 360f;
                 float length = select.hitSize() * 1.5f + (unitFade * 2.5f);
                 Draw.rect("select-arrow", select.getX() + Angles.trnsx(rot, length), select.getY() + Angles.trnsy(rot, length), length / 1.9f, length / 1.9f, rot - 135f);
             }
@@ -176,7 +176,7 @@ public class OverlayRenderer{
                     for(CoreEdge edge : cedges){
                         Team displayed = edge.displayed();
                         if(displayed != null){
-                            Draw.color(i == 0 ? Color.darkGray : Tmp.c1.set(displayed.color).lerp(Pal.accent, Mathf.absin(Time.time, 10f, 0.2f)));
+                            Draw.color(i == 0 ? Color.darkGray : Tmp.c1().set(displayed.color).lerp(Pal.accent, Mathf.absin(Time.time(), 10f, 0.2f)));
                             Lines.line(edge.x1, edge.y1 + offset, edge.x2, edge.y2 + offset);
                         }
                     }
@@ -187,10 +187,10 @@ public class OverlayRenderer{
                 state.teams.eachEnemyCore(player.team(), core -> {
                     //it must be clear that there is a core here.
                     float br = state.rules.buildRadius(core.team);
-                    if(/*core.wasVisible && */br > 0f && Core.camera.bounds(Tmp.r1).overlaps(Tmp.r2.setCentered(core.x, core.y, br * 2f))){
+                    if(/*core.wasVisible && */br > 0f && Core.camera.bounds(Tmp.r1()).overlaps(Tmp.r2().setCentered(core.x, core.y, br * 2f))){
                         Draw.color(Color.darkGray);
                         Lines.circle(core.x, core.y - 2,br);
-                        Draw.color(Pal.accent, core.team.color, 0.5f + Mathf.absin(Time.time, 10f, 0.5f));
+                        Draw.color(Pal.accent, core.team.color, 0.5f + Mathf.absin(Time.time(), 10f, 0.5f));
                         Lines.circle(core.x, core.y, br);
                     }
                 });
@@ -198,7 +198,7 @@ public class OverlayRenderer{
         }
 
         Lines.stroke(2f);
-        Draw.color(Color.gray, Color.lightGray, Mathf.absin(Time.time, 8f, 1f));
+        Draw.color(Color.gray, Color.lightGray, Mathf.absin(Time.time(), 8f, 1f));
 
         if(state.hasSpawns()){
             for(Tile tile : spawner.getSpawns()){
@@ -247,7 +247,7 @@ public class OverlayRenderer{
             float size = 8;
             Draw.rect(player.unit().item().fullIcon, v.x, v.y, size, size);
             Draw.color(Pal.accent);
-            Lines.circle(v.x, v.y, 6 + Mathf.absin(Time.time, 5f, 1f));
+            Lines.circle(v.x, v.y, 6 + Mathf.absin(Time.time(), 5f, 1f));
             Draw.reset();
 
             Building build = world.buildWorld(v.x, v.y);
@@ -257,9 +257,9 @@ public class OverlayRenderer{
                 boolean invalid = !build.allowDeposit();
 
                 Lines.stroke(3f, Pal.gray);
-                Lines.square(build.x, build.y, build.block.size * tilesize / 2f + 3 + Mathf.absin(Time.time, 5f, 1f));
+                Lines.square(build.x, build.y, build.block.size * tilesize / 2f + 3 + Mathf.absin(Time.time(), 5f, 1f));
                 Lines.stroke(1f, invalid ? Pal.remove : Pal.place);
-                Lines.square(build.x, build.y, build.block.size * tilesize / 2f + 2 + Mathf.absin(Time.time, 5f, 1f));
+                Lines.square(build.x, build.y, build.block.size * tilesize / 2f + 2 + Mathf.absin(Time.time(), 5f, 1f));
                 Draw.reset();
 
                 if(invalid){

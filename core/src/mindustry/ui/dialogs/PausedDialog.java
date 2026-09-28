@@ -5,6 +5,8 @@ import arc.scene.ui.*;
 import arc.scene.ui.layout.*;
 import arc.util.*;
 import mindustry.*;
+import mindustry.campaign.shared.net.*;
+import mindustry.campaign.shared.ui.*;
 import mindustry.editor.*;
 import mindustry.game.*;
 import mindustry.gen.*;
@@ -86,6 +88,11 @@ public class PausedDialog extends BaseDialog{
             cont.button("@back", Icon.left, this::hide).name("back");
             cont.button("@settings", Icon.settings, ui.settings::show).name("settings");
 
+            cont.button("@sharedcampaign.lobby", Icon.players, () -> {
+                hide();
+                SharedCampaignUiRouter.leaveActionAndShowLobby();
+            }).colspan(2).width(dw * 2 + 10f).name("pause.sharedCampaignLobby").visible(SharedCampaignUiRouter::activeAction).row();
+
             if(!state.isCampaign() && !state.isEditor()){
                 cont.row();
                 cont.button("@savegame", Icon.save, save::show);
@@ -119,6 +126,11 @@ public class PausedDialog extends BaseDialog{
             cont.defaults().size(130f).pad(5);
             cont.buttonRow("@back", Icon.play, this::hide);
             cont.buttonRow("@settings", Icon.settings, ui.settings::show);
+            cont.buttonRow("@sharedcampaign.lobby", Icon.players, () -> {
+                hide();
+                SharedCampaignUiRouter.leaveActionAndShowLobby();
+            }).name("pause.sharedCampaignLobby.mobile").visible(SharedCampaignUiRouter::activeAction);
+
 
             if(!state.isCampaign() && !state.isEditor()){
                 cont.buttonRow("@save", Icon.save, save::show);
@@ -137,14 +149,14 @@ public class PausedDialog extends BaseDialog{
                     t.setText(net.active() ? "@database" : "@load");
                 });
             }else if(state.isCampaign()){
-                cont.buttonRow("@research", Icon.tree, ui.research::show);
+                cont.buttonRow("@research", Icon.tree, SharedCampaignUiRouter::showResearch);
 
                 cont.row();
 
                 cont.buttonRow("@planetmap", Icon.map, () -> {
                     hide();
-                    ui.planet.show();
-                });
+                    SharedCampaignUiRouter.showPlanet();
+                }).name("pause.planetmap");
             }else{
                 cont.row();
             }

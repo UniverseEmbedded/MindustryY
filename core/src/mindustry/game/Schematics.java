@@ -213,8 +213,8 @@ public class Schematics implements Loadable{
         if(!previews.containsKey(schematic)){
             Draw.blend();
             Draw.reset();
-            Tmp.m1.set(Draw.proj());
-            Tmp.m2.set(Draw.trans());
+            Tmp.m1().set(Draw.proj());
+            Tmp.m2().set(Draw.trans());
             FrameBuffer buffer = new FrameBuffer((schematic.width + padding) * resolution, (schematic.height + padding) * resolution);
 
             shadowBuffer.begin(Color.clear);
@@ -242,9 +242,9 @@ public class Schematics implements Loadable{
 
             Draw.proj().setOrtho(0, buffer.getHeight(), buffer.getWidth(), -buffer.getHeight());
 
-            Tmp.tr1.set(shadowBuffer.getTexture(), 0, 0, schematic.width + padding, schematic.height + padding);
+            Tmp.tr1().set(shadowBuffer.getTexture(), 0, 0, schematic.width + padding, schematic.height + padding);
             Draw.color(0f, 0f, 0f, 1f);
-            Draw.rect(Tmp.tr1, buffer.getWidth()/2f, buffer.getHeight()/2f, buffer.getWidth(), -buffer.getHeight());
+            Draw.rect(Tmp.tr1(), buffer.getWidth()/2f, buffer.getHeight()/2f, buffer.getWidth(), -buffer.getHeight());
             Draw.color();
 
             Seq<BuildPlan> plans = schematic.tiles.map(t -> new BuildPlan(t.x, t.y, t.rotation, t.block, t.config){
@@ -281,8 +281,8 @@ public class Schematics implements Loadable{
 
             buffer.end();
 
-            Draw.proj(Tmp.m1);
-            Draw.trans(Tmp.m2);
+            Draw.proj(Tmp.m1());
+            Draw.trans(Tmp.m2());
 
             previews.put(schematic, buffer);
         }
@@ -397,12 +397,13 @@ public class Schematics implements Loadable{
         int ox = x, oy = y, ox2 = x2, oy2 = y2;
 
         Seq<Stile> tiles = new Seq<>();
+        World runtimeWorld = Vars.game().world;
 
         int minx = x2, miny = y2, maxx = x, maxy = y;
         boolean found = false;
         for(int cx = x; cx <= x2; cx++){
             for(int cy = y; cy <= y2; cy++){
-                Building linked = world.build(cx, cy);
+                Building linked = runtimeWorld.build(cx, cy);
                 if(linked != null && (!linked.isDiscovered(team) || !linked.wasVisible)) continue;
 
                 Block realBlock = linked == null ? null : linked instanceof ConstructBuild cons ? cons.current : linked.block;
@@ -433,7 +434,7 @@ public class Schematics implements Loadable{
         IntSet counted = new IntSet();
         for(int cx = ox; cx <= ox2; cx++){
             for(int cy = oy; cy <= oy2; cy++){
-                Building tile = world.build(cx, cy);
+                Building tile = runtimeWorld.build(cx, cy);
                 if(tile != null && (!tile.isDiscovered(team) || !tile.wasVisible)) continue;
                 Block realBlock = tile == null ? null : tile instanceof ConstructBuild cons ? cons.current : tile.block;
 
@@ -463,13 +464,15 @@ public class Schematics implements Loadable{
 
     /** Places the last launch loadout at the coordinates and fills it with the launch resources. */
     public static void placeLaunchLoadout(int x, int y){
-        placeLoadout(universe.getLastLoadout(), x, y, state.rules.defaultTeam);
-        if(world.tile(x, y).build == null) throw new RuntimeException("No core at loadout coordinates!");
-        world.tile(x, y).build.items.add(universe.getLaunchResources());
+        var game = Vars.game();
+        placeLoadout(game.universe.getLastLoadout(), x, y, game.state.rules.defaultTeam);
+        Tile core = game.world.tile(x, y);
+        if(core == null || core.build == null) throw new RuntimeException("No core at loadout coordinates!");
+        core.build.items.add(game.universe.getLaunchResources());
     }
 
     public static void placeLoadout(Schematic schem, int x, int y){
-        placeLoadout(schem, x, y, state.rules.defaultTeam);
+        placeLoadout(schem, x, y, Vars.game().state.rules.defaultTeam);
     }
 
     public static void placeLoadout(Schematic schem, int x, int y, Team team){
@@ -477,12 +480,14 @@ public class Schematics implements Loadable{
     }
 
     public static void placeLoadout(Schematic schem, int x, int y, Team team, boolean check){
+        var game = Vars.game();
+        World runtimeWorld = game.world;
         Stile coreTile = schem.tiles.find(s -> s.block instanceof CoreBlock);
         Seq<Tile> seq = new Seq<>();
         if(coreTile == null) throw new IllegalArgumentException("Loadout schematic has no core tile!");
         int ox = x - coreTile.x, oy = y - coreTile.y;
         schem.tiles.copy().sort(s -> -s.block.schematicPriority).each(st -> {
-            Tile tile = world.tile(st.x + ox, st.y + oy);
+            Tile tile = runtimeWorld.tile(st.x + ox, st.y + oy);
             if(tile == null) return;
 
             //check for blocks that are in the way.
@@ -508,7 +513,7 @@ public class Schematics implements Loadable{
             }
 
             if(tile.build instanceof CoreBuild cb){
-                state.teams.registerCore(cb);
+                game.state.teams.registerCore(cb);
             }
         });
     }
@@ -518,9 +523,10 @@ public class Schematics implements Loadable{
     }
 
     public static void place(Schematic schem, int x, int y, Team team, boolean overwrite){
+        World runtimeWorld = Vars.game().world;
         int ox = x - schem.width/2, oy = y - schem.height/2;
         schem.tiles.each(st -> {
-            Tile tile = world.tile(st.x + ox, st.y + oy);
+            Tile tile = runtimeWorld.tile(st.x + ox, st.y + oy);
             if(tile == null || (!overwrite && !Build.validPlace(st.block, team, tile.x, tile.y, st.rotation))) return;
 
             tile.setBlock(st.block, team, st.rotation);

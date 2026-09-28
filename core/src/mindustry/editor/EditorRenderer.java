@@ -88,19 +88,19 @@ public class EditorRenderer implements Disposable{
         boolean prev = renderer.animateWater;
         renderer.animateWater = false;
 
-        Tmp.m4.set(Draw.trans());
+        Tmp.m4().set(Draw.trans());
         Draw.trans().idt();
 
-        Tmp.v3.set(Core.camera.position);
+        Tmp.v3().set(Core.camera.position);
         Core.camera.position.set(world.width()/2f * tilesize, world.height()/2f * tilesize);
         Core.camera.width = 999999f;
         Core.camera.height = 999999f;
-        Core.camera.mat.set(Draw.proj()).mul(Tmp.m3.setToTranslation(tx, ty).scale(tw / (width * tilesize), th / (height * tilesize)).translate(4f, 4f));
+        Core.camera.mat.set(Draw.proj()).mul(Tmp.m3().setToTranslation(tx, ty).scale(tw / (width * tilesize), th / (height * tilesize)).translate(4f, 4f));
         if(editor.showFloor){
             renderer.blocks.floor.drawFloor(doUpdate, !editor.showTerrain);
         }
 
-        Tmp.m2.set(Draw.proj());
+        Tmp.m2().set(Draw.proj());
 
         //scissors are always enabled because this is drawn clipped in UI, make sure they don't interfere with drawing shadow events
         Gl.disable(Gl.scissorTest);
@@ -115,7 +115,7 @@ public class EditorRenderer implements Disposable{
         Draw.rect(Draw.wrap(renderer.blocks.getShadowBuffer().getTexture()), world.width() * tilesize/2f - tilesize/2f, world.height() * tilesize/2f - tilesize/2f, world.width() * tilesize, -world.height() * tilesize);
         Draw.shader();
 
-        Draw.proj(Tmp.m2);
+        Draw.proj(Tmp.m2());
 
         renderer.blocks.floor.beginDraw();
         if(editor.showTerrain){
@@ -132,7 +132,7 @@ public class EditorRenderer implements Disposable{
 
         if(editor.showBuildings){
             shader.bind();
-            shader.setUniformMatrix4("u_projTrans", Tmp.m1.set(Core.camera.mat).translate(-packPad, -packPad).scale(packWidth, packHeight));
+            shader.setUniformMatrix4("u_projTrans", Tmp.m1().set(Core.camera.mat).translate(-packPad, -packPad).scale(packWidth, packHeight));
 
             for(int x = 0; x < chunks.length; x++){
                 for(int y = 0; y < chunks[0].length; y++){
@@ -146,8 +146,8 @@ public class EditorRenderer implements Disposable{
         }
 
 
-        Core.camera.position.set(Tmp.v3);
-        Draw.trans(Tmp.m4);
+        Core.camera.position.set(Tmp.v3());
+        Draw.trans(Tmp.m4());
     }
 
     void updateStatic(int x, int y){

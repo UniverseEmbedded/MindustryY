@@ -34,8 +34,8 @@ public class DrawPistons extends DrawBlock{
                 Draw.yscl = -1f;
             }
 
-            Tmp.v1.trns(angle, len, -horiOffset);
-            Draw.rect(reg, build.x + Tmp.v1.x + x, build.y + Tmp.v1.y + y, angle);
+            Tmp.v1().trns(angle, len, -horiOffset);
+            Draw.rect(reg, build.x + Tmp.v1().x + x, build.y + Tmp.v1().y + y, angle);
 
             Draw.yscl = 1f;
         }

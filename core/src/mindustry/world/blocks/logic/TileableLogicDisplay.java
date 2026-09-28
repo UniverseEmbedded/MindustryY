@@ -182,8 +182,8 @@ public class TileableLogicDisplay extends LogicDisplay{
                     if(root.buffer == null){
                         root.buffer = new FrameBuffer(32 * tilesWidth - 2 * frameSize, 32 * tilesHeight - 2 * frameSize);
 
-                        Tmp.m1.set(Draw.proj());
-                        Tmp.m2.set(Draw.trans());
+                        Tmp.m1().set(Draw.proj());
+                        Tmp.m2().set(Draw.trans());
                         Draw.proj(0, 0, root.buffer.getWidth(), root.buffer.getHeight());
 
                         //clear the buffer - some OSs leave garbage in it
@@ -196,8 +196,8 @@ public class TileableLogicDisplay extends LogicDisplay{
                         }
 
                         root.buffer.end();
-                        Draw.proj(Tmp.m1);
-                        Draw.trans(Tmp.m2);
+                        Draw.proj(Tmp.m1());
+                        Draw.trans(Tmp.m2());
                         Draw.reset();
                     }
 
@@ -251,8 +251,8 @@ public class TileableLogicDisplay extends LogicDisplay{
                 int rtx = (tile.x - originX), rty = (tile.y - originY);
 
                 // Offset the region to account for the display frame (6 pixels)
-                Tmp.tr1.set(rootDisplay.buffer.getTexture(), rtx * 32 - frameSize, rty * 32 - frameSize, 32, 32);
-                Draw.rect(Tmp.tr1, x, y, tilesize, -tilesize);
+                Tmp.tr1().set(rootDisplay.buffer.getTexture(), rtx * 32 - frameSize, rty * 32 - frameSize, 32, 32);
+                Draw.rect(Tmp.tr1(), x, y, tilesize, -tilesize);
             }else{
                 Draw.rect(backRegion, x, y);
             }

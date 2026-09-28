@@ -86,8 +86,8 @@ public abstract class DrawPart{
         heat = p -> p.heat,
         /** Lifetime fraction, 0 to 1. Only for missiles. */
         life = p -> p.life,
-        /** Current unscaled value of Time.time. */
-        time = p -> Time.time;
+        /** Current unscaled value of Time.time(). */
+        time = p -> Time.time();
 
         float get(PartParams p);
 
@@ -255,7 +255,7 @@ public abstract class DrawPart{
         }
 
         static PartProgress sin(PartProgress self, float offset, float scl, float mag){
-            return p -> self.get(p) + Mathf.sin(Time.time + offset, scl, mag);
+            return p -> self.get(p) + Mathf.sin(Time.time() + offset, scl, mag);
         }
 
         static PartProgress sin(PartProgress self, float scl, float mag){

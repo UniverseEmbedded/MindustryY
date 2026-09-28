@@ -78,7 +78,7 @@ public class MoveLightningAbility extends Ability{
     @Override
     public void update(Unit unit){
         float scl = Mathf.clamp((unit.vel().len() - minSpeed) / (maxSpeed - minSpeed));
-        if(Mathf.chance(Time.delta * chance * scl)){
+        if(Mathf.chance(Time.delta() * chance * scl)){
             float x = unit.x + Angles.trnsx(unit.rotation, this.y, this.x * side), y = unit.y + Angles.trnsy(unit.rotation, this.y, this.x * side);
 
             shootEffect.at(x, y, unit.rotation, color, parentizeEffects ? unit : null);

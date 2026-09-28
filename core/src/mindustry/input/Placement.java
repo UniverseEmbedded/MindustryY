@@ -72,21 +72,24 @@ class DirectionBridgePlacer implements BridgePlacer{
 }
 
 public class Placement{
-    private static final Seq<BuildPlan> plans1 = new Seq<>();
-    private static final Seq<Point2> tmpPoints = new Seq<>(), tmpPoints2 = new Seq<>();
-    private static final NormalizeResult result = new NormalizeResult();
-    private static final NormalizeDrawResult drawResult = new NormalizeDrawResult();
-    private static final Bresenham2 bres = new Bresenham2();
-    private static final Seq<Point2> points = new Seq<>();
-    private static final IntSeq tmpInts = new IntSeq(), tmpInts2 = new IntSeq();
+    // Placement helpers are static for API compatibility, but all mutable scratch is per-thread so independent
+    // GameContexts/editor/tooling calls cannot overwrite each other's in-flight results.
+    private static final ThreadLocal<Seq<BuildPlan>> plans1 = ThreadLocal.withInitial(Seq::new);
+    private static final ThreadLocal<Seq<Point2>> tmpPoints = ThreadLocal.withInitial(Seq::new), tmpPoints2 = ThreadLocal.withInitial(Seq::new);
+    private static final ThreadLocal<NormalizeResult> result = ThreadLocal.withInitial(NormalizeResult::new);
+    private static final ThreadLocal<NormalizeDrawResult> drawResult = ThreadLocal.withInitial(NormalizeDrawResult::new);
+    private static final ThreadLocal<Bresenham2> bres = ThreadLocal.withInitial(Bresenham2::new);
+    private static final ThreadLocal<Seq<Point2>> points = ThreadLocal.withInitial(Seq::new);
+    private static final ThreadLocal<IntSeq> tmpInts = ThreadLocal.withInitial(IntSeq::new), tmpInts2 = ThreadLocal.withInitial(IntSeq::new);
 
     //for pathfinding
-    private static final IntFloatMap costs = new IntFloatMap();
-    private static final IntIntMap parents = new IntIntMap();
-    private static final IntSet closed = new IntSet();
+    private static final ThreadLocal<IntFloatMap> costs = ThreadLocal.withInitial(IntFloatMap::new);
+    private static final ThreadLocal<IntIntMap> parents = ThreadLocal.withInitial(IntIntMap::new);
+    private static final ThreadLocal<IntSet> closed = ThreadLocal.withInitial(IntSet::new);
 
     /** Normalize a diagonal line into points. */
     public static Seq<Point2> pathfindLine(boolean conveyors, int startX, int startY, int endX, int endY){
+        Seq<Point2> points = Placement.points.get();
         Pools.freeAll(points);
         points.clear();
         if(conveyors && Core.settings.getBool("conveyorpathfinding")){
@@ -96,12 +99,13 @@ public class Placement{
                 return normalizeLine(startX, startY, endX, endY);
             }
         }else{
-            return bres.lineNoDiagonal(startX, startY, endX, endY, Pools.get(Point2.class, Point2::new), points);
+            return bres.get().lineNoDiagonal(startX, startY, endX, endY, Pools.get(Point2.class, Point2::new), points);
         }
     }
 
     /** Normalize two points into one straight line, no diagonals. */
     public static Seq<Point2> normalizeLine(int startX, int startY, int endX, int endY){
+        Seq<Point2> points = Placement.points.get();
         Pools.freeAll(points);
         points.clear();
         if(Math.abs(startX - endX) > Math.abs(startY - endY)){
@@ -120,6 +124,7 @@ public class Placement{
 
     /** Normalize two points into a rectangle. */
     public static Seq<Point2> normalizeRectangle(int startX, int startY, int endX, int endY, int blockSize){
+        Seq<Point2> points = Placement.points.get();
         Pools.freeAll(points);
         points.clear();
 
@@ -135,10 +140,12 @@ public class Placement{
     }
 
     public static Seq<Point2> upgradeLine(int startX, int startY, int endX, int endY){
+        IntSet closed = Placement.closed.get();
+        Seq<Point2> points = Placement.points.get();
         closed.clear();
         Pools.freeAll(points);
         points.clear();
-        var build = world.build(startX, startY);
+        var build = mindustry.Vars.game().world.build(startX, startY);
         points.add(Pools.obtain(Point2.class, Point2::new).set(startX, startY));
         while(build instanceof ChainedBuilding chain && (build.tile.x != endX || build.tile.y != endY) && closed.add(build.id)){
             if(chain.next() == null) return pathfindLine(true, startX, startY, endX, endY);
@@ -150,8 +157,8 @@ public class Placement{
 
     /** Calculates optimal node placement for nodes with spacing. Used for bridges and power nodes. */
     public static void calculateNodes(Seq<Point2> points, Block block, int rotation, Boolf2<Point2, Point2> overlapper){
-        var base = tmpPoints2;
-        var result = tmpPoints.clear();
+        var base = tmpPoints2.get();
+        var result = tmpPoints.get().clear();
 
         base.selectFrom(points, p -> p == points.first() || p == points.peek() || Build.validPlace(block, player.team(), p.x, p.y, rotation));
         boolean addedLast = false;
@@ -209,7 +216,7 @@ public class Placement{
         (plan.placeable(player.team()) || (plan.tile() != null && plan.tile().block() == plan.block)) &&  //don't count the same block as inaccessible
         !(plan != plans.first() && plan.build() != null && plan.build().rotation != plan.rotation && avoid.get(plan.tile().block()));
 
-        var result = plans1.clear();
+        var result = plans1.get().clear();
 
         // Use DP for smarter bridge placement
         final int conveyorCost = 3;
@@ -219,8 +226,8 @@ public class Placement{
         final int infCost = Integer.MAX_VALUE / 2; // Avoid overflow when adding
 
         int N = plans.size;
-        var dp = tmpInts.setSize(2 * N);
-        var parent = tmpInts2.setSize(2 * N);
+        var dp = tmpInts.get().setSize(2 * N);
+        var parent = tmpInts2.get().setSize(2 * N);
         Arrays.fill(dp, 0, 2 * N, infCost);
         Arrays.fill(parent, 0, 2 * N, -1);
         dp[0] = 0;
@@ -317,13 +324,14 @@ public class Placement{
     }
 
     private static float tileHeuristic(Tile tile, Tile other){
+        IntIntMap parents = Placement.parents.get();
         Block block = control.input.block;
 
         if((!other.block().alwaysReplace && !(block != null && block.canReplace(other.block()))) || other.floor().isDeep()){
             return 20;
         }else{
             if(parents.containsKey(tile.pos())){
-                Tile prev = world.tile(parents.get(tile.pos(), 0));
+                Tile prev = mindustry.Vars.game().world.tile(parents.get(tile.pos(), 0));
                 if(tile.relativeTo(prev) != other.relativeTo(tile)){
                     return 8;
                 }
@@ -346,8 +354,12 @@ public class Placement{
     }
 
     private static boolean astar(int startX, int startY, int endX, int endY){
-        Tile start = world.tile(startX, startY);
-        Tile end = world.tile(endX, endY);
+        IntFloatMap costs = Placement.costs.get();
+        IntIntMap parents = Placement.parents.get();
+        IntSet closed = Placement.closed.get();
+        Seq<Point2> points = Placement.points.get();
+        Tile start = mindustry.Vars.game().world.tile(startX, startY);
+        Tile end = mindustry.Vars.game().world.tile(endX, endY);
         if(start == end || start == null || end == null) return false;
 
         costs.clear();
@@ -370,7 +382,7 @@ public class Placement{
             closed.add(Point2.pack(next.x, next.y));
             for(Point2 point : Geometry.d4){
                 int newx = next.x + point.x, newy = next.y + point.y;
-                Tile child = world.tile(newx, newy);
+                Tile child = mindustry.Vars.game().world.tile(newx, newy);
                 if(child != null && validNode(next, child)){
                     if(closed.add(child.pos())){
                         parents.put(child.pos(), next.pos());
@@ -394,7 +406,7 @@ public class Placement{
             if(newPos == -1) return false;
 
             points.add(Pools.obtain(Point2.class, Point2::new).set(Point2.x(newPos), Point2.y(newPos)));
-            current = world.tile(newPos);
+            current = mindustry.Vars.game().world.tile(newPos);
         }
 
         points.reverse();
@@ -415,6 +427,8 @@ public class Placement{
      */
     public static NormalizeDrawResult normalizeDrawArea(Block block, int startx, int starty, int endx, int endy, boolean snap, int maxLength, float scaling){
         normalizeArea(startx, starty, endx, endy, 0, snap, maxLength);
+        NormalizeResult result = Placement.result.get();
+        NormalizeDrawResult drawResult = Placement.drawResult.get();
 
         float offset = block.offset;
 
@@ -450,6 +464,7 @@ public class Placement{
      * @param maxLength maximum length of area
      */
     public static NormalizeResult normalizeArea(int tilex, int tiley, int endx, int endy, int rotation, boolean snap, int maxLength){
+        NormalizeResult result = Placement.result.get();
         if(snap){
             if(Math.abs(tilex - endx) > Math.abs(tiley - endy)){
                 endy = tiley;

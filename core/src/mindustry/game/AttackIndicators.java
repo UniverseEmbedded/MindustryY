@@ -41,7 +41,7 @@ public class AttackIndicators{
         long[] items = indicators.items;
         for(int i = 0; i < indicators.size; i ++){
             long l = items[i];
-            items[i] = l = Indicator.time(l, Indicator.time(l) + Time.delta);
+            items[i] = l = Indicator.time(l, Indicator.time(l) + Time.delta());
 
             if(Indicator.time(l) >= duration){
                 //remove the indicator as it has timed out, make sure to not skip the next one

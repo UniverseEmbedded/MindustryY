@@ -39,17 +39,17 @@ public class MoveEffectAbility extends Ability{
     public void update(Unit unit){
         if(Vars.headless) return;
 
-        counter += Time.delta;
+        counter += Time.delta();
         if(unit.vel.len2() >= minVelocity * minVelocity && (counter >= interval || (chance > 0 && Mathf.chanceDelta(chance))) && !unit.inFogTo(Vars.player.team())){
             if(rangeLengthMax > 0){
-                Tmp.v1.trns(unit.rotation - 90f, x, y).add(Tmp.v2.rnd(Mathf.random(rangeLengthMin, rangeLengthMax)));
+                Tmp.v1().trns(unit.rotation - 90f, x, y).add(Tmp.v2().rnd(Mathf.random(rangeLengthMin, rangeLengthMax)));
             }else{
-                Tmp.v1.trns(unit.rotation - 90f, x + Mathf.range(rangeX), y + Mathf.range(rangeY));
+                Tmp.v1().trns(unit.rotation - 90f, x + Mathf.range(rangeX), y + Mathf.range(rangeY));
             }
 
             counter %= interval;
             for(int i = 0; i < amount; i++){
-                effect.at(Tmp.v1.x + unit.x, Tmp.v1.y + unit.y, (rotateEffect ? unit.rotation : effectParam) + rotation, teamColor ? unit.team.color : color, parentizeEffects ? unit : null);
+                effect.at(Tmp.v1().x + unit.x, Tmp.v1().y + unit.y, (rotateEffect ? unit.rotation : effectParam) + rotation, teamColor ? unit.team.color : color, parentizeEffects ? unit : null);
             }
         }
     }

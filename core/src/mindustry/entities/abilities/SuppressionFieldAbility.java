@@ -56,9 +56,9 @@ public class SuppressionFieldAbility extends Ability{
     public void update(Unit unit){
         if(!active) return;
 
-        if((timer += Time.delta) >= maxDelay){
-            Tmp.v1.set(x, y).rotate(unit.rotation - 90f).add(unit);
-            Damage.applySuppression(unit.team, Tmp.v1.x, Tmp.v1.y, range, reload, maxDelay, applyParticleChance, unit, effectColor);
+        if((timer += Time.delta()) >= maxDelay){
+            Tmp.v1().set(x, y).rotate(unit.rotation - 90f).add(unit);
+            Damage.applySuppression(unit.team, Tmp.v1().x, Tmp.v1().y, range, reload, maxDelay, applyParticleChance, unit, effectColor);
             timer = 0f;
         }
     }
@@ -68,15 +68,15 @@ public class SuppressionFieldAbility extends Ability{
         Draw.z(layer);
 
         float rad = orbRadius + Mathf.absin(orbSinScl, orbSinMag);
-        Tmp.v1.set(x, y).rotate(unit.rotation - 90f).add(unit);
-        float rx = Tmp.v1.x, ry = Tmp.v1.y;
+        Tmp.v1().set(x, y).rotate(unit.rotation - 90f).add(unit);
+        float rx = Tmp.v1().x, ry = Tmp.v1().y;
 
-        float base = (Time.time / particleLife);
+        float base = (Time.time() / particleLife);
         rand.setSeed(unit.id + hashCode());
         Draw.color(particleColor);
         for(int i = 0; i < particles; i++){
             float fin = (rand.random(1f) + base) % 1f, fout = 1f - fin;
-            float angle = rand.random(360f) + (Time.time / rotateScl + unit.rotation) % 360f;
+            float angle = rand.random(360f) + (Time.time() / rotateScl + unit.rotation) % 360f;
             float len = particleLen * particleInterp.apply(fout);
             Fill.circle(
             rx + Angles.trnsx(angle, len),

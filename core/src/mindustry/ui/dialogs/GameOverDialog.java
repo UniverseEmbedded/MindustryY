@@ -175,7 +175,7 @@ public class GameOverDialog extends BaseDialog{
                         Actions.delay(0.3f),
                         Actions.run(() -> {
                             valueLabel.update(() -> {
-                                progress = Math.min(1, progress + (Time.delta / 60));
+                                progress = Math.min(1, progress + (Time.delta() / 60));
                                 valueLabel.setText("" + (int)Mathf.lerp(0, value, value < 10 ? progress : Interp.slowFast.apply(progress)));
                             });
                             statLabel.resume();

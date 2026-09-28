@@ -43,6 +43,22 @@ public class LogicDisplay extends Block{
     ;
 
     public static final Seq<LogicDisplayBuild> displays = new Seq<>(false);
+    @Deprecated
+    private static final DisplayState primaryDisplayState = new DisplayState(displays);
+
+    private static class DisplayState{
+        final Seq<LogicDisplayBuild> displays;
+        DisplayState(){ this(new Seq<>(false)); }
+        DisplayState(Seq<LogicDisplayBuild> displays){
+            this.displays = displays;
+            Events.on(ResetEvent.class, e -> displays.clear());
+        }
+    }
+
+    private static DisplayState displayState(){
+        if(mindustry.runtime.RuntimeContexts.isPrimary()) return primaryDisplayState;
+        return mindustry.Vars.game().localState(LogicDisplay.class, DisplayState::new);
+    }
     /** When the content type of a draw command is this number, it counts as a display. */
     public static final int displayDrawType = 30;
 
@@ -53,10 +69,6 @@ public class LogicDisplay extends Block{
     public int displaySize = 64;
     public float scaleFactor = 1f;
     public Color backgroundColor = Pal.darkerMetal;
-
-    static{
-        Events.on(ResetEvent.class, e -> displays.clear());
-    }
 
     public LogicDisplay(String name){
         super(name);
@@ -169,8 +181,9 @@ public class LogicDisplay extends Block{
                     if(ctype != displayDrawType) continue;
 
                     int id = packed >> 5;
-                    if(id != index && id < displays.size && id >= 0 && displays.get(id).buffer != null){
-                        LogicDisplayBuild source = displays.get(id).rootDisplay;
+                    Seq<LogicDisplayBuild> contextDisplays = displayState().displays;
+                    if(id != index && id < contextDisplays.size && id >= 0 && contextDisplays.get(id).buffer != null){
+                        LogicDisplayBuild source = contextDisplays.get(id).rootDisplay;
                         if(source.isAdded() && !source.processing){
                             source.rootDisplay.processCommands();
                         }
@@ -180,8 +193,8 @@ public class LogicDisplay extends Block{
                 Draw.draw(Draw.z(), () -> {
                     if(buffer == null || commands.isEmpty()) return;
 
-                    Tmp.m1.set(Draw.proj());
-                    Tmp.m2.set(Draw.trans());
+                    Tmp.m1().set(Draw.proj());
+                    Tmp.m2().set(Draw.trans());
                     Draw.proj(0, 0, buffer.getWidth(), buffer.getHeight());
                     if(transform != null){
                         Draw.trans(transform);
@@ -215,9 +228,10 @@ public class LogicDisplay extends Block{
                                 int ctype = packed & 0x1F;
                                 int id = packed >> 5;
                                 if(ctype == displayDrawType){
-                                    if(id != index && id < displays.size && id >= 0 && displays.get(id).buffer != null){
-                                        displays.get(id).rootDisplay.getBufferRegion(Tmp.tr1);
-                                        Draw.rect(Tmp.tr1, x, y, p2, p2 / Tmp.tr1.ratio(), p3);
+                                    Seq<LogicDisplayBuild> contextDisplays = displayState().displays;
+                                    if(id != index && id < contextDisplays.size && id >= 0 && contextDisplays.get(id).buffer != null){
+                                        contextDisplays.get(id).rootDisplay.getBufferRegion(Tmp.tr1());
+                                        Draw.rect(Tmp.tr1(), x, y, p2, p2 / Tmp.tr1().ratio(), p3);
                                     }
                                 }else if(ctype < ContentType.all.length && Vars.content.getByID(ContentType.all[ctype], id) instanceof UnlockableContent u){
                                     var icon = u.fullIcon;
@@ -227,10 +241,10 @@ public class LogicDisplay extends Block{
                             case commandPrint -> {
                                 var glyph = Fonts.logic.getData().getGlyph((char)p1);
                                 if(glyph != null){
-                                    Tmp.tr1.set(Fonts.logic.getRegion().texture);
-                                    Tmp.tr1.set(glyph.u, glyph.v2, glyph.u2, glyph.v);
+                                    Tmp.tr1().set(Fonts.logic.getRegion().texture);
+                                    Tmp.tr1().set(glyph.u, glyph.v2, glyph.u2, glyph.v);
 
-                                    Draw.rect(Tmp.tr1, x + Tmp.tr1.width/2f + glyph.xoffset, y + Tmp.tr1.height/2f + glyph.yoffset + Fonts.logic.getData().capHeight + Fonts.logic.getData().ascent, Tmp.tr1.width, Tmp.tr1.height);
+                                    Draw.rect(Tmp.tr1(), x + Tmp.tr1().width/2f + glyph.xoffset, y + Tmp.tr1().height/2f + glyph.yoffset + Fonts.logic.getData().capHeight + Fonts.logic.getData().ascent, Tmp.tr1().width, Tmp.tr1().height);
                                 }
                             }
                             case commandTranslate -> Draw.trans((transform == null ? (transform = new Mat()) : transform).translate(x, y));
@@ -241,8 +255,8 @@ public class LogicDisplay extends Block{
                     }
 
                     buffer.end();
-                    Draw.proj(Tmp.m1);
-                    Draw.trans(Tmp.m2);
+                    Draw.proj(Tmp.m1());
+                    Draw.trans(Tmp.m2());
                     Draw.reset();
                 });
 
@@ -289,8 +303,9 @@ public class LogicDisplay extends Block{
         public void add(){
             super.add();
 
-            index = displays.size;
-            displays.add(this);
+            Seq<LogicDisplayBuild> contextDisplays = displayState().displays;
+            index = contextDisplays.size;
+            contextDisplays.add(this);
         }
 
         @Override
@@ -298,10 +313,11 @@ public class LogicDisplay extends Block{
             super.remove();
 
             if(index != -1){
-                LogicDisplayBuild last = displays.get(displays.size - 1);
+                Seq<LogicDisplayBuild> contextDisplays = displayState().displays;
+                LogicDisplayBuild last = contextDisplays.get(contextDisplays.size - 1);
                 last.index = index;
-                displays.set(index, last);
-                displays.remove(displays.size - 1);
+                contextDisplays.set(index, last);
+                contextDisplays.remove(contextDisplays.size - 1);
                 index = -1;
             }
 

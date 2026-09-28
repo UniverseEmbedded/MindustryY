@@ -42,6 +42,8 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
     transient @Nullable NetConnection con;
     @ReadOnly Team team = Team.sharded;
     @SyncLocal boolean typing, shooting, boosting;
+    /** Authenticated Shared Campaign spectator role; never serialized or synchronized as gameplay state. */
+    @NoSync @NoSerialize boolean spectator;
     @SyncLocal @Nullable Block selectedBlock;
     @SyncLocal int selectedRotation;
     @SyncLocal float mouseX, mouseY;
@@ -147,7 +149,7 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
 
     public void reset(){
         team = state.rules.defaultTeam;
-        admin = typing = false;
+        admin = typing = spectator = false;
         textFadeTime = 0f;
         x = y = 0f;
         lastPreviewPlanTimestamp = 0;
@@ -214,6 +216,12 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
 
     @Override
     public void update(){
+        if(spectator){
+            if(unit != null) clearUnit();
+            deathTimer = 0f;
+            textFadeTime -= Time.delta() / (60 * 5);
+            return;
+        }
         if(unit != null && !unit.isValid()){
             clearUnit();
         }
@@ -233,7 +241,7 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
         }else if((core = bestCore()) != null){
             //have a small delay before death to prevent the camera from jumping around too quickly
             //(this is not for balance, it just looks better this way)
-            deathTimer += Time.delta;
+            deathTimer += Time.delta();
             if(deathTimer >= deathDelay){
                 //request spawn - this happens serverside only
                 core.requestSpawn(self());
@@ -241,11 +249,12 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
             }
         }
 
-        textFadeTime -= Time.delta / (60 * 5);
+        textFadeTime -= Time.delta() / (60 * 5);
 
     }
 
     public void checkSpawn(){
+        if(spectator) return;
         CoreBuild core = bestCore();
         if(core != null){
             core.requestSpawn(self());
@@ -365,9 +374,9 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
 
         float alpha = Math.min(Interp.pow5Out.apply(Mathf.clamp(Mathf.map(pingTime, 1f / 20f, 0f, 1f, 0f))), Interp.pow5Out.apply(Mathf.map(pingTime, 1f, 0.98f, 0f, 1f)));
 
-        Tmp.c1.set(color).a(alpha);
+        Tmp.c1().set(color).a(alpha);
 
-        pingTime -= Time.delta / pingDuration;
+        pingTime -= Time.delta() / pingDuration;
 
         float s = Scl.scl(4) / renderer.getDisplayScale();
 
@@ -376,14 +385,14 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
         float hover = Mathf.absin(5f, 1f);
         float scaling = 1f + Mathf.clamp(Interp.pow5In.apply(Mathf.map(pingTime, 1f, 0.96f, 1f, 0f))) * 3f;
 
-        Drawf.square(pingX, pingY, 2f * scaling * s, 45f, Tmp.c1, Tmp.c3.set(Color.darkGray).mul(color).a(Tmp.c1.a), s);
-        Drawf.fillPoly(pingX, pingY + 9f * s + hover * s, 3, 3f * s, -90f, Tmp.c1, Tmp.c3, s);
+        Drawf.square(pingX, pingY, 2f * scaling * s, 45f, Tmp.c1(), Tmp.c3().set(Color.darkGray).mul(color).a(Tmp.c1().a), s);
+        Drawf.fillPoly(pingX, pingY + 9f * s + hover * s, 3, 3f * s, -90f, Tmp.c1(), Tmp.c3(), s);
 
         if(pingText != null){
-            Drawf.text(name, pingX, pingY + (20f + hover)*s, Tmp.c1, 0.7f * s);
-            Drawf.text(pingText, pingX, pingY + (16f + hover)*s, Tmp.c2.set(1f, 1f, 1f, Tmp.c1.a), s);
+            Drawf.text(name, pingX, pingY + (20f + hover)*s, Tmp.c1(), 0.7f * s);
+            Drawf.text(pingText, pingX, pingY + (16f + hover)*s, Tmp.c2().set(1f, 1f, 1f, Tmp.c1().a), s);
         }else{
-            Drawf.text(name, pingX, pingY + (16f + hover)*s, Tmp.c1, s);
+            Drawf.text(name, pingX, pingY + (16f + hover)*s, Tmp.c1(), s);
         }
 
         Draw.reset();
@@ -395,7 +404,7 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
         if(unit == null || name == null) return;
 
         float clip = unit.type.hitSize * 2f;
-        if(!Core.camera.bounds(Tmp.r1).overlaps(x - clip/2f, y - clip/2f, clip, clip)) return;
+        if(!Core.camera.bounds(Tmp.r1()).overlaps(x - clip/2f, y - clip/2f, clip, clip)) return;
 
         if(name == null || unit.inFogTo(Vars.player.team())) return;
 
@@ -429,7 +438,7 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
         }
 
         if(Core.settings.getBool("playerchat") && ((textFadeTime > 0 && lastText != null) || typing)){
-            String text = textFadeTime <= 0 || lastText == null ? "[lightgray]" + Strings.animated(Time.time, 4, 15f, ".") : lastText;
+            String text = textFadeTime <= 0 || lastText == null ? "[lightgray]" + Strings.animated(Time.time(), 4, 15f, ".") : lastText;
             float width = 100f;
             float visualFadeTime = 1f - Mathf.curve(1f - textFadeTime, 0.9f);
             font.setColor(1f, 1f, 1f, textFadeTime <= 0 || lastText == null ? 1f : visualFadeTime);

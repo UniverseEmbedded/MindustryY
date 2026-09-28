@@ -433,7 +433,7 @@ public class Maps{
             });
         }catch(Exception e){
             failed.get(e);
-            Log.err("Failed to generate preview!", e);
+            Log.err("Failed to generate preview for map '" + map.name() + "' (" + map.file + ")", e);
         }
     }
 

@@ -102,12 +102,12 @@ public class BlockInventoryFragment{
                 hide();
             }else{
                 if(build.items.total() == 0){
-                    emptyTime += Time.delta;
+                    emptyTime += Time.delta();
                 }else{
                     emptyTime = 0f;
                 }
 
-                if(holding && lastItem != null && (holdTime += Time.delta) >= holdWithdraw){
+                if(holding && lastItem != null && (holdTime += Time.delta()) >= holdWithdraw){
                     holdTime = 0f;
 
                     //take one when held
@@ -126,7 +126,7 @@ public class BlockInventoryFragment{
                             shrinkHoldTimes[i] = 0f;
                             dirty |= !had;
                         }else if(had){
-                            shrinkHoldTimes[i] += Time.delta;
+                            shrinkHoldTimes[i] += Time.delta();
                             dirty |= shrinkHoldTimes[i] >= holdShrink;
                         }
                     }

@@ -127,17 +127,17 @@ public class EntityCollisions{
     }
 
     public static boolean legsSolid(int x, int y){
-        Tile tile = world.tile(x, y);
+        Tile tile = mindustry.Vars.game().world.tile(x, y);
         return tile == null || tile.legSolid();
     }
 
     public static boolean waterSolid(int x, int y){
-        Tile tile = world.tile(x, y);
+        Tile tile = mindustry.Vars.game().world.tile(x, y);
         return tile == null || tile.solid() || !tile.floor().isLiquid;
     }
 
     public static boolean solid(int x, int y){
-        Tile tile = world.tile(x, y);
+        Tile tile = mindustry.Vars.game().world.tile(x, y);
         return tile == null || tile.solid();
     }
 

@@ -26,8 +26,8 @@ public class DebugCollisionRenderer{
         Draw.draw(Layer.overlayUI, () -> {
             //hitboxes
             Draw.color(Color.green, 0.3f);
-            Groups.draw.each(d -> {
-                if(d instanceof Hitboxc h && rect.overlaps(Tmp.r1.setCentered(d.x(), d.y(), d.clipSize()))){
+            Groups.current().draw.each(d -> {
+                if(d instanceof Hitboxc h && rect.overlaps(Tmp.r1().setCentered(d.x(), d.y(), d.clipSize()))){
                     Fill.square(d.x(), d.y(), h.hitSize()/2f);
                 }
             });
@@ -67,19 +67,19 @@ public class DebugCollisionRenderer{
                 }
             }
 
-            Groups.draw.each(d -> {
-                if(d instanceof Unit u && rect.overlaps(Tmp.r1.setCentered(u.x, u.y, d.clipSize())) && !u.isFlying()){
-                    u.hitboxTile(Tmp.r1);
+            Groups.current().draw.each(d -> {
+                if(d instanceof Unit u && rect.overlaps(Tmp.r1().setCentered(u.x, u.y, d.clipSize())) && !u.isFlying()){
+                    u.hitboxTile(Tmp.r1());
 
-                    Lines.rect(Tmp.r1);
+                    Lines.rect(Tmp.r1());
                 }
             });
 
             //physics hitboxes
             Lines.stroke(0.5f);
             Draw.color(Color.red, 0.5f);
-            Groups.draw.each(d -> {
-                if(d instanceof Unit u && rect.overlaps(Tmp.r1.setCentered(u.x, u.y, u.clipSize()))){
+            Groups.current().draw.each(d -> {
+                if(d instanceof Unit u && rect.overlaps(Tmp.r1().setCentered(u.x, u.y, u.clipSize()))){
                     Lines.circle(u.x, u.y, u.hitSize * unitCollisionRadiusScale);
                 }
             });

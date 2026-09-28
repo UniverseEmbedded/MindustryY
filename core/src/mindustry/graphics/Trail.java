@@ -103,7 +103,7 @@ public class Trail{
 
     /** Removes the last point from the trail at intervals. */
     public void shorten(){
-        int count = (int)(counter += Time.delta);
+        int count = (int)(counter += Time.delta());
         counter -= count;
 
        if(count > 0 && points.size > 0){
@@ -118,7 +118,7 @@ public class Trail{
 
     /** Adds a new point to the trail at intervals. */
     public void update(float x, float y, float width){
-        int count = (int)(counter += Time.delta);
+        int count = (int)(counter += Time.delta());
         counter -= count;
 
         if(count > 0){
