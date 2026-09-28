@@ -1307,7 +1307,7 @@ public class SharedCampaignDialog extends BaseDialog{
                 policyValue.setEllipsis(true);
 
                 form.add("@sharedcampaign.creation.primaryplanet").left().padTop(6f).row();
-                form.button(row -> { row.left(); row.image(primary[0].uiIcon).size(34f).padRight(8f); row.add(planetValue).growX().left(); row.image(Icon.downOpen).size(20f); }, Styles.flatt,
+                form.button(row -> { row.left(); row.image(Icon.planet).size(34f).padRight(8f); row.add(planetValue).growX().left(); row.image(Icon.downOpen).size(20f); }, Styles.flatt,
                     () -> showCreationPlanetPicker(primary, policyOverrides, planetValue, policyValue, null, maxActions))
                     .width(width).height(52f).name("sharedCampaign.create.primaryPlanet").row();
 
