@@ -46,6 +46,7 @@ public final class ActionRuntimeCoordinator implements Closeable, ActionControlP
     private final String advertisedHost;
     private final Fi modsSource;
     private final SharedCampaignMissionRegistry missionDefinitions;
+    private final SharedCampaignPlanetRegistry planetPolicies;
     private final ActionControlPlane.LossPolicy lossPolicy;
     private final SectorRuntimeFactory runtimeFactory;
     private final Listener listener;
@@ -57,7 +58,7 @@ public final class ActionRuntimeCoordinator implements Closeable, ActionControlP
 
     public ActionRuntimeCoordinator(GameContext owner, SharedCampaignStore store, CoordinatorCredentials credentials,
                                     Fi actionRoot, String advertisedHost, int controlPort, Fi modsSource,
-                                    SharedCampaignMissionRegistry missionDefinitions, ActionControlPlane.LossPolicy lossPolicy,
+                                    SharedCampaignMissionRegistry missionDefinitions, SharedCampaignPlanetRegistry planetPolicies, ActionControlPlane.LossPolicy lossPolicy,
                                     SectorRuntimeFactory runtimeFactory, Listener listener){
         this.owner = Objects.requireNonNull(owner, "owner");
         this.store = Objects.requireNonNull(store, "store");
@@ -66,6 +67,7 @@ public final class ActionRuntimeCoordinator implements Closeable, ActionControlP
         this.advertisedHost = advertisedHost == null || advertisedHost.isBlank() ? "127.0.0.1" : advertisedHost.trim();
         this.modsSource = Objects.requireNonNull(modsSource, "modsSource");
         this.missionDefinitions = Objects.requireNonNull(missionDefinitions, "missionDefinitions");
+        this.planetPolicies = Objects.requireNonNull(planetPolicies, "planetPolicies");
         this.lossPolicy = lossPolicy == null ? action -> false : lossPolicy;
         this.runtimeFactory = Objects.requireNonNull(runtimeFactory, "runtimeFactory");
         this.listener = listener == null ? new Listener(){} : listener;
@@ -180,11 +182,13 @@ public final class ActionRuntimeCoordinator implements Closeable, ActionControlP
                     action.connectedPlayers = 0;
                     action.connectedSpectators = 0;
                     action.updatedAt = now;
+                    planetPolicies.beforeActionCommit(state, action);
                     if(!action.missionId.isEmpty()){
                         MissionState mission = state.missions.get(action.missionId);
                         if(mission == null) throw new IllegalStateException("Suspended Action lost mission state: " + action.missionId);
                         mission.status = MissionStatus.preparing;
                     }
+                    planetPolicies.afterActionCommit(state, action);
                 });
             }catch(Throwable error){
                 credentials.deleteActionSecrets(actionId);

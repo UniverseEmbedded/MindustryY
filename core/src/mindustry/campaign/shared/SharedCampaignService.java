@@ -26,6 +26,8 @@ public final class SharedCampaignService implements Closeable, SharedCampaignApi
     private final SharedCampaignPlanetRegistry planetPolicies = new SharedCampaignPlanetRegistry();
     private final ObjectMap<String, SharedCampaignExtension> registeredExtensions = new ObjectMap<>();
     private boolean registriesSealed;
+    /** Optional platform-owned factory (Android private host service, console worker, etc.). */
+    private static volatile java.util.function.Supplier<SectorRuntimeFactory> platformRuntimeFactory;
     private volatile SectorRuntimeFactory runtimeFactory = SectorRuntimeFactory.jvmProcess();
     private volatile ActionControlPlane.LossPolicy lossPolicy = action -> false;
     private SharedCampaignAuthority authority;
@@ -49,8 +51,23 @@ public final class SharedCampaignService implements Closeable, SharedCampaignApi
         SharedCampaignRuntimeState runtime = SharedCampaignRuntimeState.install(owner);
         SharedCampaignService existing = runtime.component(SharedCampaignService.class);
         if(existing != null) return existing;
-        return runtime.attach(SharedCampaignService.class, new SharedCampaignService(owner, modsSource));
+        SharedCampaignService created = new SharedCampaignService(owner, modsSource);
+        java.util.function.Supplier<SectorRuntimeFactory> platformFactory = platformRuntimeFactory;
+        if(platformFactory != null){
+            SectorRuntimeFactory selected = platformFactory.get();
+            if(selected == null) throw new IllegalStateException("Platform Shared Campaign runtime factory returned null");
+            created.runtimeFactory(selected);
+        }
+        return runtime.attach(SharedCampaignService.class, created);
     }
+
+    /** Installs a platform-owned local runtime factory before the primary service is created. */
+    public static void installPlatformRuntimeFactory(java.util.function.Supplier<SectorRuntimeFactory> factory){
+        platformRuntimeFactory = Objects.requireNonNull(factory, "platform runtime factory");
+    }
+
+    /** Clears the platform runtime hook; intended for platform teardown/tests. */
+    public static void clearPlatformRuntimeFactory(){ platformRuntimeFactory = null; }
 
     /** Returns the Shared Campaign service already attached to this context without creating product state. */
     public static SharedCampaignService find(GameContext owner){

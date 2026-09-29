@@ -2,6 +2,7 @@ package mindustry.campaign.shared.runtime;
 
 import mindustry.campaign.shared.*;
 import mindustry.campaign.shared.io.*;
+import mindustry.campaign.shared.api.*;
 import mindustry.runtime.*;
 import mindustry.campaign.shared.SharedCampaignState.*;
 import arc.struct.*;
@@ -19,6 +20,7 @@ public final class CampaignClientControlPlane implements Closeable{
     private final SharedCampaignStore store;
     private final CoordinatorCredentials credentials;
     private final CampaignActionCommands commands;
+    private final SharedCampaignPlanetRegistry planetPolicies;
     private final SharedActionEntryRouter entry;
     private final int requestedPort;
     private final AtomicBoolean running = new AtomicBoolean();
@@ -35,11 +37,13 @@ public final class CampaignClientControlPlane implements Closeable{
     private volatile Thread acceptThread;
 
     public CampaignClientControlPlane(GameContext owner, SharedCampaignStore store, CoordinatorCredentials credentials,
-                                      CampaignActionCommands commands, SharedActionEntryRouter entry, int requestedPort){
+                                      CampaignActionCommands commands, SharedCampaignPlanetRegistry planetPolicies,
+                                      SharedActionEntryRouter entry, int requestedPort){
         this.owner = Objects.requireNonNull(owner, "owner");
         this.store = Objects.requireNonNull(store, "store");
         this.credentials = Objects.requireNonNull(credentials, "credentials");
         this.commands = Objects.requireNonNull(commands, "commands");
+        this.planetPolicies = Objects.requireNonNull(planetPolicies, "planetPolicies");
         this.entry = Objects.requireNonNull(entry, "entry");
         this.requestedPort = requestedPort;
         AtomicInteger ids = new AtomicInteger();
@@ -266,13 +270,17 @@ public final class CampaignClientControlPlane implements Closeable{
         requireActiveMember(memberId);
         if(request.invitePolicy() == null) throw new IllegalArgumentException("Invite policy is required");
         if(request.persistenceProfile() == null) throw new IllegalArgumentException("Persistence profile is required");
-        int requestedMax = request.multiFrontEnabled() ? request.maxActiveActions() : 1;
+        SharedCampaignState current = store.snapshot();
+        SharedCampaignPlanetRegistry.PlanetPolicy primaryPolicy = planetPolicies.resolve(current, current.primaryPlanetName);
+        boolean requestedMultiFront = request.multiFrontEnabled() && primaryPolicy.supportsMultipleActions();
+        int requestedMax = requestedMultiFront ? request.maxActiveActions() : 1;
         if(requestedMax < 1 || requestedMax > 32) throw new IllegalArgumentException("Maximum active actions must be between 1 and 32");
         SharedCampaignState updated = store.transact(memberId, "shared-campaign:update-settings", state -> {
             if(!memberId.equals(state.ownerId)) throw new SecurityException("Only the campaign owner may change settings");
+            planetPolicies.validateSettings(state, requestedMultiFront, requestedMax);
             state.maxActiveActions = requestedMax;
             state.freezeWhenEmpty = request.freezeWhenEmpty();
-            state.multiFrontEnabled = request.multiFrontEnabled();
+            state.multiFrontEnabled = requestedMultiFront;
             state.invitePolicy = request.invitePolicy();
             state.persistenceProfile = request.persistenceProfile();
         });

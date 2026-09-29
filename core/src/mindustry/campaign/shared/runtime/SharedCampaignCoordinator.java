@@ -48,10 +48,10 @@ public final class SharedCampaignCoordinator implements Closeable{
             }
         });
         this.actionRuntimes = new ActionRuntimeCoordinator(owner, store, credentials, actionRoot, advertisedHost,
-            actionControlPort, modsSource, missions, lossPolicy, runtimeFactory, entryRouter);
-        this.actionCommands = new CampaignActionCommands(store, credentials, actionRuntimes, entryRouter, missions);
+            actionControlPort, modsSource, missions, planetPolicies, lossPolicy, runtimeFactory, entryRouter);
+        this.actionCommands = new CampaignActionCommands(store, credentials, actionRuntimes, entryRouter, missions, planetPolicies);
         this.actionRuntimes.controlPlane().vanillaTransferHandler(actionCommands::prepareVanillaTransfer);
-        this.clientControl = new CampaignClientControlPlane(owner, store, credentials, actionCommands, entryRouter, publicEntryPort);
+        this.clientControl = new CampaignClientControlPlane(owner, store, credentials, actionCommands, planetPolicies, entryRouter, publicEntryPort);
         this.planetPolicies = Objects.requireNonNull(planetPolicies, "planetPolicies");
         if(!this.planetPolicies.sealed()) this.planetPolicies.seal();
         this.suspension = new SectorSuspensionService(this.planetPolicies);

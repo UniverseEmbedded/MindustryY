@@ -52,7 +52,7 @@ public final class InProcessSectorRuntime implements SectorRuntime, InProcessSec
         if(alive.get()) throw new IllegalStateException("Action already running: " + action.actionId);
         if(context != null) throw new IllegalStateException("Runtime cannot be restarted after termination: " + action.actionId);
         if(action.port <= 0 || action.port > 65535) throw new IllegalArgumentException("Invalid action port: " + action.port);
-        if(OS.isAndroid && !Boolean.getBoolean("mindustry.uiTest") && !Boolean.getBoolean("sharedCampaign.sharedHostDaemon")){
+        if(OS.isAndroid && !Boolean.getBoolean("mindustry.uiTest") && !RuntimeExecutionBudget.androidHostDaemon()){
             throw new IOException(SectorRuntimeFactory.hostLocalAuthoritativeBlockedMessage());
         }
 

@@ -270,6 +270,12 @@ public final class SharedCampaignAuthority implements Closeable{
     public synchronized SharedCampaignBackupService backups(){ if(backups == null) throw new IllegalStateException("No authoritative Shared Campaign is open"); return backups; }
 
     public synchronized SharedCampaignState.BackupState createRestorePoint(String actorId, String name, String reason, int keep){
+        // A restore point must describe the worlds that are live at the moment the operator requested it, not whatever
+        // autosave happened to be on disk several minutes earlier. Force every connected RUNNING Action through its
+        // durable save barrier first, then drain any coalesced strategic WAL before streaming the archive. If any live
+        // Action cannot checkpoint, fail closed instead of publishing a deceptively complete restore point.
+        coordinator().actionCommands().forceSaveRunningActions(actorId);
+        requireStore().flushCoalescedIfNeeded();
         return backups().create(actorId, name, reason, keep);
     }
 

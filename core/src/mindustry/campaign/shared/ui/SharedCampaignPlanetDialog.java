@@ -388,27 +388,44 @@ public class SharedCampaignPlanetDialog extends BaseDialog implements PlanetInte
         };
 
         boolean compact = sceneWidth() < 980 || Core.graphics.isPortrait();
+        boolean phoneCompact = sceneWidth() < 600f || Core.graphics.isPortrait();
         Table topBar = new Table(Styles.black8);
         topBar.name = "sharedCampaign.planet.topbar";
         topBar.left();
-        topBar.add("@sharedcampaign.planetoperations").style(Styles.defaultLabel).pad(10f).growX().left();
+        topBar.add("@sharedcampaign.planetoperations").style(Styles.defaultLabel).pad(phoneCompact ? 6f : 10f).growX().left();
         // A long campaign name must never widen the top bar past the screen edge. Keep the default layout path
         // byte-identical (no wrap: a wrapped label's prefWidth is 0 and would shift every sibling) and only clamp
         // on compact layouts, where fillX makes the label honor the capped cell and ellipsis truncates in one line.
         Cell<Label> campaignLabelCell = topBar.label(() -> campaign.displayName == null ? "" : campaign.displayName)
             .color(Pal.gray).padRight(8f);
         campaignLabelCell.get().setEllipsis(true);
-        if(compact) campaignLabelCell.maxWidth(260f).fillX();
-        if(compact){
-            topBar.button(Icon.planet, this::showPlanetChooserDialog).size(44f).tooltip("@planet").name("sharedCampaign.planet.choosePlanet");
+        if(compact) campaignLabelCell.maxWidth(phoneCompact ? 150f : 260f).fillX();
+        if(phoneCompact){
+            // Phones cannot fit every 44px command beside the title. Keep the title readable and wrap commands
+            // into two deterministic rows instead of silently pushing the rightmost controls off-screen.
+            topBar.row();
+            topBar.table(primary -> {
+                primary.button(Icon.planet, this::showPlanetChooserDialog).size(42f).tooltip("@planet").name("sharedCampaign.planet.choosePlanet");
+                primary.button(Icon.refresh, operations::refresh).size(42f).tooltip("@refresh").name("sharedCampaign.planet.refresh");
+                primary.button(Icon.list, () -> operations.list(state.planet)).size(42f).tooltip("@sharedcampaign.strategy.operations").name("sharedCampaign.planet.list");
+                primary.button(Icon.tree, () -> operations.research(state.planet)).size(42f).tooltip("@research").name("sharedCampaign.planet.research");
+            }).colspan(2).left().row();
+            topBar.table(secondary -> {
+                if(mayInvite) secondary.button(Icon.players, operations::invite).size(42f).tooltip("@sharedcampaign.invitecode").name("sharedCampaign.planet.invite");
+                if(owner) secondary.button(Icon.settings, operations::settings).size(42f).tooltip("@settings").name("sharedCampaign.planet.settings");
+                secondary.button(Icon.info, operations::compatibility).size(42f).tooltip("@sharedcampaign.compatibility").name("sharedCampaign.planet.compatibility");
+                if(authoritative) secondary.button(Icon.export, operations::migrate).size(42f).tooltip("@sharedcampaign.migratehost").name("sharedCampaign.planet.migrate");
+            }).colspan(2).left();
+        }else{
+            if(compact) topBar.button(Icon.planet, this::showPlanetChooserDialog).size(44f).tooltip("@planet").name("sharedCampaign.planet.choosePlanet");
+            topBar.button(Icon.refresh, operations::refresh).size(44f).tooltip("@refresh").name("sharedCampaign.planet.refresh");
+            topBar.button(Icon.list, () -> operations.list(state.planet)).size(44f).tooltip("@sharedcampaign.strategy.operations").name("sharedCampaign.planet.list");
+            topBar.button(Icon.tree, () -> operations.research(state.planet)).size(44f).tooltip("@research").name("sharedCampaign.planet.research");
+            if(mayInvite) topBar.button(Icon.players, operations::invite).size(44f).tooltip("@sharedcampaign.invitecode").name("sharedCampaign.planet.invite");
+            if(owner) topBar.button(Icon.settings, operations::settings).size(44f).tooltip("@settings").name("sharedCampaign.planet.settings");
+            topBar.button(Icon.info, operations::compatibility).size(44f).tooltip("@sharedcampaign.compatibility").name("sharedCampaign.planet.compatibility");
+            if(authoritative) topBar.button(Icon.export, operations::migrate).size(44f).tooltip("@sharedcampaign.migratehost").name("sharedCampaign.planet.migrate");
         }
-        topBar.button(Icon.refresh, operations::refresh).size(44f).tooltip("@refresh").name("sharedCampaign.planet.refresh");
-        topBar.button(Icon.list, () -> operations.list(state.planet)).size(44f).tooltip("@sharedcampaign.strategy.operations").name("sharedCampaign.planet.list");
-        topBar.button(Icon.tree, () -> operations.research(state.planet)).size(44f).tooltip("@research").name("sharedCampaign.planet.research");
-        if(mayInvite) topBar.button(Icon.players, operations::invite).size(44f).tooltip("@sharedcampaign.invitecode").name("sharedCampaign.planet.invite");
-        if(owner) topBar.button(Icon.settings, operations::settings).size(44f).tooltip("@settings").name("sharedCampaign.planet.settings");
-        topBar.button(Icon.info, operations::compatibility).size(44f).tooltip("@sharedcampaign.compatibility").name("sharedCampaign.planet.compatibility");
-        if(authoritative) topBar.button(Icon.export, operations::migrate).size(44f).tooltip("@sharedcampaign.migratehost").name("sharedCampaign.planet.migrate");
 
         Table top = new Table();
         top.top().left();
@@ -423,7 +440,7 @@ public class SharedCampaignPlanetDialog extends BaseDialog implements PlanetInte
         // lower action strip so selecting a Sector no longer covers the planet with a mixed dashboard/card.
         Table infoLayer = new Table();
         infoLayer.top().right();
-        infoLayer.marginTop(72f).marginRight(12f);
+        infoLayer.marginTop(phoneCompact ? 150f : 72f).marginRight(12f);
         float inspectorWidth = Math.min(compact ? 390f : 410f, Math.max(260f, availW(24f)));
         float inspectorHeight = Math.max(180f, Math.min(compact ? 300f : 500f, availH(165f)));
         ScrollPane inspectorPane = new ScrollPane(inspector, Styles.smallPane);
@@ -570,10 +587,12 @@ public class SharedCampaignPlanetDialog extends BaseDialog implements PlanetInte
             if(sector.destinationSector != null && !sector.destinationSector.isBlank()) metric("@sharedcampaign.logisticsdestination", sector.destinationSector);
         }
         buildOperations(sector, action, availability);
+        boolean narrowDetails = sceneWidth() < 700f || Core.graphics.isPortrait();
         operationsPanel.table(details -> {
             details.left();
             details.button("@sharedcampaign.sectordetails", Icon.info, () -> operations.details(selected)).height(44f).growX()
                 .name("sharedCampaign.planet.sector.details");
+            if(narrowDetails && action != null) details.row();
             if(action != null){
                 details.button("@sharedcampaign.actiondetails", Icon.info, () -> operations.actionDetails(action)).height(44f).growX()
                     .name("sharedCampaign.planet.action.details");
@@ -586,11 +605,16 @@ public class SharedCampaignPlanetDialog extends BaseDialog implements PlanetInte
     private void buildOperations(@Nullable SectorState sector, @Nullable ActionState action, SharedCampaignProgress.Availability availability){
         if(selected == null) return;
         operationsPanel.add("@sharedcampaign.strategy.operations").color(Pal.accent).left().row();
+        boolean narrowActions = sceneWidth() < 700f || Core.graphics.isPortrait();
         operationsPanel.table(actions -> {
             actions.left();
             if(action != null && action.status == ActionStatus.running){
                 actions.button("@join", Icon.play, () -> operations.join(action)).height(46f).minWidth(120f).growX().name("sharedCampaign.planet.sector.join");
-                if(action.spectatorsAllowed) actions.button("@sharedcampaign.spectate", Icon.eye, () -> operations.spectate(action)).height(46f).minWidth(120f).growX().name("sharedCampaign.planet.sector.spectate");
+                if(narrowActions) actions.row();
+                if(action.spectatorsAllowed){
+                    actions.button("@sharedcampaign.spectate", Icon.eye, () -> operations.spectate(action)).height(46f).minWidth(120f).growX().name("sharedCampaign.planet.sector.spectate");
+                    if(narrowActions) actions.row();
+                }
                 if(action.connectedPlayers == 0 && operations.owner()) actions.button(Icon.pause, () -> operations.suspend(action)).size(46f).name("sharedCampaign.planet.sector.suspend").tooltip("@sharedcampaign.suspend");
             }else if(action != null && action.status == ActionStatus.suspended){
                 actions.button("@sharedcampaign.wake", Icon.play, () -> operations.launch(selected)).height(46f).minWidth(120f).growX().name("sharedCampaign.planet.sector.wake");

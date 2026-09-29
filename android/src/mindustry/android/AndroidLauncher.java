@@ -16,6 +16,7 @@ import arc.struct.*;
 import arc.util.*;
 import dalvik.system.*;
 import mindustry.*;
+import mindustry.android.shared.*;
 import mindustry.game.EventType.*;
 import mindustry.net.*;
 import mindustry.ui.*;
@@ -51,6 +52,8 @@ public class AndroidLauncher extends AndroidApplication{
         });
 
         super.onCreate(savedInstanceState);
+        // Keep authoritative Shared Campaign worlds out of the graphical GL process.
+        AndroidSharedHostClient.install(this);
         if(doubleScaleTablets && isTablet(this)){
             Scl.setAddition(0.5f);
         }

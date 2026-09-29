@@ -28,6 +28,7 @@ public final class CampaignActionCommands{
     private final ActionRuntimeCoordinator runtimes;
     private final SharedActionEntryRouter entry;
     private final SharedCampaignMissionRegistry missions;
+    private final SharedCampaignPlanetRegistry planetPolicies;
     private final Object startMutex = new Object();
     private final Object researchMutex = new Object();
     private final Object logisticsMutex = new Object();
@@ -36,18 +37,14 @@ public final class CampaignActionCommands{
     private final Set<String> replayedLaunchDecisions = ConcurrentHashMap.newKeySet();
 
     public CampaignActionCommands(SharedCampaignStore store, CoordinatorCredentials credentials,
-                                  ActionRuntimeCoordinator runtimes, SharedActionEntryRouter entry){
-        this(store, credentials, runtimes, entry, null);
-    }
-
-    public CampaignActionCommands(SharedCampaignStore store, CoordinatorCredentials credentials,
                                   ActionRuntimeCoordinator runtimes, SharedActionEntryRouter entry,
-                                  SharedCampaignMissionRegistry missions){
+                                  SharedCampaignMissionRegistry missions, SharedCampaignPlanetRegistry planetPolicies){
         this.store = Objects.requireNonNull(store, "store");
         this.credentials = Objects.requireNonNull(credentials, "credentials");
         this.runtimes = Objects.requireNonNull(runtimes, "runtimes");
         this.entry = Objects.requireNonNull(entry, "entry");
         this.missions = missions;
+        this.planetPolicies = Objects.requireNonNull(planetPolicies, "planetPolicies");
     }
 
     /**
@@ -186,6 +183,7 @@ public final class CampaignActionCommands{
                     }
                 }
             }
+            planetPolicies.validateActionStart(current, planetName, sectorName, missionId);
             if(current.runningActions() >= current.maxActiveActions) return new RuntimePayloads.StartResult("", "", 0, "", "No free action slot");
             String sectorKey = SharedCampaignSectors.sectorKey(planetName, sectorName);
             SectorState sector = current.sectors.get(sectorKey);
@@ -214,6 +212,7 @@ public final class CampaignActionCommands{
             try{
                 committed = store.transact(memberId, "shared-campaign:start-existing-sector", state -> {
                     requireMember(state, memberId);
+                    planetPolicies.validateActionStart(state, planetName, sectorName, cleanMission);
                     if(state.runningActions() >= state.maxActiveActions) throw new IllegalStateException("No free action slot");
                     for(ActionState candidate : state.actions.values()) if(candidate.status.isLive() && planetName.equals(candidate.planetName) && sectorName.equals(candidate.sectorName)) throw new IllegalStateException("Sector already has a live Action");
                     ActionState action = new ActionState();
@@ -226,8 +225,10 @@ public final class CampaignActionCommands{
                     if(authoritative == null || authoritative.saveRelativePath == null || authoritative.saveRelativePath.isBlank()) throw new IllegalStateException("Sector save disappeared before Action commit");
                     action.summary = authoritative.summary == null ? new SectorSummary() : authoritative.summary.strategicCopy();
                     action.summary.planetName = planetName;
+                    planetPolicies.beforeActionCommit(state, action);
                     state.actions.put(actionId, action);
                     touchMember(state, memberId, actionId);
+                    planetPolicies.afterActionCommit(state, action);
                     if(finalMission != null){
                         for(ActionState candidate : state.actions.values()) if(candidate != action && candidate.status.isLive() && cleanMission.equals(candidate.missionId)) throw new IllegalStateException("Mission already has a live authoritative Action");
                         MissionState ms = state.missions.get(cleanMission, MissionState::new);
@@ -277,9 +278,10 @@ public final class CampaignActionCommands{
                     }
                 }
             }
+            String cleanMission = missionId == null ? "" : missionId.trim();
+            planetPolicies.validateActionStart(current, planetName, sectorName, cleanMission);
             if(current.runningActions() >= current.maxActiveActions) return new RuntimePayloads.StartResult("", "", 0, "", "No free action slot");
 
-            String cleanMission = missionId == null ? "" : missionId.trim();
             SharedCampaignMissionRegistry.MissionDefinition mission = requireMission(cleanMission, planetName, sectorName);
             SharedLaunchPlanner.PreparedLaunch launch = SharedLaunchPlanner.prepare(current, planetName, sectorName,
                 requestedLaunch == null ? RuntimePayloads.LaunchPlan.empty() : requestedLaunch);
@@ -328,6 +330,7 @@ public final class CampaignActionCommands{
             try{
                 store.transact(memberId, "shared-campaign:start-fresh-sector", state -> {
                     requireMember(state, memberId);
+                    planetPolicies.validateActionStart(state, planetName, sectorName, cleanMission);
                     if(state.runningActions() >= state.maxActiveActions) throw new IllegalStateException("No free action slot");
                     for(ActionState candidate : state.actions.values()){
                         if(candidate.status.isLive() && planetName.equals(candidate.planetName) && sectorName.equals(candidate.sectorName)) throw new IllegalStateException("Sector already has a live Action");
@@ -367,8 +370,10 @@ public final class CampaignActionCommands{
                     destinationState.summary.planetName = planetName;
                     action.summary = destinationState.summary.strategicCopy();
                     action.summary.planetName = planetName;
+                    planetPolicies.beforeActionCommit(state, action);
                     state.actions.put(actionId, action);
                     touchMember(state, memberId, actionId);
+                    planetPolicies.afterActionCommit(state, action);
                     if(finalMission != null){
                         MissionState ms = state.missions.get(cleanMission, MissionState::new);
                         ms.missionId = cleanMission; ms.planetName = planetName; ms.sectorName = sectorName; ms.attemptId = attemptId;
@@ -861,6 +866,7 @@ public final class CampaignActionCommands{
                 ResearchTransaction durable = state.researchTransactions.get(transaction.transactionId);
                 if(durable == null || durable.status != ResearchTransactionStatus.preparing) throw new IllegalStateException("Research transaction is no longer preparable");
                 validateResearch(state, target, node);
+                planetPolicies.beforeResearchCommit(state, researchPlanet, target.name);
                 ResearchState progress = state.research.get(target.name, ResearchState::new);
                 progress.contentName = target.name;
                 if(progress.startedAtRevision < 0) progress.startedAtRevision = state.revision + 1L;
@@ -894,6 +900,7 @@ public final class CampaignActionCommands{
                     for(TechTree.TechNode current = node; current != null; current = current.parent) state.researched.add(current.content.name);
                     SharedCampaignProgress.applyAutomaticUnlocks(state);
                 }
+                planetPolicies.afterResearchCommit(state, researchPlanet, target.name, progress.complete());
             });
             for(String actionId : preparedActions) decideResearch(actionId, transaction.transactionId, true, false);
             return committed;
