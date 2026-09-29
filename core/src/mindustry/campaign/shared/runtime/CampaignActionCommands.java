@@ -35,6 +35,9 @@ public final class CampaignActionCommands{
     /** Terminal live-origin decisions acknowledged during this coordinator lifetime. They remain durably idempotent
      * on the Action side, so a host restart intentionally clears this cache and replays once again. */
     private final Set<String> replayedLaunchDecisions = ConcurrentHashMap.newKeySet();
+    /** Terminal research decisions acknowledged during this coordinator lifetime. Restart intentionally clears this
+     * cache so durable committed/aborted decisions are replayed to Action-side reservation journals. */
+    private final Set<String> replayedResearchDecisions = ConcurrentHashMap.newKeySet();
 
     public CampaignActionCommands(SharedCampaignStore store, CoordinatorCredentials credentials,
                                   ActionRuntimeCoordinator runtimes, SharedActionEntryRouter entry,
@@ -103,6 +106,65 @@ public final class CampaignActionCommands{
             });
         }
         replayTerminalLiveLaunchDecisions(snapshot);
+    }
+
+    /**
+     * Reconciles research transactions after coordinator restart. PREPARING has no durable global commit decision, so
+     * it must fail closed. Every Action named by a live debit is conservatively treated as possibly prepared: Action
+     * reservation abort is idempotent, while omitting one can strand a durable debit forever.
+     */
+    public void reconcileResearchTransactions(){
+        SharedCampaignState snapshot = store.snapshot();
+        boolean needsMutation = snapshot.researchTransactions.values().toSeq().contains(tx -> tx.status == ResearchTransactionStatus.preparing);
+        if(needsMutation){
+            snapshot = store.transact("coordinator", "shared-campaign:reconcile-research-transactions", state -> {
+                for(ResearchTransaction tx : state.researchTransactions.values()){
+                    if(tx.status != ResearchTransactionStatus.preparing) continue;
+                    for(ResearchDebit debit : tx.debits.values()){
+                        if(debit.actionId != null && !debit.actionId.isBlank()) tx.preparedActions.add(debit.actionId);
+                    }
+                    tx.status = ResearchTransactionStatus.aborted;
+                    tx.updatedAt = Time.millis();
+                    tx.failureReason = "Coordinator restarted before research commit completed";
+                }
+            });
+        }
+        replayTerminalResearchDecisions(snapshot, null);
+    }
+
+    /** Replays terminal research decisions relevant to one Action after it reconnects. */
+    public void reconcileResearchTransactionsForAction(String actionId){
+        if(actionId == null || actionId.isBlank()) return;
+        replayTerminalResearchDecisions(store.snapshot(), actionId);
+    }
+
+    private void replayTerminalResearchDecisions(SharedCampaignState state, String onlyActionId){
+        for(ResearchTransaction tx : state.researchTransactions.values()){
+            if(tx.status != ResearchTransactionStatus.committed && tx.status != ResearchTransactionStatus.aborted) continue;
+            boolean commit = tx.status == ResearchTransactionStatus.committed;
+            for(String actionId : tx.preparedActions){
+                if(actionId == null || actionId.isBlank()) continue;
+                if(onlyActionId != null && !onlyActionId.equals(actionId)) continue;
+                String replayKey = tx.transactionId + "@" + actionId;
+                if(replayedResearchDecisions.contains(replayKey)) continue;
+                if(decideResearch(actionId, tx.transactionId, commit, false)) replayedResearchDecisions.add(replayKey);
+            }
+        }
+    }
+
+    /** Replays a durable suspend intent once the target Action has a control route again. */
+    public void reconcileSuspend(String actionId){
+        if(actionId == null || actionId.isBlank() || !runtimes.controlPlane().connected(actionId)) return;
+        ActionState action = store.snapshot().actions.get(actionId);
+        if(action == null || action.status != ActionStatus.suspending) return;
+        try{ requestSuspend(actionId); }
+        catch(Throwable error){ Log.warn("Shared Campaign suspend intent for Action @ remains pending: @", actionId, message(error)); }
+    }
+
+    /** Replays all currently routable durable suspend intents. */
+    public void reconcileSuspendingActions(){
+        SharedCampaignState snapshot = store.snapshot();
+        for(ActionState action : snapshot.actions.values()) if(action.status == ActionStatus.suspending) reconcileSuspend(action.actionId);
     }
 
     /** Replays terminal decisions sourced by one Action after it reconnects. */
@@ -795,6 +857,21 @@ public final class CampaignActionCommands{
 
     /** Durable owner-only suspend intent followed by a correlated Action-host request. */
     public SharedCampaignState suspend(String memberId, String actionId){
+        return suspend(memberId, actionId, 0L, null);
+    }
+
+    /** Campaign-client variant whose durable suspend intent and replay receipt commit atomically. */
+    public SharedCampaignState suspend(String memberId, String actionId, long requestId, byte[] requestPayload){
+        String payloadHash = requestId > 0L ? SharedCampaignCodec.sha256(requestPayload == null ? new byte[0] : requestPayload) : "";
+        if(requestId > 0L){
+            ControlRequestReceipt replay = store.controlRequestReceipt(memberId, requestId, ControlProtocol.Type.suspendActionRequest.name(), payloadHash, ControlProtocol.Type.suspendActionResponse.name());
+            if(replay != null){
+                SharedCampaignState replayState = store.snapshot();
+                ActionState replayAction = replayState.actions.get(actionId);
+                if(replayAction != null && replayAction.status == ActionStatus.suspending && runtimes.controlPlane().connected(actionId)) requestSuspend(actionId);
+                return replayState;
+            }
+        }
         SharedCampaignState snapshot = store.snapshot();
         requireOwner(snapshot, memberId);
         ActionState before = requireAction(snapshot, actionId);
@@ -807,14 +884,27 @@ public final class CampaignActionCommands{
         if(before.connectedPlayers > 0) throw new IllegalStateException("Action cannot suspend while players are present");
         if(!runtimes.controlPlane().connected(actionId)) throw new IllegalStateException("Action host is not connected");
 
-        SharedCampaignState committed = store.transact(memberId, "shared-campaign:suspend-action", state -> {
-            requireOwner(state, memberId);
-            ActionState action = requireAction(state, actionId);
-            if(action.status != ActionStatus.running) throw new IllegalStateException("Action is not running: " + action.status);
-            if(action.connectedPlayers > 0) throw new IllegalStateException("Action cannot suspend while players are present");
-            action.status = ActionStatus.suspending;
-            action.updatedAt = Time.millis();
-        });
+        SharedCampaignState committed;
+        if(requestId > 0L){
+            committed = store.transactControlRequest(memberId, "shared-campaign:suspend-action", memberId, requestId,
+                ControlProtocol.Type.suspendActionRequest.name(), payloadHash, ControlProtocol.Type.suspendActionResponse.name(), actionId, state -> {
+                    requireOwner(state, memberId);
+                    ActionState action = requireAction(state, actionId);
+                    if(action.status != ActionStatus.running) throw new IllegalStateException("Action is not running: " + action.status);
+                    if(action.connectedPlayers > 0) throw new IllegalStateException("Action cannot suspend while players are present");
+                    action.status = ActionStatus.suspending;
+                    action.updatedAt = Time.millis();
+                }).state();
+        }else{
+            committed = store.transact(memberId, "shared-campaign:suspend-action", state -> {
+                requireOwner(state, memberId);
+                ActionState action = requireAction(state, actionId);
+                if(action.status != ActionStatus.running) throw new IllegalStateException("Action is not running: " + action.status);
+                if(action.connectedPlayers > 0) throw new IllegalStateException("Action cannot suspend while players are present");
+                action.status = ActionStatus.suspending;
+                action.updatedAt = Time.millis();
+            });
+        }
         // The intent is authoritative even if transport fails after this point. A reconnecting Action can be asked again.
         requestSuspend(actionId);
         return committed;
@@ -828,11 +918,22 @@ public final class CampaignActionCommands{
     /** Contributes as many currently available shared-sector resources as possible toward one technology node. */
     public SharedCampaignState research(String memberId, String contentName, String planetName){
         synchronized(researchMutex){
-            return researchSerial(memberId, contentName, planetName);
+            return researchSerial(memberId, contentName, planetName, 0L, null);
         }
     }
 
-    private SharedCampaignState researchSerial(String memberId, String contentName, String planetName){
+    /** Campaign-client variant whose successful terminal research commit and replay receipt are one durable revision. */
+    public SharedCampaignState research(String memberId, String contentName, String planetName, long requestId, byte[] requestPayload){
+        synchronized(researchMutex){
+            return researchSerial(memberId, contentName, planetName, requestId, requestPayload);
+        }
+    }
+
+    private SharedCampaignState researchSerial(String memberId, String contentName, String planetName, long requestId, byte[] requestPayload){
+        String payloadHash = requestId > 0L ? SharedCampaignCodec.sha256(requestPayload == null ? new byte[0] : requestPayload) : "";
+        if(requestId > 0L && store.controlRequestReceipt(memberId, requestId, ControlProtocol.Type.researchRequest.name(), payloadHash, ControlProtocol.Type.researchResponse.name()) != null){
+            return store.snapshot();
+        }
         requireMember(memberId);
         UnlockableContent target = researchContent(contentName);
         TechTree.TechNode node = researchNode(target, planetName);
@@ -853,16 +954,21 @@ public final class CampaignActionCommands{
 
         ObjectMap<String, SectorSummary> preparedSummaries = new ObjectMap<>();
         ObjectSet<String> preparedActions = new ObjectSet<>();
+        ObjectSet<String> contactedActions = new ObjectSet<>();
         try{
             for(ResearchDebit debit : transaction.debits.values()){
                 if(debit.actionId.isBlank()) continue;
+                // From this point onward PREPARE delivery is uncertain until a correlated response proves otherwise.
+                // A coordinator timeout does not cancel work already queued on the Action game thread, so abort recovery
+                // must conservatively include every contacted Action, not only those that answered before the deadline.
+                contactedActions.add(debit.actionId);
                 RuntimePayloads.ResearchPrepareResult response = prepareLiveDebit(transaction.transactionId, debit);
                 if(!response.success()) throw new IllegalStateException(response.error().isBlank() ? "Live research reservation failed" : response.error());
                 preparedActions.add(debit.actionId);
                 if(response.summary() != null) preparedSummaries.put(debit.sectorName, response.summary());
             }
 
-            SharedCampaignState committed = store.transact(memberId, "shared-campaign:research-commit", state -> {
+            java.util.function.Consumer<SharedCampaignState> commitMutation = state -> {
                 ResearchTransaction durable = state.researchTransactions.get(transaction.transactionId);
                 if(durable == null || durable.status != ResearchTransactionStatus.preparing) throw new IllegalStateException("Research transaction is no longer preparable");
                 validateResearch(state, target, node);
@@ -901,7 +1007,14 @@ public final class CampaignActionCommands{
                     SharedCampaignProgress.applyAutomaticUnlocks(state);
                 }
                 planetPolicies.afterResearchCommit(state, researchPlanet, target.name, progress.complete());
-            });
+            };
+            SharedCampaignState committed;
+            if(requestId > 0L){
+                committed = store.transactControlRequest(memberId, "shared-campaign:research-commit", memberId, requestId,
+                    ControlProtocol.Type.researchRequest.name(), payloadHash, ControlProtocol.Type.researchResponse.name(), target.name, commitMutation).state();
+            }else{
+                committed = store.transact(memberId, "shared-campaign:research-commit", commitMutation);
+            }
             for(String actionId : preparedActions) decideResearch(actionId, transaction.transactionId, true, false);
             return committed;
         }catch(Throwable error){
@@ -910,11 +1023,11 @@ public final class CampaignActionCommands{
                 if(durable != null && durable.status == ResearchTransactionStatus.preparing){
                     durable.status = ResearchTransactionStatus.aborted;
                     durable.updatedAt = Time.millis();
-                    durable.preparedActions.addAll(preparedActions);
+                    durable.preparedActions.addAll(contactedActions);
                     durable.failureReason = message(error);
                 }
             });
-            for(String actionId : preparedActions) decideResearch(actionId, transaction.transactionId, false, false);
+            for(String actionId : contactedActions) decideResearch(actionId, transaction.transactionId, false, false);
             if(error instanceof RuntimeException runtime) throw runtime;
             throw new RuntimeException(error);
         }
@@ -922,7 +1035,16 @@ public final class CampaignActionCommands{
 
     /** Updates authoritative launch-pad destination metadata for one established base. */
     public SharedCampaignState updateSectorLogistics(String memberId, String sourceSector, String destinationSector){
+        return updateSectorLogistics(memberId, sourceSector, destinationSector, 0L, null);
+    }
+
+    /** Campaign-client variant whose target mutation and replay receipt commit atomically. */
+    public SharedCampaignState updateSectorLogistics(String memberId, String sourceSector, String destinationSector, long requestId, byte[] requestPayload){
         synchronized(logisticsMutex){
+            String payloadHash = requestId > 0L ? SharedCampaignCodec.sha256(requestPayload == null ? new byte[0] : requestPayload) : "";
+            if(requestId > 0L && store.controlRequestReceipt(memberId, requestId, ControlProtocol.Type.sectorLogisticsRequest.name(), payloadHash, ControlProtocol.Type.sectorLogisticsResponse.name()) != null){
+                return store.snapshot();
+            }
             requireMember(memberId);
             String sourceKey = sourceSector == null ? "" : sourceSector.trim();
             String destinationKey = destinationSector == null ? "" : destinationSector.trim();
@@ -937,7 +1059,7 @@ public final class CampaignActionCommands{
                 if(!Objects.equals(source.planetName, destination.planetName)) throw new IllegalArgumentException("Launch-pad logistics cannot cross planets");
             }
             ActionState live = before.actions.values().toSeq().find(action -> action.status == ActionStatus.running && sourceKey.equals(ActionAuthorityTransitions.sectorKey(action)));
-            SharedCampaignState committed = store.transact(memberId, "shared-campaign:sector-logistics-target", state -> {
+            java.util.function.Consumer<SharedCampaignState> logisticsMutation = state -> {
                 SectorState durable = state.sectors.get(sourceKey);
                 if(durable == null || !durable.hasBase) throw new IllegalStateException("Logistics source changed while updating its target");
                 if(!destinationKey.isBlank()){
@@ -947,7 +1069,14 @@ public final class CampaignActionCommands{
                 durable.destinationSector = destinationKey;
                 durable.summary.destinationSector = destinationKey;
                 durable.logisticsWarning = destinationKey.isBlank() ? "" : durable.legacyLaunchPads ? "" : "No active launch-pad export has been observed for this base";
-            });
+            };
+            SharedCampaignState committed;
+            if(requestId > 0L){
+                committed = store.transactControlRequest(memberId, "shared-campaign:sector-logistics-target", memberId, requestId,
+                    ControlProtocol.Type.sectorLogisticsRequest.name(), payloadHash, ControlProtocol.Type.sectorLogisticsResponse.name(), sourceKey, logisticsMutation).state();
+            }else{
+                committed = store.transact(memberId, "shared-campaign:sector-logistics-target", logisticsMutation);
+            }
             if(live != null && runtimes.controlPlane().connected(live.actionId)){
                 try{
                     runtimes.controlPlane().request(live.actionId, ControlProtocol.Type.actionLogisticsRequest,
@@ -1045,7 +1174,7 @@ public final class CampaignActionCommands{
     private RuntimePayloads.ResearchPrepareResult prepareLiveDebit(String transactionId, ResearchDebit debit){
         ControlProtocol.Frame frame = runtimes.controlPlane().request(debit.actionId, ControlProtocol.Type.researchPrepareRequest,
             RuntimePayloads.encode(new RuntimePayloads.ResearchPrepare(transactionId, debit.actionId, debit.items)),
-            ControlProtocol.Type.researchPrepareResponse, 45_000L);
+            ControlProtocol.Type.researchPrepareResponse, Math.max(1L, Long.getLong("mindustry.sharedCampaign.researchPrepareTimeoutMillis", 45_000L)));
         RuntimePayloads.ResearchPrepareResult result = RuntimePayloads.researchPrepareResult(frame.payload());
         if(!transactionId.equals(result.transactionId())) throw new SecurityException("Research reservation transaction mismatch");
         return result;

@@ -19,10 +19,12 @@ public final class SharedCampaignCoordinator implements Closeable{
     private final SharedActionEntryRouter entryRouter;
     private final ActionRuntimeCoordinator actionRuntimes;
     private final CampaignActionCommands actionCommands;
+    private final SharedCampaignTransportCoordinator transportCoordinator;
     private final CampaignClientControlPlane clientControl;
     private final SharedCampaignPlanetRegistry planetPolicies;
     private final SectorSuspensionService suspension;
     private final ScheduledExecutorService strategicMonitor;
+    private final ExecutorService reconciliationExecutor;
     private final AtomicBoolean running = new AtomicBoolean();
     private volatile long lastSettlementMillis;
     private static final long settlementIntervalMillis = Math.max(1_000L, Long.getLong("mindustry.sharedCampaign.settlementIntervalMs", 10_000L));
@@ -34,23 +36,36 @@ public final class SharedCampaignCoordinator implements Closeable{
         Objects.requireNonNull(owner, "owner");
         this.store = Objects.requireNonNull(store, "store");
         this.credentials = new CoordinatorCredentials(Objects.requireNonNull(credentialDirectory, "credentialDirectory"));
+        AtomicInteger recoveryIds = new AtomicInteger();
+        this.reconciliationExecutor = Executors.newSingleThreadExecutor(task -> {
+            Thread thread = new Thread(RuntimeContexts.capture(owner, task), "shared-campaign-reconcile-" + recoveryIds.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        });
         this.entryRouter = new SharedActionEntryRouter(credentials, new ActionRuntimeCoordinator.Listener(){
-            @Override public void snapshotCommitted(SharedCampaignState state){
-                CampaignActionCommands commands = actionCommands;
-                if(commands != null) commands.reconcileLaunchTransactions();
-            }
-            @Override public void actionBecameRunning(SharedCampaignState.ActionState action){
-                CampaignActionCommands commands = actionCommands;
-                if(commands != null){
-                    commands.reconcileLaunchTransactions();
-                    commands.reconcileLaunchTransactionsForSource(action.actionId);
-                }
-            }
+            @Override public void snapshotCommitted(SharedCampaignState state){ scheduleReconciliation(null); }
+            @Override public void routeAvailable(String actionId, int gamePort){ scheduleReconciliation(actionId); }
+            @Override public void actionBecameRunning(SharedCampaignState.ActionState action){ scheduleReconciliation(action.actionId); }
+            @Override public void actionStopped(SharedCampaignState.ActionState action){ scheduleReconciliation(action.actionId); }
         });
         this.actionRuntimes = new ActionRuntimeCoordinator(owner, store, credentials, actionRoot, advertisedHost,
             actionControlPort, modsSource, missions, planetPolicies, lossPolicy, runtimeFactory, entryRouter);
         this.actionCommands = new CampaignActionCommands(store, credentials, actionRuntimes, entryRouter, missions, planetPolicies);
+        this.transportCoordinator = new SharedCampaignTransportCoordinator(store, new SharedCampaignTransportCoordinator.ActionEndpoint(){
+            @Override public boolean connected(String actionId){ return actionRuntimes.controlPlane().connected(actionId); }
+            @Override public RuntimePayloads.TransportPrepareResult prepare(String actionId, RuntimePayloads.TransportPrepare request){
+                ControlProtocol.Frame frame = actionRuntimes.controlPlane().request(actionId, ControlProtocol.Type.transportPrepareRequest,
+                    RuntimePayloads.encode(request), ControlProtocol.Type.transportPrepareResponse, 30_000L);
+                return RuntimePayloads.transportPrepareResult(frame.payload());
+            }
+            @Override public RuntimePayloads.TransportDecisionResult decide(String actionId, RuntimePayloads.TransportDecision request){
+                ControlProtocol.Frame frame = actionRuntimes.controlPlane().request(actionId, ControlProtocol.Type.transportDecisionRequest,
+                    RuntimePayloads.encode(request), ControlProtocol.Type.transportDecisionResponse, 30_000L);
+                return RuntimePayloads.transportDecisionResult(frame.payload());
+            }
+        });
         this.actionRuntimes.controlPlane().vanillaTransferHandler(actionCommands::prepareVanillaTransfer);
+        this.actionRuntimes.controlPlane().transportDispatchHandler(transportCoordinator::dispatch);
         this.clientControl = new CampaignClientControlPlane(owner, store, credentials, actionCommands, planetPolicies, entryRouter, publicEntryPort);
         this.planetPolicies = Objects.requireNonNull(planetPolicies, "planetPolicies");
         if(!this.planetPolicies.sealed()) this.planetPolicies.seal();
@@ -69,6 +84,8 @@ public final class SharedCampaignCoordinator implements Closeable{
             planetPolicies.validateCampaign(store.snapshot());
             actionRuntimes.start();
             actionCommands.reconcileLaunchTransactions();
+            actionCommands.reconcileResearchTransactions();
+            actionCommands.reconcileSuspendingActions();
             clientControl.start();
             lastSettlementMillis = Time.millis();
             strategicMonitor.scheduleWithFixedDelay(this::settleSafely, settlementIntervalMillis, settlementIntervalMillis, TimeUnit.MILLISECONDS);
@@ -82,9 +99,39 @@ public final class SharedCampaignCoordinator implements Closeable{
     }
 
 
+
+    private void scheduleReconciliation(String actionId){
+        try{
+            reconciliationExecutor.execute(() -> {
+                if(!running.get() || !store.isOpen()) return;
+                try{
+                    CampaignActionCommands commands = actionCommands;
+                    if(commands != null && actionId != null && !actionId.isBlank()){
+                        // Route callbacks may run on the Action control reader. Keep request/response work off that
+                        // reader, and only replay already-terminal durable decisions here. Restart-only PREPARING
+                        // convergence runs synchronously once in start(); doing it on delayed callbacks could abort a
+                        // brand-new transaction that did not exist when the callback was queued.
+                        commands.reconcileLaunchTransactionsForSource(actionId);
+                        commands.reconcileResearchTransactionsForAction(actionId);
+                        commands.reconcileSuspend(actionId);
+                    }
+                    SharedCampaignTransportCoordinator transport = transportCoordinator;
+                    if(transport != null) transport.reconcile();
+                }catch(Throwable failure){
+                    if(running.get() && store.isOpen()) Log.err("Shared Campaign reconciliation failed", failure);
+                }
+            });
+        }catch(RejectedExecutionException ignored){
+            if(running.get()) throw ignored;
+        }
+    }
+
     /** Runs one coordinator-owned strategic tick. Package-visible for deterministic acceptance tests. */
     void settleNow(long elapsedCampaignTicks){
-        if(elapsedCampaignTicks <= 0L || !store.isOpen()) return;
+        if(!store.isOpen()) return;
+        // Live-side transport 2PC recovery is a control-plane concern, not campaign-time simulation.
+        transportCoordinator.reconcile();
+        if(elapsedCampaignTicks <= 0L) return;
         SharedCampaignState snapshot = store.strategicSnapshotIfOpen();
         if(snapshot == null) return;
         boolean anyPlayers = snapshot.actions.values().toSeq().contains(action -> action.connectedPlayers > 0);
@@ -117,9 +164,11 @@ public final class SharedCampaignCoordinator implements Closeable{
     @Override public synchronized void close(){
         if(!running.compareAndSet(true, false)) return;
         strategicMonitor.shutdownNow();
+        reconciliationExecutor.shutdownNow();
         try{ clientControl.close(); }finally{
             try{ actionRuntimes.close(); }finally{
                 try{ strategicMonitor.awaitTermination(5L, TimeUnit.SECONDS); }catch(InterruptedException interrupted){ Thread.currentThread().interrupt(); }
+                try{ reconciliationExecutor.awaitTermination(5L, TimeUnit.SECONDS); }catch(InterruptedException interrupted){ Thread.currentThread().interrupt(); }
             }
         }
     }

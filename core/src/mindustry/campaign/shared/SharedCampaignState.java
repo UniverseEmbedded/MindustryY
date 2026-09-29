@@ -128,6 +128,28 @@ public class SharedCampaignState{
         trimResearchTransactions(2048);
         trimTransportTransactions(2048, 256);
         trimLaunchTransactions(2048);
+        trimControlRequestReceipts(3072);
+    }
+
+    /**
+     * Bounds the durable retry window while retaining substantial headroom below the hard schema limit. Client
+     * request IDs are transport-retry identities rather than permanent operation IDs; keeping the newest completed
+     * revisions prevents normal reconnect/resend traffic from growing every future strategic snapshot without bound.
+     */
+    private void trimControlRequestReceipts(int retained){
+        if(controlRequestReceipts.size <= retained) return;
+        Seq<ControlRequestReceipt> completed = controlRequestReceipts.values().toSeq();
+        completed.sort((a, b) -> {
+            int revision = Long.compare(a.completedRevision, b.completedRevision);
+            if(revision != 0) return revision;
+            int time = Long.compare(a.completedAt, b.completedAt);
+            if(time != 0) return time;
+            return Long.compareUnsigned(a.requestId, b.requestId);
+        });
+        while(completed.size > retained){
+            ControlRequestReceipt oldest = completed.remove(0);
+            controlRequestReceipts.remove(oldest.key());
+        }
     }
 
     private void trimResearchTransactions(int retainedTerminal){

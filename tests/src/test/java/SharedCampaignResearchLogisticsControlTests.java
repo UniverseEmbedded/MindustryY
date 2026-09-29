@@ -53,6 +53,9 @@ public class SharedCampaignResearchLogisticsControlTests{
                 assertEquals(25, base.items.get(requirement.item.name, 0), "research should debit the exact vanilla requirement");
             }
             assertTrue(updated.researchTransactions.values().toSeq().contains(tx -> tx.contentName.equals(node.content.name) && tx.status == ResearchTransactionStatus.committed));
+            assertTrue(service.authority().state().controlRequestReceipts.values().toSeq().contains(receipt ->
+                ControlProtocol.Type.researchRequest.name().equals(receipt.requestType)),
+                "successful campaign-client research must atomically retain a replay receipt");
         }
     }
 
@@ -121,6 +124,9 @@ public class SharedCampaignResearchLogisticsControlTests{
             SharedCampaignState updated = service.controlClient().updateSectorLogistics(aKey, bKey);
             assertEquals(bKey, updated.sectors.get(aKey).destinationSector);
             assertEquals(bKey, updated.sectors.get(aKey).summary.destinationSector);
+            assertTrue(service.authority().state().controlRequestReceipts.values().toSeq().contains(receipt ->
+                ControlProtocol.Type.sectorLogisticsRequest.name().equals(receipt.requestType)),
+                "successful logistics mutation must atomically retain a replay receipt");
             assertThrows(java.io.IOException.class, () -> service.controlClient().updateSectorLogistics(aKey, foreignKey));
             SharedCampaignState afterReject = service.controlClient().snapshot();
             assertEquals(bKey, afterReject.sectors.get(aKey).destinationSector, "rejected cross-planet request must not change durable target");

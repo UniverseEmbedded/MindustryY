@@ -147,6 +147,9 @@ public final class SectorSuspensionService{
             if(order.status == TransportStatus.cancelled || order.status == TransportStatus.delivered) continue;
             SectorState source = state.sectors.get(order.sourceSector), destination = state.sectors.get(order.destinationSector);
             if(source == null || destination == null || destination.attacked) continue;
+            // A PREPARING/COMMITTED live-side reservation may already have changed the Action core even if that Action
+            // just disconnected. Never let suspended settlement race or duplicate an in-doubt 2PC credit.
+            if(hasActiveTransportTransaction(state, order.orderId)) continue;
             if(hasLiveAction(state, sectorKey(destination))) continue;
 
             if(order.status == TransportStatus.queued){
@@ -169,6 +172,12 @@ public final class SectorSuspensionService{
             }
         }
         trimDeliveredOrders(state);
+    }
+
+
+    private static boolean hasActiveTransportTransaction(SharedCampaignState state, String orderId){
+        return state.transportTransactions.values().toSeq().contains(transaction -> Objects.equals(orderId, transaction.orderId) &&
+            (transaction.status == TransportTransactionStatus.preparing || transaction.status == TransportTransactionStatus.committed));
     }
 
     private static int credit(SectorState sector, String itemName, int amount){

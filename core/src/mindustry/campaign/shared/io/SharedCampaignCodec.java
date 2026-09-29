@@ -228,7 +228,10 @@ public final class SharedCampaignCodec{
         writeSeq(out, s.transports, SharedCampaignCodec::writeTransport);
         writeSeq(out, s.recentEvents, SharedCampaignCodec::writeCampaignEvent);
         writeSeq(out, s.backups, SharedCampaignCodec::writeBackup);
-        writeMap(out, s.controlRequestReceipts, SharedCampaignCodec::writeString, SharedCampaignCodec::writeControlRequestReceipt);
+        // Coordinator request receipts are durable replay bookkeeping, not campaign-client or Action state.
+        // Keep the field in the wire schema for format compatibility, but strategic snapshots intentionally encode
+        // an empty map so thousands of retry identities are never broadcast on every state push.
+        writeMap(out, strategic ? new ObjectMap<>() : s.controlRequestReceipts, SharedCampaignCodec::writeString, SharedCampaignCodec::writeControlRequestReceipt);
     }
 
     private static SharedCampaignState readState(DataInput in, int format) throws IOException{

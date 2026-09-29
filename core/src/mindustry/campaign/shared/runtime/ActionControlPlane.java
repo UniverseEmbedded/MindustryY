@@ -33,6 +33,10 @@ public final class ActionControlPlane implements Closeable{
         RuntimePayloads.VanillaTransferResult prepare(String sourceActionId, RuntimePayloads.VanillaTransferRequest request);
     }
 
+    @FunctionalInterface public interface TransportDispatchHandler{
+        RuntimePayloads.TransportDispatchResult dispatch(String sourceActionId, RuntimePayloads.TransportDispatch request);
+    }
+
     public interface Listener{
         default void snapshotCommitted(SharedCampaignState state){}
         default void routeAvailable(String actionId, int gamePort){}
@@ -49,6 +53,7 @@ public final class ActionControlPlane implements Closeable{
     private final LossPolicy lossPolicy;
     private final Listener listener;
     private volatile VanillaTransferHandler vanillaTransferHandler;
+    private volatile TransportDispatchHandler transportDispatchHandler;
     private final int requestedPort;
     private final AtomicBoolean running = new AtomicBoolean();
     private final ConcurrentHashMap<String, ControlProtocol.Connection> actionConnections = new ConcurrentHashMap<>();
@@ -101,6 +106,7 @@ public final class ActionControlPlane implements Closeable{
     public boolean connected(String actionId){ return actionConnections.containsKey(actionId); }
 
     public void vanillaTransferHandler(VanillaTransferHandler handler){ this.vanillaTransferHandler = handler; }
+    public void transportDispatchHandler(TransportDispatchHandler handler){ this.transportDispatchHandler = handler; }
 
     /** Correlated coordinator→Action request used by suspend/research/transport orchestration. */
     public ControlProtocol.Frame request(String actionId, ControlProtocol.Type requestType, byte[] payload,
@@ -185,6 +191,11 @@ public final class ActionControlPlane implements Closeable{
         if(frame.requestId() != 0L && isResponse(frame.type())){
             CompletableFuture<ControlProtocol.Frame> future = pending.get(pendingKey(identity, frame.requestId()));
             if(future != null){ future.complete(frame); return; }
+            // A coordinator request may time out while the Action is still completing durable game-thread work. Once
+            // its pending future is gone, that correlated response is stale; it must never fall through and be parsed
+            // as a new Action->coordinator request (which would manufacture a second protocol error).
+            Log.warn("Dropping late Action control response @ from @ (request @)", frame.type(), identity, frame.requestId());
+            return;
         }
         try{
             switch(frame.type()){
@@ -201,6 +212,14 @@ public final class ActionControlPlane implements Closeable{
                     if(!identity.equals(request.fromActionId())) throw new SecurityException("Vanilla transfer source Action mismatch");
                     RuntimePayloads.VanillaTransferResult result = handler.prepare(identity, request);
                     connection.send(ControlProtocol.Type.vanillaTransferResponse, frame.requestId(), RuntimePayloads.encode(result));
+                }
+                case transportDispatchRequest -> {
+                    TransportDispatchHandler handler = transportDispatchHandler;
+                    if(handler == null) throw new IllegalStateException("Shared Campaign transport dispatch handler is unavailable");
+                    RuntimePayloads.TransportDispatch request = RuntimePayloads.transportDispatch(frame.payload());
+                    if(!identity.equals(request.actionId())) throw new SecurityException("Transport dispatch source Action mismatch");
+                    RuntimePayloads.TransportDispatchResult result = handler.dispatch(identity, request);
+                    connection.send(ControlProtocol.Type.transportDispatchResponse, frame.requestId(), RuntimePayloads.encode(result));
                 }
                 case ping -> {
                     renewStartingLease(identity);

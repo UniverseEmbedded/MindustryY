@@ -64,6 +64,13 @@ public class SharedCampaignStore implements Closeable{
     public record Commit(SharedCampaignState state, long fromRevision, long toRevision, String actor, String mutationType){}
 
     /**
+     * Result of a mutation protected by a durable campaign-client request receipt. A replay returns the current
+     * authoritative state without advancing the campaign revision; a first execution commits the business mutation
+     * and its receipt in the same snapshot write.
+     */
+    public record ControlRequestCommit(SharedCampaignState state, SharedCampaignState.ControlRequestReceipt receipt, boolean replayed){}
+
+    /**
      * Application-level durable I/O counters for telemetry. Counts only bytes this store intentionally wrote (or
      * intended to write for backup materialization) plus explicit force/fsync barriers — not unrelated process I/O.
      */
@@ -382,6 +389,117 @@ public class SharedCampaignStore implements Closeable{
             Log.err("Shared campaign commit observer failed after revision " + committed.toRevision(), error);
         }
         return callerResult;
+    }
+
+    /** Returns a validated durable replay receipt without creating one. */
+    public SharedCampaignState.ControlRequestReceipt controlRequestReceipt(String memberId, long requestId, String requestType, String payloadHash, String responseType){
+        if(memberId == null || memberId.isBlank() || requestId <= 0L) return null;
+        rw.readLock().lock();
+        try{
+            ensureOpen();
+            SharedCampaignState.ControlRequestReceipt existing = state.controlRequestReceipts.get(SharedCampaignState.ControlRequestReceipt.durableKey(memberId, requestId));
+            if(existing == null) return null;
+            if(!memberId.equals(existing.memberId) || !requestType.equals(existing.requestType) || !payloadHash.equals(existing.payloadHash) || !responseType.equals(existing.responseType)){
+                throw new IllegalStateException("Control request ID " + Long.toUnsignedString(requestId) + " was already used for a different request");
+            }
+            SharedCampaignState copy = SharedCampaignStateCopy.copy(state);
+            return copy.controlRequestReceipts.get(existing.key());
+        }finally{
+            rw.readLock().unlock();
+        }
+    }
+
+    /**
+     * Executes a campaign-client mutation exactly once for a durable {@code (memberId, requestId)} identity.
+     *
+     * <p>The receipt is part of the same {@link SharedCampaignState} snapshot as the protected mutation. This is
+     * deliberately implemented inside the store write lock rather than as a control-plane preflight: two concurrent
+     * deliveries of the same request must not both pass a read-before-write check, and a crash must never leave a
+     * committed mutation without its replay identity.</p>
+     */
+    public ControlRequestCommit transactControlRequest(String actor, String type, String memberId, long requestId,
+                                                        String requestType, String payloadHash, String responseType,
+                                                        String resultReference, Consumer<SharedCampaignState> mutation){
+        Objects.requireNonNull(mutation, "mutation");
+        if(memberId == null || memberId.isBlank()) throw new IllegalArgumentException("Control request member is required");
+        if(requestId <= 0L) throw new IllegalArgumentException("Control request ID must be positive");
+        if(requestType == null || requestType.isBlank()) throw new IllegalArgumentException("Control request type is required");
+        if(payloadHash == null || payloadHash.length() != 64) throw new IllegalArgumentException("Control request payload hash is invalid");
+        if(responseType == null || responseType.isBlank()) throw new IllegalArgumentException("Control request response type is required");
+
+        enterMutationAdmission();
+        Commit committed = null;
+        ControlRequestCommit result;
+        try{
+            rw.writeLock().lock();
+            try{
+                ensureOpen();
+                String receiptKey = SharedCampaignState.ControlRequestReceipt.durableKey(memberId, requestId);
+                SharedCampaignState.ControlRequestReceipt existing = state.controlRequestReceipts.get(receiptKey);
+                if(existing != null){
+                    if(!memberId.equals(existing.memberId)
+                        || !requestType.equals(existing.requestType)
+                        || !payloadHash.equals(existing.payloadHash)
+                        || !responseType.equals(existing.responseType)){
+                        throw new IllegalStateException("Control request ID " + Long.toUnsignedString(requestId)
+                            + " was already used for a different request");
+                    }
+                    SharedCampaignState replayState = SharedCampaignStateCopy.copy(state);
+                    SharedCampaignState.ControlRequestReceipt replayReceipt = replayState.controlRequestReceipts.get(receiptKey);
+                    result = new ControlRequestCommit(replayState, replayReceipt, true);
+                }else{
+                    SharedCampaignState next = SharedCampaignStateCopy.copy(state);
+                    long expected = next.revision;
+                    mutation.accept(next);
+                    if(next.revision != expected) throw new IllegalStateException("Mutations must not directly change campaign revision");
+
+                    SharedCampaignState.ControlRequestReceipt receipt = new SharedCampaignState.ControlRequestReceipt();
+                    receipt.memberId = memberId;
+                    receipt.requestId = requestId;
+                    receipt.requestType = requestType;
+                    receipt.payloadHash = payloadHash;
+                    receipt.responseType = responseType;
+                    receipt.resultReference = resultReference == null ? "" : resultReference;
+                    receipt.completedRevision = expected + 1L;
+                    receipt.completedAt = Time.millis();
+                    next.controlRequestReceipts.put(receipt.key(), receipt);
+
+                    next.compactTerminalTransactionHistory();
+                    next.revision = expected + 1L;
+                    next.updatedAt = receipt.completedAt;
+                    next.validate();
+                    String previousHash = openedSnapshotHash.isBlank() ? SharedCampaignCodec.sha256(state) : openedSnapshotHash;
+                    String snapshotHash = writeSnapshotAtomically(next);
+                    state = next;
+                    openedSnapshotHash = snapshotHash;
+                    coalescedPending = false;
+                    coalescedSinceMillis = 0L;
+                    truncateWalFile();
+                    ioCounters.transactCount++;
+                    try{
+                        appendJournal(expected, next.revision, actor, type, snapshotHash, previousHash);
+                    }catch(RuntimeException error){
+                        Log.err("Shared campaign revision " + next.revision + " was committed, but its audit record could not be written", error);
+                    }
+                    SharedCampaignState listenerState = SharedCampaignStateCopy.strategicCopy(next);
+                    SharedCampaignState callerState = SharedCampaignStateCopy.copy(next);
+                    committed = new Commit(listenerState, expected, next.revision, actor == null ? "" : actor, type == null ? "" : type);
+                    result = new ControlRequestCommit(callerState, callerState.controlRequestReceipts.get(receiptKey), false);
+                }
+            }finally{
+                rw.writeLock().unlock();
+            }
+        }finally{
+            exitMutationAdmission();
+        }
+        if(committed != null){
+            try{
+                commitListener.accept(committed);
+            }catch(Throwable error){
+                Log.err("Shared campaign commit observer failed after revision " + committed.toRevision(), error);
+            }
+        }
+        return result;
     }
 
     /**

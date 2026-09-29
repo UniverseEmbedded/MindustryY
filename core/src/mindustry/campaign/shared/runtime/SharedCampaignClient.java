@@ -40,6 +40,11 @@ public class SharedCampaignClient implements Closeable{
 
     private record PendingRequest(ControlProtocol.Connection transport, CompletableFuture<ControlProtocol.Frame> future){}
 
+    /** Server-declared business failure: the transport is healthy and the mutation must not be retried automatically. */
+    private static final class RemoteRequestException extends IOException{
+        RemoteRequestException(String message){ super(message); }
+    }
+
     /** Durable identity material issued by the coordinator after invite-authenticated enrollment. */
     public record Credential(String memberId, String secret){
         public Credential{
@@ -246,7 +251,7 @@ public class SharedCampaignClient implements Closeable{
             try{
                 transport.send(requestType, requestId, payload);
                 ControlProtocol.Frame frame = future.get(Math.max(1L, timeoutMillis), TimeUnit.MILLISECONDS);
-                if(frame.type() == ControlProtocol.Type.error) throw new IOException(RuntimePayloads.decodeString(frame.payload()));
+                if(frame.type() == ControlProtocol.Type.error) throw new RemoteRequestException(RuntimePayloads.decodeString(frame.payload()));
                 if(frame.type() != responseType) throw new IOException("Expected " + responseType + ", got " + frame.type());
                 return frame;
             }catch(InterruptedException error){
@@ -258,6 +263,10 @@ public class SharedCampaignClient implements Closeable{
                 Throwable cause = error.getCause();
                 last = cause instanceof IOException io ? io : new IOException("Shared campaign control request failed", cause);
                 invalidateTransport(transport);
+            }catch(RemoteRequestException error){
+                // The coordinator successfully received and rejected this business request. Retrying the same mutation
+                // can turn a compensated failure into a later success and is never a transport-recovery operation.
+                throw error;
             }catch(IOException error){
                 last = error;
                 invalidateTransport(transport);

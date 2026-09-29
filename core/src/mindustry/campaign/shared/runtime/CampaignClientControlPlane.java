@@ -233,7 +233,7 @@ public final class CampaignClientControlPlane implements Closeable{
                     connection.send(ControlProtocol.Type.joinActionResponse, frame.requestId(), RuntimePayloads.encode(commands.join(memberId, request.actionId(), request.spectator(), request.networkUuid())));
                 }
                 case suspendActionRequest -> {
-                    commands.suspend(memberId, RuntimePayloads.decodeString(frame.payload()));
+                    commands.suspend(memberId, RuntimePayloads.decodeString(frame.payload()), frame.requestId(), frame.payload());
                     connection.send(ControlProtocol.Type.suspendActionResponse, frame.requestId(), new byte[0]);
                 }
                 case hotSwitchRequest -> connection.send(ControlProtocol.Type.hotSwitchResponse, frame.requestId(), RuntimePayloads.encode(commands.beginHotSwitch(memberId, RuntimePayloads.hotSwitchRequest(frame.payload()))));
@@ -241,7 +241,7 @@ public final class CampaignClientControlPlane implements Closeable{
                 case hotSwitchAbortRequest -> connection.send(ControlProtocol.Type.hotSwitchAbortResponse, frame.requestId(), RuntimePayloads.encodeBoolean(commands.abortHotSwitch(memberId, RuntimePayloads.decodeString(frame.payload()))));
                 case campaignSettingsRequest -> {
                     RuntimePayloads.CampaignSettings request = RuntimePayloads.campaignSettings(frame.payload());
-                    SharedCampaignState updated = updateSettings(memberId, request);
+                    SharedCampaignState updated = updateSettings(memberId, frame.requestId(), frame.payload(), request);
                     connection.send(ControlProtocol.Type.campaignSettingsResponse, frame.requestId(), SharedCampaignCodec.encodeStrategic(updated));
                 }
                 case inviteCodeRequest -> connection.send(ControlProtocol.Type.inviteCodeResponse, frame.requestId(), RuntimePayloads.encodeString(inviteCode(memberId)));
@@ -252,12 +252,12 @@ public final class CampaignClientControlPlane implements Closeable{
                 }
                 case researchRequest -> {
                     RuntimePayloads.ResearchRequest request = RuntimePayloads.researchRequest(frame.payload());
-                    SharedCampaignState updated = commands.research(memberId, request.contentName(), request.planetName());
+                    SharedCampaignState updated = commands.research(memberId, request.contentName(), request.planetName(), frame.requestId(), frame.payload());
                     connection.send(ControlProtocol.Type.researchResponse, frame.requestId(), SharedCampaignCodec.encodeStrategic(updated));
                 }
                 case sectorLogisticsRequest -> {
                     RuntimePayloads.SectorLogistics request = RuntimePayloads.sectorLogistics(frame.payload());
-                    SharedCampaignState updated = commands.updateSectorLogistics(memberId, request.sourceSector(), request.destinationSector());
+                    SharedCampaignState updated = commands.updateSectorLogistics(memberId, request.sourceSector(), request.destinationSector(), frame.requestId(), frame.payload());
                     connection.send(ControlProtocol.Type.sectorLogisticsResponse, frame.requestId(), SharedCampaignCodec.encodeStrategic(updated));
                 }
                 case ping -> connection.send(ControlProtocol.Type.pong, frame.requestId(), frame.payload());
@@ -266,7 +266,7 @@ public final class CampaignClientControlPlane implements Closeable{
         }catch(Exception error){ connection.send(ControlProtocol.Type.error, frame.requestId(), RuntimePayloads.encodeString(error.getMessage() == null ? error.toString() : error.getMessage())); }
     }
 
-    private SharedCampaignState updateSettings(String memberId, RuntimePayloads.CampaignSettings request){
+    private SharedCampaignState updateSettings(String memberId, long requestId, byte[] payload, RuntimePayloads.CampaignSettings request){
         requireActiveMember(memberId);
         if(request.invitePolicy() == null) throw new IllegalArgumentException("Invite policy is required");
         if(request.persistenceProfile() == null) throw new IllegalArgumentException("Persistence profile is required");
@@ -275,7 +275,9 @@ public final class CampaignClientControlPlane implements Closeable{
         boolean requestedMultiFront = request.multiFrontEnabled() && primaryPolicy.supportsMultipleActions();
         int requestedMax = requestedMultiFront ? request.maxActiveActions() : 1;
         if(requestedMax < 1 || requestedMax > 32) throw new IllegalArgumentException("Maximum active actions must be between 1 and 32");
-        SharedCampaignState updated = store.transact(memberId, "shared-campaign:update-settings", state -> {
+        SharedCampaignStore.ControlRequestCommit commit = store.transactControlRequest(memberId, "shared-campaign:update-settings",
+            memberId, requestId, ControlProtocol.Type.campaignSettingsRequest.name(), SharedCampaignCodec.sha256(payload),
+            ControlProtocol.Type.campaignSettingsResponse.name(), "", state -> {
             if(!memberId.equals(state.ownerId)) throw new SecurityException("Only the campaign owner may change settings");
             planetPolicies.validateSettings(state, requestedMultiFront, requestedMax);
             state.maxActiveActions = requestedMax;
@@ -284,10 +286,11 @@ public final class CampaignClientControlPlane implements Closeable{
             state.invitePolicy = request.invitePolicy();
             state.persistenceProfile = request.persistenceProfile();
         });
+        SharedCampaignState updated = commit.state();
         // Settings are authority state, but persistence policy also changes the autosave cadence of already-running
         // Action worlds. Push the exact committed revision to every connected Action before reporting success so a
         // Desktop settings change cannot claim "traditional" while old child JVMs keep fsyncing every minute.
-        commands.synchronizeConnectedActionSnapshots(updated.revision);
+        if(!commit.replayed()) commands.synchronizeConnectedActionSnapshots(updated.revision);
         return updated;
     }
 

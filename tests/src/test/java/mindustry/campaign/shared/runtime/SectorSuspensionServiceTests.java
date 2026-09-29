@@ -137,6 +137,42 @@ class SectorSuspensionServiceTests{
     }
 
     @Test
+    void suspendedDeliveryDoesNotRaceAnInDoubtLiveTransportTransaction(){
+        SharedCampaignState state = state();
+        SectorState source = sector(state, "tx-source");
+        SectorState destination = sector(state, "tx-destination");
+        source.summary.storageCapacity = 100;
+        destination.summary.storageCapacity = 100;
+
+        TransportOrder order = new TransportOrder();
+        order.orderId = "tx-order";
+        order.sourceSector = key(source);
+        order.destinationSector = key(destination);
+        order.itemName = "silicon";
+        order.amount = order.loaded = 20;
+        order.createdAt = 1L;
+        order.etaCampaignTick = 0L;
+        order.status = TransportStatus.inTransit;
+        state.transports.add(order);
+
+        TransportTransaction transaction = new TransportTransaction();
+        transaction.transactionId = "tx-live-credit";
+        transaction.orderId = order.orderId;
+        transaction.actionId = "destination-action";
+        transaction.itemName = order.itemName;
+        transaction.requested = order.amount;
+        transaction.status = TransportTransactionStatus.preparing;
+        transaction.createdAt = transaction.updatedAt = 1L;
+        state.transportTransactions.put(transaction.transactionId, transaction);
+
+        service.advance(state, 1L);
+
+        assertEquals(0, destination.items.get("silicon", 0), "suspension must not duplicate an in-doubt Action-side credit");
+        assertEquals(0, order.delivered);
+        assertEquals(TransportStatus.inTransit, order.status);
+    }
+
+    @Test
     void legacyLaunchPadCreditsSamePlanetWithoutDoubleDebitingMeasuredSource(){
         SharedCampaignState state = state();
         SectorState source = sector(state, "legacy-source");
