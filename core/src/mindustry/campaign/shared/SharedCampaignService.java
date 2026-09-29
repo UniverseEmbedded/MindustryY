@@ -13,6 +13,7 @@ import mindustry.runtime.*;
 import java.io.*;
 import java.nio.*;
 import java.nio.channels.*;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
@@ -128,6 +129,7 @@ public final class SharedCampaignService implements Closeable, SharedCampaignApi
         SharedCampaignCreationOptions creation = validateCreation(options);
         if(creation.origin == SharedCampaignState.CampaignOrigin.backupRestore){
             SharedCampaignBackupService.restoreArchive(creation.source, directory);
+            reconcileColdRestoredActions(directory);
             SharedCampaignState restored = readRestoredSnapshot(directory);
             if(restored.authorityHostId == null || restored.authorityHostId.isBlank())
                 throw new SecurityException("Restored Shared Campaign has no durable authority host identity");
@@ -171,6 +173,40 @@ public final class SharedCampaignService implements Closeable, SharedCampaignApi
             markLastOpened(destination);
             return SharedCampaignStateCopy.copy(state);
         }catch(Throwable failure){ imported.close(); throw failure; }
+    }
+
+    /**
+     * A restore archive can contain the durable state of a RUNNING/STARTING Action, but it cannot contain the live
+     * process that owned that lease. Reopening such a snapshot as still-live advertises a phantom endpoint until the
+     * old heartbeat lease expires. Convert every archived live Action with a valid forced-save image into a cold
+     * suspended Action before starting the restored authority. Ordinary authority restart intentionally does not use
+     * this path, because a surviving child process may legitimately reconnect there.
+     */
+    private static void reconcileColdRestoredActions(Fi directory){
+        try(SharedCampaignStore store = new SharedCampaignStore(directory)){
+            store.open();
+            SharedCampaignState snapshot = store.snapshot();
+            LinkedHashMap<String, String> hashes = new LinkedHashMap<>();
+            Path root = directory.file().toPath().toAbsolutePath().normalize();
+            for(SharedCampaignState.ActionState action : snapshot.actions.values()){
+                if(!action.status.isLive()) continue;
+                if(action.saveRelativePath == null || action.saveRelativePath.isBlank())
+                    throw new IllegalStateException("Restored live Action has no save path: " + action.actionId);
+                Path savePath = root.resolve(action.saveRelativePath).normalize();
+                if(!savePath.startsWith(root)) throw new SecurityException("Restored Action save escapes campaign directory: " + action.saveRelativePath);
+                Fi save = new Fi(savePath.toFile());
+                if(!save.exists() || save.length() <= 0L)
+                    throw new IllegalStateException("Restored live Action has no durable save: " + action.actionId);
+                hashes.put(action.actionId, SharedFileDigests.sha256(save));
+            }
+            if(hashes.isEmpty()) return;
+            String actor = snapshot.authorityHostId == null || snapshot.authorityHostId.isBlank() ? "authority" : snapshot.authorityHostId;
+            store.transact(actor, "shared-campaign:restore-cold-actions", state -> {
+                long now = System.currentTimeMillis();
+                for(Map.Entry<String, String> entry : hashes.entrySet())
+                    ActionAuthorityTransitions.recoverSuspended(state, entry.getKey(), entry.getValue(), "Restored from backup", now);
+            });
+        }
     }
 
     /** Sidecar marker for the local campaign list; never part of the durable snapshot schema. */

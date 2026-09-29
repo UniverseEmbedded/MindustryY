@@ -456,9 +456,13 @@ public final class ActionRuntimeCoordinator implements Closeable, ActionControlP
     @Override public synchronized void close(){
         if(!running.compareAndSet(true, false)) return;
         monitor.shutdownNow();
-        controlPlane.close();
+        // Stop Action agents/processes while the control plane is still available. Closing the coordinator socket first
+        // makes healthy agents interpret an intentional shutdown as a control failure and enter their reconnect loop.
+        // Runtime shutdown does not require new coordinator mutations, while an orderly agent close does need its
+        // existing connection to remain valid until the runtime has begun terminating.
         for(SectorRuntime runtime : runtimes.values()) try{ runtime.close(); }catch(Throwable ignored){}
         runtimes.clear();
+        controlPlane.close();
     }
 
     public record RuntimeStart(String actionId, String host, int port, long runtimeIncarnation, SectorRuntime.Backend backend,

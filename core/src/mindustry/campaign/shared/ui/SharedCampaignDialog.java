@@ -222,7 +222,7 @@ public class SharedCampaignDialog extends BaseDialog{
                 }
             }).growX().left().row();
             summary.add(Core.bundle.format("sharedcampaign.progresssummary", state.researched.size, state.discovered.size, preparingCount, waitingCount))
-                .color(Pal.gray).wrap().left().growX().row();
+                .color(Pal.gray).wrap().left().growX().maxWidth(Math.max(220f, contentWidth() - 55f)).row();
         }).growX().padBottom(6f).row();
 
         pane.table(Styles.black5, membersTable -> {
@@ -280,13 +280,15 @@ public class SharedCampaignDialog extends BaseDialog{
                 int first = Math.max(0, state.recentEvents.size - 6);
                 for(int i = first; i < state.recentEvents.size; i++){
                     CampaignEvent event = state.recentEvents.get(i);
-                    recent.add(new Date(event.timestamp).toString() + "  " + event.type + (event.subjectId == null || event.subjectId.isBlank() ? "" : " — " + event.subjectId))
-                        .color(Pal.gray).wrap().left().growX().row();
+                    String subject = event.subjectId == null || event.subjectId.isBlank() ? "" : " — " + compactSubject(event.subjectId);
+                    Label eventLine = new Label(compactTimestamp(event.timestamp) + "  " + event.type + subject);
+                    eventLine.setWrap(true);
+                    recent.add(eventLine).color(Pal.gray).wrap().left().growX().maxWidth(Math.max(220f, contentWidth() - 55f)).row();
                 }
                 if(!state.backups.isEmpty()){
                     BackupState latest = state.backups.max(Comparator.comparingLong(value -> value.createdAt));
-                    if(latest != null) recent.add(Core.bundle.format("sharedcampaign.latestbackup", latest.displayName, new Date(latest.createdAt).toString(), latest.complete ? Core.bundle.get("complete") : Core.bundle.get("sharedcampaign.incomplete")))
-                        .color(Pal.gray).wrap().left().growX().row();
+                    if(latest != null) recent.add(Core.bundle.format("sharedcampaign.latestbackup", latest.displayName, compactTimestamp(latest.createdAt), latest.complete ? Core.bundle.get("complete") : Core.bundle.get("sharedcampaign.incomplete")))
+                        .color(Pal.gray).wrap().left().growX().maxWidth(Math.max(220f, contentWidth() - 55f)).row();
                 }
             }).growX().padBottom(6f).row();
         }
@@ -359,6 +361,17 @@ public class SharedCampaignDialog extends BaseDialog{
         dialog.show();
     }
 
+
+    private String compactTimestamp(long timestamp){
+        return new java.text.SimpleDateFormat("MM-dd HH:mm").format(new Date(timestamp));
+    }
+
+    private String compactSubject(String subject){
+        if(subject == null || subject.length() <= 24) return subject == null ? "" : subject;
+        // UUID/action/member identifiers dominate narrow lobby rows; keep them recognizable without widening the card.
+        return subject.substring(0, 12) + "…";
+    }
+
     private String phaseLabel(String phase){
         if(phase == null || phase.isBlank()) return Core.bundle.get("none");
         return Core.bundle.get("sharedcampaign.phase." + phase, phase);
@@ -378,6 +391,7 @@ public class SharedCampaignDialog extends BaseDialog{
             list.add("@sharedcampaign.actions.empty").color(Pal.gray).left().row();
             return;
         }
+        boolean compactCards = Core.graphics != null && Core.graphics.isPortrait() || sceneWidth() < 760f;
         for(ActionState action : actions){
             list.table(Styles.black5, card -> {
                 card.left();
@@ -388,16 +402,20 @@ public class SharedCampaignDialog extends BaseDialog{
                     labels.add("  " + actionStatusLabel(action.status)).color(actionStatusColor(action.status)).left().row();
                     labels.add(Core.bundle.format("sharedcampaign.actionmeta", action.connectedPlayers, action.summary.wave, phaseLabel(action.summary.phase))).color(Pal.gray).left();
                     if(action.connectedSpectators > 0) labels.add("  " + Core.bundle.format("sharedcampaign.spectatorcount", action.connectedSpectators)).color(Pal.gray).left();
-                }).growX();
-                card.button(Icon.info, () -> showActionDetails(action)).size(46f).name("sharedCampaign.action.details." + safeName(action.actionId));
-                if(action.status.isLive()){
-                    card.button("@sharedcampaign.join", Icon.play, () -> joinAction(action.actionId, false)).height(46f).minWidth(96f).name("sharedCampaign.action.join." + safeName(action.actionId));
-                    if(action.spectatorsAllowed) card.button("@sharedcampaign.spectate", Icon.eye, () -> joinAction(action.actionId, true)).height(46f).name("sharedCampaign.action.spectate." + safeName(action.actionId));
-                    if(owner && action.connectedPlayers == 0) card.button(Icon.pause, () -> suspendAction(action.actionId)).size(46f).tooltip("@sharedcampaign.suspend")
-                        .name("sharedCampaign.action.suspend." + safeName(action.actionId));
-                }else if(action.status == ActionStatus.suspended){
-                    card.button("@sharedcampaign.resume", Icon.play, () -> resumeAction(action)).height(46f).minWidth(110f).name("sharedCampaign.action.resume." + safeName(action.actionId));
-                }
+                }).growX().left();
+                if(compactCards) card.row();
+                card.table(actionsTable -> {
+                    actionsTable.right();
+                    actionsTable.button(Icon.info, () -> showActionDetails(action)).size(46f).name("sharedCampaign.action.details." + safeName(action.actionId));
+                    if(action.status.isLive()){
+                        actionsTable.button("@sharedcampaign.join", Icon.play, () -> joinAction(action.actionId, false)).height(46f).minWidth(96f).name("sharedCampaign.action.join." + safeName(action.actionId));
+                        if(action.spectatorsAllowed) actionsTable.button("@sharedcampaign.spectate", Icon.eye, () -> joinAction(action.actionId, true)).height(46f).name("sharedCampaign.action.spectate." + safeName(action.actionId));
+                        if(owner && action.connectedPlayers == 0) actionsTable.button(Icon.pause, () -> suspendAction(action.actionId)).size(46f).tooltip("@sharedcampaign.suspend")
+                            .name("sharedCampaign.action.suspend." + safeName(action.actionId));
+                    }else if(action.status == ActionStatus.suspended){
+                        actionsTable.button("@sharedcampaign.resume", Icon.play, () -> resumeAction(action)).height(46f).minWidth(110f).name("sharedCampaign.action.resume." + safeName(action.actionId));
+                    }
+                }).growX().align(compactCards ? Align.left : Align.right);
             }).growX().pad(4f).row();
         }
     }

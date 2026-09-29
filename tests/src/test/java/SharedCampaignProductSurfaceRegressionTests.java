@@ -202,6 +202,11 @@ public class SharedCampaignProductSurfaceRegressionTests{
         assertTrue(dialog.contains("SharedCampaignProgress.currentMemberAction(state, member.memberId, true)"),
             "Member presence belongs inline in the lobby instead of being hidden behind a management-only button");
         assertTrue(dialog.contains("sharedcampaign.actionmeta"));
+        assertTrue(dialog.contains("boolean compactCards"),
+            "Action cards must move controls to a second row on narrow/portrait layouts instead of clipping the right edge");
+        assertTrue(dialog.contains("compactTimestamp(event.timestamp)"));
+        assertTrue(dialog.contains("compactSubject(event.subjectId)"),
+            "Recent activity must not let UUID-like subjects force the lobby wider than the viewport");
         assertTrue(dialog.contains("maxWidth(contentWidth())"));
         assertTrue(dialog.contains("dialog.cont.pane(form).growX().maxWidth(Math.min(620f, contentWidth()))"),
             "Create flow must clamp to live scene width rather than the old fixed 420/560/620px form");

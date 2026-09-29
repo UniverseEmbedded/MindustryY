@@ -66,6 +66,44 @@ public class SharedCampaignLiveBackupTests{
         }
     }
 
+    @Test
+    @Timeout(value = 90, unit = TimeUnit.SECONDS)
+    void restoringLiveBackupColdStartsActionsAsSuspended() throws Exception{
+        Path root = Files.createTempDirectory("shared-live-backup-reopen-");
+        Path campaign = root.resolve("campaign");
+        Path restored = root.resolve("restored");
+        try(InProcessSectorScheduler scheduler = InProcessSectorScheduler.create(InProcessSectorScheduler.Mode.serial, 1);
+            SharedCampaignService service = new SharedCampaignService(Vars.game(), Vars.modDirectory)){
+            service.runtimeFactory(SectorRuntimeFactory.inProcess(scheduler));
+            SharedCampaignCreationOptions options = new SharedCampaignCreationOptions();
+            options.displayName = "Live backup reopen";
+            options.ownerId = "owner";
+            options.ownerDisplayName = "Owner";
+            options.primaryPlanetName = Planets.serpulo.name;
+            service.createLocal(new Fi(campaign.toString()), options, "127.0.0.1", 0, 0);
+            SharedCampaignClient owner = service.controlClient();
+            RuntimePayloads.StartResult started = owner.startAction(Planets.serpulo.name, "groundZero", "");
+            assertTrue(started.error() == null || started.error().isBlank(), started.error());
+            awaitStatus(owner, started.actionId(), ActionStatus.running, Duration.ofSeconds(30));
+            BackupState backup = service.createRestorePoint("owner", "live-reopen", "test-live-reopen", 2);
+            Path archive = campaign.resolve(backup.relativePath);
+            service.closeCurrent();
+
+            SharedCampaignCreationOptions restore = new SharedCampaignCreationOptions();
+            restore.origin = CampaignOrigin.backupRestore;
+            restore.source = new Fi(archive.toString());
+            SharedCampaignState reopened = service.createLocal(new Fi(restored.toString()), restore, "127.0.0.1", 0, 0);
+            ActionState action = reopened.actions.get(started.actionId());
+            assertNotNull(action);
+            assertEquals(ActionStatus.suspended, action.status,
+                "a backup cannot carry a live process; restored live Actions must cold-start from their forced save");
+            assertEquals(0, reopened.runningActions(), "restoring a backup must not advertise phantom live Actions");
+            assertTrue(new Fi(restored.resolve(action.saveRelativePath).toString()).exists(), "cold restore must retain the Action save");
+        }finally{
+            deleteTree(root);
+        }
+    }
+
     private static SharedCampaignState awaitStatus(SharedCampaignClient client, String actionId, ActionStatus expected, Duration timeout) throws Exception{
         long deadline = System.nanoTime() + timeout.toNanos();
         SharedCampaignState last = null;
